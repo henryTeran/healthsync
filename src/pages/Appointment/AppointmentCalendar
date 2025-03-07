@@ -1,0 +1,91 @@
+import React, { useEffect, useState } from "react";
+import { Calendar, momentLocalizer } from "react-big-calendar";
+import moment from "moment";
+import "react-big-calendar/lib/css/react-big-calendar.css";
+import { getAppointmentsByUser, createAppointment, updateAppointment } from "../../services/appointmentService";
+import { getUserProfile } from "../../services/profileService";
+import { addNotification } from "../../services/notificationService";
+import { useAuth } from "../../contexts/AuthContext";
+
+moment.locale("fr");
+const localizer = momentLocalizer(moment);
+
+const messages = {
+  allDay: "Toute la journée",
+  previous: "Précédent",
+  next: "Suivant",
+  today: "Aujourd'hui",
+  month: "Mois",
+  week: "Semaine",
+  day: "Jour",
+  agenda: "Agenda",
+  date: "Date",
+  time: "Heure",
+  event: "Événement",
+  showMore: (total) => `+ ${total} plus`,
+};
+
+export const AppointmentsCalendar = () => {
+  const { user } = useAuth();
+  const [appointments, setAppointments] = useState([]);
+  const [availability, setAvailability] = useState([]);
+  const [selectedEvent, setSelectedEvent] = useState(null);
+  const [role, setRole] = useState(null);
+
+  useEffect(() => {
+    if (user) {
+      fetchAppointments();
+      getUserProfile(user.uid).then((profile) => setRole(profile.type));
+    }
+  }, [user]);
+
+  const fetchAppointments = async () => {
+    const profile = await getUserProfile(user.uid);
+    const data = await getAppointmentsByUser(user.uid, profile.type);
+    setAppointments(data);
+  };
+
+  const handleSelectSlot = async ({ start, end }) => {
+    if (role === "doctor") {
+      const newAvailability = { id: moment().valueOf(), start, end, type: "disponible" };
+      setAvailability([...availability, newAvailability]);
+    } else {
+      const appointmentData = {
+        date: moment(start).format("YYYY-MM-DD"),
+        time: moment(start).format("HH:mm"),
+        patientId: user.uid,
+        status: "en attente",
+      };
+      await createAppointment(appointmentData);
+      await addNotification("doctorId", { message: "Nouveau RDV demandé", type: "appointment_request" });
+      fetchAppointments();
+    }
+  };
+
+  const getEventStyle = (event) => {
+    let backgroundColor = "#9CA3AF";
+    if (event.type === "disponible") backgroundColor = "#34D399";
+    if (event.type === "réunion") backgroundColor = "#F59E0B";
+    if (event.type === "vacances") backgroundColor = "#EF4444";
+    return { style: { backgroundColor, color: "white", borderRadius: "5px", padding: "5px" } };
+  };
+
+  return (
+    <div className="bg-gray-100 min-h-screen p-8">
+      <h2 className="text-3xl font-semibold mb-6 text-center">Calendrier des Rendez-Vous</h2>
+      <div className="bg-white p-6 shadow-lg rounded-lg">
+        <Calendar
+          localizer={localizer}
+          events={[...appointments, ...availability]}
+          startAccessor="start"
+          endAccessor="end"
+          selectable
+          onSelectSlot={handleSelectSlot}
+          eventPropGetter={getEventStyle}
+          messages={messages}
+          style={{ height: 600 }}
+        />
+      </div>
+    </div>
+  );
+};

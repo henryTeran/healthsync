@@ -1,0 +1,8 @@
+{
+  "projects": {
+    "default": "healthsync-ef94b",
+    "staging": "healthsync-ef94b"
+  },
+  "targets": {},
+  "etags": {}
+}
