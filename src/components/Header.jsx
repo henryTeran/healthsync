@@ -7,13 +7,17 @@ import { getAuth } from "firebase/auth";
 import { collection, onSnapshot, query, where, updateDoc, getDocs } from "firebase/firestore";
 import { db } from "../providers/firebase";
 import { NotificationWidget } from "./NotificationWidget";
+import PhotoProfil from "../../src/assets/default-profile.jpg"; 
+import { getUserProfile } from "../services/profileService";
+
 
 export const Header = ({ toggleSidebar, isCollapsed }) => {
   const navigate = useNavigate();
   const [showDropdown, setShowDropdown] = useState(false);
   const [showChatPopup, setShowChatPopup] = useState(false);
-  const [unreadChatCount, setUnreadChatCount] = useState(0); // 🔥 Compteur total des messages non lus
+  const [unreadChatCount, setUnreadChatCount] = useState(0); 
   const [unreadMessages, setUnreadMessages] = useState({});
+  const [ProfilPhoto, setProfilPhoto] = useState(PhotoProfil);
 
   const dropdownRef = useRef(null);
   const chatRef = useRef(null);
@@ -43,7 +47,7 @@ export const Header = ({ toggleSidebar, isCollapsed }) => {
       });
 
       setUnreadMessages(unreadMessagesData);
-      setUnreadChatCount(totalUnread); // ✅ Met à jour l'affichage du badge dans le header
+      setUnreadChatCount(totalUnread); 
     });
   };
 
@@ -56,7 +60,7 @@ export const Header = ({ toggleSidebar, isCollapsed }) => {
     return () => unsubscribeChat(); // Stopper l'écoute en quittant la page
   }, []);
 
-  // 🔹 Marquer les messages d'un contact comme lus
+  //  Marquer les messages d'un contact comme lus
   const markMessagesAsRead = async (senderId) => {
     const auth = getAuth();
     const user = auth.currentUser;
@@ -73,24 +77,24 @@ export const Header = ({ toggleSidebar, isCollapsed }) => {
     const updatePromises = snapshot.docs.map((doc) => updateDoc(doc.ref, { status: "read" }));
     await Promise.all(updatePromises);
 
-    // 🔥 Mise à jour du badge de notifications après la lecture
+    //  Mise à jour du badge de notifications après la lecture
     setUnreadMessages((prev) => {
       const newUnread = { ...prev };
       delete newUnread[senderId]; // Supprime seulement le message du contact ouvert
       return newUnread;
     });
 
-    // 🔥 Recalcule le total des messages non lus
+    //  Recalcule le total des messages non lus
     setUnreadChatCount((prev) => {
       const newCount = prev - (unreadMessages[senderId]?.count || 0);
       return newCount > 0 ? newCount : 0; // Évite d'afficher un nombre négatif
     });
 
-    // 🔹 Redirige vers le chat du contact sélectionné
+    //  Redirige vers le chat du contact sélectionné
     navigate(`/chat/${senderId}`);
   };
 
-  // 🔹 Gérer les clics en dehors des popups
+  //  Gérer les clics en dehors des popups
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (
@@ -104,6 +108,23 @@ export const Header = ({ toggleSidebar, isCollapsed }) => {
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
+
+  const getProfilFoto = async () => { 
+    const auth = getAuth();
+    const user = auth.currentUser;
+    if (!user) return;
+    const dataProfile = await getUserProfile(user.uid);
+    console.log(dataProfile.photoURL);
+    if (dataProfile.photoURL) {
+      setProfilPhoto(dataProfile.photoURL);
+    }
+  };
+
+  useEffect(() => {
+    getProfilFoto();
+    console.log(ProfilPhoto);
+  }, []);
+;
 
   return (
     <header className={`bg-white shadow-md p-4 flex items-center justify-between w-full transition-all ${!isCollapsed ? "pl-10" : "pl-8"}`}>
@@ -151,9 +172,9 @@ export const Header = ({ toggleSidebar, isCollapsed }) => {
           </div>
         )}
 
-<div className="relative">
+        <div className="relative">
           <button className="p-1 rounded-full shadow-md hover:opacity-80" onClick={() => setShowDropdown(!showDropdown)}>
-            <img src="/assets/profile.jpg" alt="Profil" className="w-10 h-10 rounded-full object-cover" />
+            <img src= {ProfilPhoto} alt="Profil" className="w-10 h-10 rounded-full object-cover" />
           </button>
 
           {showDropdown && (
