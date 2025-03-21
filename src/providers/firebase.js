@@ -22,15 +22,6 @@ export const storage = getStorage(app);
 export const messaging = getMessaging(app);
 export const functions = getFunctions(app);
 
-// if ("serviceWorker" in navigator) {
-//   navigator.serviceWorker.register("/firebase-messaging-sw.js")
-//   .then((registration) => {
-//       console.log("Service Worker enregistré avec succès :", registration);
-//   })
-//   .catch((error) => {
-//       console.error("Erreur lors de l'enregistrement du Service Worker :", error);
-//   });
-//}
 
 export const requestForFCMToken = async () => {
   
@@ -50,7 +41,7 @@ export const requestForFCMToken = async () => {
   }
 };
 
-// 🔹 Ecoute des messages en premier plan
+//  Ecoute des messages en premier plan
 onMessage(messaging, (payload) => {
   console.log("📩 Notification reçue :", payload);
   new Notification(payload.notification.title, {
