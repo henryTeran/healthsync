@@ -2,11 +2,6 @@ import { useState, useContext } from "react";
 import { useNavigate } from "react-router-dom";
 import logo from "../../assets/HealthSyncLogo-removebg.png";
 import { AuthContext } from "../../contexts/AuthContext";
-import { getToken } from "firebase/messaging";
-import { auth, db, messaging, requestForFCMToken } from "../../providers/firebase";
-import { doc, setDoc } from "firebase/firestore";
-import { onAuthStateChanged } from "firebase/auth";
-
 
 
 export function Login() {
@@ -14,36 +9,23 @@ export function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
-
   const { login } = useContext(AuthContext);
-  const saveFCMToken = async (user) => {
-    if (!user) return;
-    try {
-      const token = await requestForFCMToken(user);
-      if (token) {
-        await setDoc(doc(db, "users", user.uid), { fcmToken: token }, { merge: true });
-        console.log("✅ Token FCM enregistré !");
-      }
-    } catch (error) {
-      console.error("❌ Erreur lors de l'enregistrement du token :", error);
-    }
-  };
+
   
   const handleLogin = async (e) => {
     e.preventDefault();
     setError("");
   
     try {
-      console.log("🟡 Tentative de connexion...");
       await login(email, password);
   
-      // ✅ Attendre que AuthContext mette à jour l'utilisateur
+      // Attendre que AuthContext mette à jour l'utilisateur
       setTimeout(() => {
-        console.log("✅ Connexion réussie, redirection...");
+        console.log(" Connexion réussie, redirection...");
         navigate("/dashboard");
       }, 2000); // Petit délai pour attendre l'état user
     } catch (err) {
-      console.error("❌ Erreur de connexion :", err);
+      console.error(" Erreur de connexion :", err);
   
       if (err.code === "auth/invalid-credential") {
         setError("Aucun compte trouvé avec cet email. Redirection vers l'inscription...");
@@ -61,18 +43,13 @@ export function Login() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-green-200 to-white-200">
-      {/*diviser en deux blocs la page login 
-        1.- côté gauche le logo avec un paragraphe en dessous 
-        2.- coté droit le formulaire de connexion
-      */} 
-
       {/* côté gauche*/} 
       <div className="md:block w-1/2 text-black py-8 px-4 text-center translate-x-[-10rem]">
-        <div className="w-96 h-96 mx-auto mb-4"> {/* Conteneur pour contrôler la taille */}
+        <div className="mx-auto mb-4 flex justify-center"> {/* Conteneur pour contrôler la taille */}
           <img
             src={logo}
             alt="HealthSync Logo"
-            className="w-full h-full rounded-full object-cover"
+            className="w-48 h-48 object-contain"
           />
         </div>
         <p className="text-2xl text-black-200">
@@ -127,7 +104,7 @@ export function Login() {
           <a href={"/register"} className="text-blue-500 hover:underline">Créer un compte</a>
         </div>
 
-        <div className="mt-4 text-xs text-gray-500">
+        <div className="mt-4 text-xs text-gray-500 text-center">
           Copyright © 2025 Henry Teran <br />All rights reserved
         </div>
       </div>

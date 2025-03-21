@@ -1,51 +1,68 @@
 import React, { useState } from "react";
-import { simulationMedicationsCompendium } from "../data/simulationMedicationsCompendium"; // Simule une base de données locale
+import { searchMedications } from "../services/documedisService"; // 🔹 Importer la fonction qui appelle l'API
 import PropTypes from "prop-types";
 
 export const MedicationSearch = ({ onAddMedication }) => {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedMedication, setSelectedMedication] = useState(null);
   const [filteredMedications, setFilteredMedications] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
-  // Filtrer les médicaments en fonction de la recherche
-  const handleSearch = (event) => {
-    const query = event.target.value.toLowerCase();
+  // 🔹 Effectuer la requête API Documedis en fonction de la recherche
+  const handleSearch = async (event) => {
+    const query = event.target.value.trim();
     setSearchTerm(query);
+    setError(""); // Réinitialiser les erreurs
+
     if (query.length > 1) {
-      const results = simulationMedicationsCompendium.filter((med) =>
-        med.name.toLowerCase().includes(query)
-      );
-      setFilteredMedications(results);
+      setLoading(true);
+      try {
+        const results = await searchMedications(query);
+         // Vérification et extraction des données pertinentes
+         const medications = results?.products?.map((med) => ({
+          id: med.productNumber || Math.random(), // Utilisation du productNumber comme identifiant unique
+          name: med.description || "Nom inconnu",
+          atcCode: med.atcCode || "Code ATC inconnu",
+          dosage: med.compactMonographieDosageDescription || "Dosage non précisé",
+          indication: med.compactMonographieIndicationDescription || "Indications non précisées",
+          packaging: med.smallestArticle?.description || "Conditionnement inconnu",
+          company: med.smallestArticle?.companyName || "Laboratoire inconnu"
+        }));
+
+        setFilteredMedications(medications);
+      } catch (err) {
+        setError("Erreur lors de la récupération des médicaments.");
+      }
+      setLoading(false);
     } else {
       setFilteredMedications([]);
     }
   };
 
-  // Sélectionner un médicament et afficher ses détails
+  // 🔹 Sélectionner un médicament et afficher ses détails
   const handleSelectMedication = (medication) => {
     console.log("Médicament sélectionné :", medication);
-    setSelectedMedication({ ...medication }); // Créer une copie pour éviter la modification directe
+    setSelectedMedication({ ...medication });
     setSearchTerm(medication.name);
-    setFilteredMedications([]);
+    setFilteredMedications([]); // Fermer la liste des suggestions
   };
 
-  // Gérer les modifications des champs du médicament sélectionné
+  // 🔹 Modifier les détails d'un médicament
   const handleMedicationChange = (field, value) => {
-    if (selectedMedication) {
-      setSelectedMedication((prev) => ({
-        ...prev,
-        [field]: value,
-      }));
-    }
+    setSelectedMedication((prev) => ({
+      ...prev,
+      [field]: value,
+    }));
   };
 
-  // Ajouter le médicament modifié à la prescription
+  // 🔹 Ajouter le médicament à la prescription
   const handleAddToPrescription = () => {
     if (selectedMedication) {
       console.log("Médicament ajouté à la prescription :", selectedMedication);
       onAddMedication(selectedMedication);
-      setSelectedMedication(null); // Réinitialiser après ajout
-      setSearchTerm(""); // Réinitialiser la recherche
+      setSelectedMedication(null);
+      setSearchTerm("");
     }
   };
 
@@ -59,7 +76,14 @@ export const MedicationSearch = ({ onAddMedication }) => {
         placeholder="Nom du médicament..."
         className="w-full p-2 border rounded"
       />
-      {/* Liste des suggestions */}
+
+      {/* 🔹 Affichage du chargement */}
+      {loading && <p className="text-gray-500 mt-2">Recherche en cours...</p>}
+
+      {/* 🔹 Gestion des erreurs */}
+      {error && <p className="text-red-500 mt-2">{error}</p>}
+
+      {/* 🔹 Liste des suggestions depuis l'API */}
       {filteredMedications.length > 0 && (
         <ul className="border border-gray-300 mt-2 rounded">
           {filteredMedications.map((med) => (
@@ -73,7 +97,8 @@ export const MedicationSearch = ({ onAddMedication }) => {
           ))}
         </ul>
       )}
-      {/* Détails du médicament sélectionné avec édition */}
+
+      {/* 🔹 Affichage des détails du médicament sélectionné */}
       {selectedMedication && (
         <div className="mt-4 p-4 bg-gray-100 rounded">
           <h3 className="text-md font-semibold">{selectedMedication.name}</h3>
@@ -105,7 +130,7 @@ export const MedicationSearch = ({ onAddMedication }) => {
             />
           </div>
           <div className="mb-2">
-            <label>Durant :</label>
+            <label>Durée :</label>
             <input
               type="text"
               value={selectedMedication.duration || ""}

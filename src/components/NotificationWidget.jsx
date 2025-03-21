@@ -22,14 +22,14 @@ export const NotificationWidget = () => {
       const updatedNotifications = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
       setNotifications(updatedNotifications);
 
-      // 🔥 Compte uniquement les notifications non lues
+      //  Compte uniquement les notifications non lues
       setUnreadCount(updatedNotifications.filter((n) => !n.read).length);
     });
 
     return () => unsubscribe();
   }, [user]);
 
-  // 🔹 Fonction pour gérer le clic sur une notification
+  //  Fonction pour gérer le clic sur une notification
   const handleNotificationClick = async (notif) => {
     if (!notif.read) {
       // Marquer la notification comme lue dans Firestore
@@ -41,11 +41,11 @@ export const NotificationWidget = () => {
         prev.map((n) => (n.id === notif.id ? { ...n, read: true } : n))
       );
 
-      // 🔥 Réduire le compteur
+      //  Réduire le compteur
       setUnreadCount((prev) => (prev > 0 ? prev - 1 : 0));
     }
 
-    // 🔹 Rediriger vers la page appropriée
+    //  Rediriger vers la page appropriée
     if (notif.type === "new_appointment_request" || notif.type === "reponse_appointment_request") {
       navigate("/appointments");
     } else if (notif.type === "chat") {
@@ -57,7 +57,7 @@ export const NotificationWidget = () => {
     setShowPopup(false); // Fermer la popup après clic
   };
 
-  // 🔹 Fermer la popup si on clique en dehors
+  //  Fermer la popup si on clique en dehors
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (popupRef.current && !popupRef.current.contains(event.target)) {
@@ -71,7 +71,7 @@ export const NotificationWidget = () => {
 
   return (
     <div className="relative">
-      {/* 🔔 Icône Notification */}
+      {/*  Icône Notification */}
       <button
         onClick={() => setShowPopup(!showPopup)}
         className="relative p-2 bg-gray-100 rounded-full shadow-md hover:bg-gray-200"

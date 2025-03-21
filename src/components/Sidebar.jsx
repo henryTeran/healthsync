@@ -77,7 +77,7 @@ export const Sidebar = ({ isCollapsed }) => {
         label: "Chats", 
         icon: <MessageSquareText className="h-5 w-5" />, 
         subRoutes: [
-          { path: "/chat", label: "Tous les messages" }, // ✅ On n'inclut PAS d'ID ici
+          { path: "/chat", label: "Tous les messages" }, 
         ],
       },
 
@@ -138,7 +138,7 @@ export const Sidebar = ({ isCollapsed }) => {
         label: "Chats", 
         icon: <MessageSquareText className="h-5 w-5" />, 
         subRoutes: [
-          { path: "/chat", label: "Tous les messages" }, // ✅ Même correction ici
+          { path: "/chat", label: "Tous les messages" }, 
         ],
       },
       { 
@@ -146,7 +146,7 @@ export const Sidebar = ({ isCollapsed }) => {
         label: "Rappels", 
         icon: <MessageSquareText className="h-5 w-5" />, 
         subRoutes: [
-          { path: "/reminders", label: "Tous les messages" }, // ✅ Même correction ici
+          { path: "/reminders", label: "Tous les messages" }, 
         ],
       },
     ];
@@ -167,7 +167,7 @@ export const Sidebar = ({ isCollapsed }) => {
       >
         {/* Logo */}
         <div className="p-4 flex items-center justify-center">
-          <img src={logo} alt="HealthSync Logo" className="w-20 h-20" />
+          <img src={logo} alt="HealthSync Logo" className="w-48 h-15" />
         </div>
 
         {/* Menu */}
