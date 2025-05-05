@@ -1,8 +1,10 @@
 // src/pages/DoctorProfile.jsx
 import React, { Component } from "react";
-import { getFollowRequests, handleFollowRequest } from "../../../services/followService";
+import { collection, query, where, onSnapshot } from "firebase/firestore";
+import { db } from "../../../providers/firebase";
 import { AuthContext } from "../../../contexts/AuthContext";
-import PropTypes from "prop-types";
+import { getUserProfile } from "../../../services/profileService";
+import { handleFollowRequest } from "../../../services/followService";
 
 export class FollowRequestsTable extends Component {
   constructor(props) {
@@ -12,32 +14,75 @@ export class FollowRequestsTable extends Component {
       isLoading: true,
       error: "",
     };
+    this.unsubscribe = null;
   }
 
   static contextType = AuthContext;
 
   componentDidMount() {
-    this.fetchFollowRequests();
+    const { user } = this.context;
+    if (user && user.userType === "doctor") {
+      const q = query(
+        collection(db, "doctor_patient_links"),
+        where("doctorId", "==", user.uid),
+        where("authorized", "==", false)
+      );
+
+      this.unsubscribe = onSnapshot(
+        q,
+        (snapshot) => {
+          // ⚠️ onSnapshot ne peut pas être async directement → on encapsule
+          (async () => {
+            const requests = snapshot.docs.map((doc) => ({
+              id: doc.id,
+              ...doc.data(),
+            }));
+
+            const requestsWithPatientData = await Promise.all(
+              requests.map(async (request) => {
+                try {
+                  const patientProfile = await getUserProfile(request.patientId);
+                  return {
+                    ...request,
+                    firstName: patientProfile?.firstName || "Inconnu",
+                    lastName: patientProfile?.lastName || "Inconnu",
+                  };
+                } catch (error) {
+                  console.error(
+                    `Erreur lors de la récupération du profil du patient ${request.patientId} :`,
+                    error
+                  );
+                  return {
+                    ...request,
+                    firstName: "Erreur",
+                    lastName: "Erreur",
+                  };
+                }
+              })
+            );
+
+            this.setState({ followRequests: requestsWithPatientData, isLoading: false });
+          })();
+        },
+        (error) => {
+          console.error("Erreur lors de l'écoute des demandes :", error);
+          this.setState({ error: error.message, isLoading: false });
+        }
+      );
+    }
   }
 
-  fetchFollowRequests = async () => {
-    try {
-      const { user } = this.context;
-      if (!user || user.userType !== "doctor") return;
-      const requests = await getFollowRequests(user.uid);
-      this.setState({ followRequests: requests, isLoading: false });
-    } catch (error) {
-      console.error("Error fetching follow requests:", error);
-      this.setState({ error: error.message, isLoading: false });
+  componentWillUnmount() {
+    if (this.unsubscribe) {
+      this.unsubscribe();
     }
-  };
-  
+  }
 
   handleAcceptRequest = async (patientId) => {
     try {
       await handleFollowRequest(patientId, this.context.user.uid, true);
       alert("Demande acceptée !");
-      this.fetchFollowRequests();
+      //this.fetchFollowRequests();
     } catch (error) {
       alert(error.message);
     }
@@ -47,11 +92,35 @@ export class FollowRequestsTable extends Component {
     try {
       await handleFollowRequest(patientId, this.context.user.uid, false);
       alert("Demande refusée !");
-      this.fetchFollowRequests();
+      //this.fetchFollowRequests();
     } catch (error) {
       alert(error.message);
     }
   };
+
+  formatFirestoreDate(rawDate) {
+    if (!rawDate) return "N/A";
+    try {
+      let date;
+      if (rawDate.toDate) {
+        date = rawDate.toDate();
+      } else if (typeof rawDate === "number") {
+        date = new Date(rawDate);
+      } else {
+        date = new Date(rawDate);
+      }
+
+      if (isNaN(date.getTime())) return "Date invalide";
+
+      return date.toLocaleDateString("fr-FR", {
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      });
+    } catch (e) {
+      return "Date invalide";
+    }
+  }
 
   render() {
     const { followRequests, isLoading, error } = this.state;
@@ -76,12 +145,14 @@ export class FollowRequestsTable extends Component {
             {followRequests.length > 0 ? (
               followRequests.map((request) => (
                 <tr key={request.id}>
-                  <td className="border p-2">{request.firstName}</td>
                   <td className="border p-2">{request.lastName}</td>
+                  <td className="border p-2">{request.firstName}</td>
                   <td className="border p-2">
-                    {new Date(request.createdAt).toLocaleDateString()}
+                    {this.formatFirestoreDate(request.createdAt)}
                   </td>
-                  <td className="border p-2">{request.authorized ? "Accepté" : "En attente"}</td>
+                  <td className="border p-2">
+                    {request.authorized ? "Accepté" : "En attente"}
+                  </td>
                   <td className="border p-2">
                     <button
                       onClick={() => this.handleAcceptRequest(request.patientId)}
@@ -121,7 +192,3 @@ export class FollowRequestsTable extends Component {
     );
   }
 }
-
-FollowRequestsTable.propTypes = {
-  navigate: PropTypes.func.isRequired,
-};
