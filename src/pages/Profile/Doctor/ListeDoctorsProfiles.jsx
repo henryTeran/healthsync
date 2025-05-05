@@ -7,12 +7,12 @@ import { AuthContext } from "../../../contexts/AuthContext";
 
 export const ListeDoctorsProfiles = () => {
   const { user } = useContext(AuthContext);
-  const { userId} = useParams(); // 🔥 Récupération des IDs selon la page
+  const { userId} = useParams(); //  Récupération des IDs selon la page
   const navigate = useNavigate();
   const [doctors, setDoctors] = useState([]);
 
   useEffect(() => {
-    // 🔥 Écoute en temps réel des médecins
+    //  Écoute en temps réel des médecins
     const q = query(collection(db, "users"), where("type", "==", "doctor"));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const doctorsData = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));

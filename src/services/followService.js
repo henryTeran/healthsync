@@ -11,6 +11,7 @@ export const requestFollow = async (patientId, doctorId) => {
       patientId,
       doctorId,
       authorized: false, // Par défaut, la demande n'est pas autorisée
+      refuse : true,
       createdAt: new Date().toISOString(),
     });
     // Envoyer une notification au médecin
@@ -36,7 +37,10 @@ export const requestFollow = async (patientId, doctorId) => {
 export const handleFollowRequest = async (patientId, doctorId, isAuthorized) => {
   try {
     const linkRef = doc(db, "doctor_patient_links", `${doctorId}_${patientId}`);
-    await updateDoc(linkRef, { authorized: isAuthorized });
+    await updateDoc(linkRef, { 
+      authorized: isAuthorized, 
+      refuse : !isAuthorized
+    });
 
     // Envoyer une notification au patient
     const patientProfile = await getUserProfile(doctorId);
