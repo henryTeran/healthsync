@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useContext } from "react";
 import { useParams, useNavigate } from "react-router-dom"; // ✅ Ajout de `useNavigate()`
-import { AuthContext } from "../contexts/AuthContext";
-import { getAuthorizedPatients } from "../services/doctorServices";
-import { getAuthorizedDoctors } from "../services/patientServices";
-import { getUserProfile } from "../services/profileService";
-import { ChatComponent } from "../components/ChatComponent";
+import { AuthContext } from "../../contexts/AuthContext";
+import { getAuthorizedPatients } from "../../services/doctorServices";
+import { getAuthorizedDoctors } from "../../services/patientServices";
+import { getUserProfile } from "../../services/profileService";
+import { ChatComponent } from "../../components/ChatComponent";
 import { UserCircle } from "lucide-react";
-import { getConversationsByDoctor, getConversationsByPatient, getUnreadMessagesByUser, markMessagesAsRead } from "../services/chatService";
+import { getConversationsByDoctor, getConversationsByPatient, getUnreadMessagesByUser, markMessagesAsRead } from "../../services/chatService";
 import PropTypes from "prop-types";
 
 

@@ -1,17 +1,16 @@
 // src/App.jsx
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import { useState, useContext, useEffect } from "react";  // Ajout de useState
+import { useState, useContext, useEffect } from "react";  
 import { DoctorDashboard } from "./pages/Dashboard/DoctorDashboard";
 import { PatientDashboard } from "./pages/Dashboard/PatientDashboard";
-import { ProfileWrapper, EditProfileWrapper, AppointmentsWrapper, AddAppointmentWrapper, DoctorProfileWrapper } from "./pages/WithNavigation";
+import { EditProfileWrapper, AppointmentsWrapper, AddAppointmentWrapper } from "./pages/WithNavigation";
 import { ListeDoctorsProfiles} from "./pages/Profile/Doctor/ListeDoctorsProfiles"
 import { ListePatientsProfiles} from "./pages/Profile/Patient/ListePatientsProfiles"
 import { PatientProfile } from "./pages/Profile/PatientProfile";
 import { DoctorProfile } from "./pages/Profile/Doctor/DoctorProfile";
-import { Medications } from "./pages/Medications";
-import { Medications_ } from "./pages/Medications_";
-
-import { Symptoms } from "./pages/Symptoms";
+import { Medications } from "./pages/medications/Medications";
+import { Medications_} from "./pages/medications/Medications_"
+import { Symptoms } from "./pages/Symtoms/Symptoms";
 import { SymptomChart } from "./components/SymptomChart"; 
 import { Login } from "./pages/Login/Login";
 import { Register } from "./pages/Login/Register";
@@ -20,20 +19,21 @@ import { Sidebar } from "./components/Sidebar";
 import { Header } from "./components/Header";  
 import { AuthProvider } from "./contexts/AuthProvider";
 import { AuthContext } from "./contexts/AuthContext";
-import { Notifications } from "./pages/Notifications";
-import { Chat } from "./pages/Chat";
+import { Notifications } from "./pages/NotificationsHeader/Notifications";
+import { Chat } from "./pages/Chat/Chat";
 import { requestForFCMToken, messaging } from "./providers/firebase";
 import { onMessage } from "firebase/messaging";
 import toast, { Toaster } from "react-hot-toast";
-import { PrescriptionHistory } from "./pages/PrescriptionHistory";
+import { PrescriptionHistory } from "./pages/medications/PrescriptionHistory";
 import { listenForReminders, sendNotification, testCloudFunction } from "./services/notificationService";
-import { RemindersPage } from "./pages/RemindersPage";
+import { RemindersPage } from "./pages/Reminders/RemindersPage";
 
 
 export const App = () => {
   // useEffect(() => {
-  //   sendNotification("BFu9HBapS7r3a-b8uYrISGVYJ527629jSQbVlVZUfIddnzT9x7Z1DvfXRcbTBPtFQOYuG5vrS_QXvC_XV9TXzn4", "🔔 Test automatique", "Test au chargement de la page !");
-  
+  //   console.log("App component mounted");
+  //   sendNotification("fPdHIG-WMdicQefhAhS_hZ:APA91bH9q83GOzTb0Ae0bJz2iaxAbym0pPWrlHO1MEm1B2ZtkkOSCrSvrGjFpplElVKvf7a216kHA3ekBNpWvqF_aR9P3HrMVtsBHknkV4cVbZeD6kzKklc", "🔔 Test automatique", "Test au chargement de la page !");
+
   // }, []);
  
   const { user } = useContext(AuthContext);
@@ -46,6 +46,7 @@ export const App = () => {
     });
     listenForReminders();
   }, [])
+
   return (
     <AuthProvider>
         <Toaster position="top-right" />

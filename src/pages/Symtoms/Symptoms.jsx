@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
-import { SymptomForm } from "../components/SymptomForm";
-import { SymptomChart } from "../components/SymptomChart";
+import { SymptomForm } from "../../components/SymptomForm";
+import { SymptomChart } from "../../components/SymptomChart";
 
 export const Symptoms = () => {
  

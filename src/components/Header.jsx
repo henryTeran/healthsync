@@ -114,7 +114,6 @@ export const Header = ({ toggleSidebar, isCollapsed }) => {
     const user = auth.currentUser;
     if (!user) return;
     const dataProfile = await getUserProfile(user.uid);
-    console.log(dataProfile.photoURL);
     if (dataProfile.photoURL) {
       setProfilPhoto(dataProfile.photoURL);
     }
@@ -122,8 +121,7 @@ export const Header = ({ toggleSidebar, isCollapsed }) => {
 
   useEffect(() => {
     getProfilFoto();
-    console.log(ProfilPhoto);
-  }, []);
+    }, []);
 ;
 
   return (

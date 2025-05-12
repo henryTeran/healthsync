@@ -25,6 +25,7 @@ export const EditProfileWrapper = () => {
 
 export const ProfileWrapper = (props) => {
   const navigate = useNavigate();
+  console.log("ProfileWrapper props", props);
   return <Profile {...props} navigate={navigate} />;
 };
 export const DoctorProfileWrapper = (props) => {

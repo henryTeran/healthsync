@@ -6,8 +6,6 @@ import { ListDoctorAvailable } from "./Patient/ListDoctorAvailable";
 
 export const Profile = (Profil) => {
   const { user } = useContext(AuthContext);
-  //const { userId } = useParams(); // 🔥 Récupérer l'ID de l'URL si fourni
-  console.log("🚀 ~ file: Profile.jsx ~ line 7 ~ Profile ~ userId", Profil);
   const navigate = useNavigate();
 
 
@@ -40,11 +38,9 @@ export const Profile = (Profil) => {
     const fetchUserProfile = async () => {
       try {let profileData;
         if (Profil.id === undefined) {
-          console.log("🚀 ~ file: Profile.jsx ~ line 7 ~ Profile ~ userId", user.uid);
            profileData = await getUserProfile(user.uid);
         }else{
            const idprofil = Profil.id;
-        console.log("🚀 ~ file: Profile.jsx ~ line 7 ~ Profile ~ idprofil", idprofil);
          profileData = await getUserProfile(idprofil);
         }
        
@@ -57,7 +53,7 @@ export const Profile = (Profil) => {
     };
 
     fetchUserProfile();
-  }, []); // 🔥 Se recharge si `userId` ou `user` change
+  }, []); //  Se recharge si `userId` ou `user` change
 
   if (isLoading) return <p className="text-center text-gray-600">Chargement...</p>;
   if (error) return <p className="text-center text-red-500">{error}</p>;
