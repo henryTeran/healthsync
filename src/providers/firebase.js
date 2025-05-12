@@ -1,7 +1,7 @@
 import { initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
-import { getStorage } from "firebase/storage"; // Pour les images
+import { getStorage } from "firebase/storage"; 
 import { getMessaging, getToken, onMessage } from "firebase/messaging";
 import { getFunctions } from "firebase/functions";
 

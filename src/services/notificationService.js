@@ -78,15 +78,15 @@ export const deleteNotification = async (notificationId) => {
 };
 
 
-export const sendNotification = async (userId, title, body) => {
+export const sendNotification = async (fcmToken, title, body) => {
   try {
-    const userData = await getUserProfile(userId);
-    const fcmToken = userData.fcmToken;
+    // const userData = await getUserProfile(userId);
+    // const fcmToken = userData.fcmToken;
 
-    if (!fcmToken) {
-      console.warn("❌ L'utilisateur n'a pas de token FCM.");
-      return;
-    }
+    // if (!fcmToken) {
+    //   console.warn("❌ L'utilisateur n'a pas de token FCM.");
+    //   return;
+    // }
 
     const sendNotificationFunction = httpsCallable(functions, "sendNotification");
 

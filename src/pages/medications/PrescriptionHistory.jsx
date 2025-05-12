@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
-import { getPrescriptionsByPatient } from "../services/prescriptionService";
-import { getAuthorizedPatients } from "../services/doctorServices";
-import { useAuth } from "../contexts/AuthContext";
+import { getPrescriptionsByPatient } from "../../services/prescriptionService";
+import { getAuthorizedPatients } from "../../services/doctorServices";
+import { useAuth } from "../../contexts/AuthContext";
 import { UserCircle } from "lucide-react";
 
 export const PrescriptionHistory = () => {

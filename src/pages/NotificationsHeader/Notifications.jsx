@@ -1,6 +1,6 @@
 import React, { useContext, useEffect, useState, useCallback } from "react";
-import { AuthContext } from "../contexts/AuthContext";
-import { getNotificationsByUser, markNotificationAsRead, deleteNotification } from "../services/notificationService";
+import { AuthContext } from "../../contexts/AuthContext";
+import { getNotificationsByUser, markNotificationAsRead, deleteNotification } from "../../services/notificationService";
 import { useTable } from "react-table";
 import PropTypes from "prop-types";
 

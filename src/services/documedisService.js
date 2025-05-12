@@ -1,9 +1,5 @@
 const API_URL = import.meta.env.VITE_DOCUMEDIS_API_URL;
 const API_TOKEN = import.meta.env.VITE_DOCUMEDIS_TOKEN;
-console.log(API_URL);
-console.log(API_TOKEN);
-
-
 
 // Remplace par ton vrai token reçu par SMS
 const BEARER_TOKEN = API_TOKEN;
@@ -51,7 +47,7 @@ export const searchMedications = async (medName) => {
 
          // Lire le JSON une seule fois et le stocker dans une variable
          const data = await response.json();
-         console.log("✅ Réponse API :", data);
+         console.log("Réponse API :", data);
  
          return data;
     } catch (error) {

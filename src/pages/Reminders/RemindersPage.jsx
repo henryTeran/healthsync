@@ -1,6 +1,6 @@
 import React, { useState } from "react";
-import { CreateReminder } from "../components/CreateReminder";
-import { ReminderList } from "../components/ReminderList";
+import { CreateReminder } from "../../components/CreateReminder";
+import { ReminderList } from "../../components/ReminderList";
 
 export const RemindersPage = () => {
   const [reload, setReload] = useState(false);
