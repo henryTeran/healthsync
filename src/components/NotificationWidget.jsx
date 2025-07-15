@@ -74,11 +74,11 @@ export const NotificationWidget = () => {
       {/*  Icône Notification */}
       <button
         onClick={() => setShowPopup(!showPopup)}
-        className="relative p-2 bg-gray-100 rounded-full shadow-md hover:bg-gray-200"
+        className="relative btn-ghost p-3 rounded-xl hover-lift"
       >
-        <Bell className="h-6 w-6 text-blue-700" />
+        <Bell className="h-5 w-5 text-medical-600" />
         {unreadCount > 0 && (
-          <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold px-2 py-1 rounded-full">
+          <span className="absolute -top-1 -right-1 bg-gradient-to-r from-red-500 to-red-600 text-white text-xs font-bold px-2 py-1 rounded-full shadow-soft animate-pulse-soft">
             {unreadCount}
           </span>
         )}
@@ -86,27 +86,39 @@ export const NotificationWidget = () => {
 
       {/* 🔹 Popup des notifications */}
       {showPopup && (
-        <div ref={popupRef} className="absolute right-0 mt-2 bg-white shadow-md rounded-md p-2 w-80">
-          <h3 className="text-sm font-bold mb-2">Notifications</h3>
+        <div ref={popupRef} className="absolute right-0 mt-3 w-80 card-medical animate-slide-down">
+          <div className="px-6 py-4 border-b border-medical-100">
+            <h3 className="font-semibold text-medical-800">Notifications</h3>
+          </div>
           {notifications.length > 0 ? (
-            notifications.map((notif) => (
-              <div
-                key={notif.id}
-                className={`flex justify-between items-center py-1 border-b last:border-b-0 ${
-                  notif.read ? "text-gray-500" : "font-bold"
-                }`}
-              >
-                <p>{notif.message}</p>
-                <button
-                  className="text-blue-500 hover:underline"
+            <div className="max-h-64 overflow-y-auto scrollbar-thin">
+              {notifications.map((notif) => (
+                <div
+                  key={notif.id}
+                  className={`px-6 py-4 border-b border-medical-50 last:border-b-0 cursor-pointer hover:bg-medical-50 transition-colors duration-200 ${
+                    notif.read ? "opacity-60" : ""
+                  }`}
                   onClick={() => handleNotificationClick(notif)}
                 >
-                  Voir
-                </button>
-              </div>
-            ))
+                  <div className="flex items-start space-x-3">
+                    <div className={`w-2 h-2 rounded-full mt-2 ${notif.read ? 'bg-neutral-300' : 'bg-medical-500'}`}></div>
+                    <div className="flex-1">
+                      <p className={`text-sm ${notif.read ? 'text-neutral-500' : 'text-neutral-800 font-medium'}`}>
+                        {notif.message}
+                      </p>
+                      <p className="text-xs text-neutral-400 mt-1">
+                        {new Date(notif.createdAt).toLocaleString()}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
           ) : (
-            <p className="text-gray-500">Aucune notification.</p>
+            <div className="px-6 py-8 text-center">
+              <Bell className="h-12 w-12 text-neutral-300 mx-auto mb-2" />
+              <p className="text-neutral-500">Aucune notification</p>
+            </div>
           )}
         </div>
       )}

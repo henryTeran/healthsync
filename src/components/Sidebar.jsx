@@ -1,6 +1,6 @@
 import { useState, useContext } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { LayoutDashboard, User, Pill, HeartPulse, CalendarCheck, ChevronUp, ChevronDown, MessageSquareText, Accessibility } from "lucide-react";
+import { LayoutDashboard, User, Pill, HeartPulse, CalendarCheck, ChevronUp, ChevronDown, MessageSquareText, Accessibility, Stethoscope, Activity } from "lucide-react";
 import { AuthContext } from "../contexts/AuthContext";
 
 import logo from "../assets/HealthSyncLogo-removebg.png";
@@ -162,52 +162,85 @@ export const Sidebar = ({ isCollapsed }) => {
     <>
       {/* Sidebar */}
       <div
-        className={`bg-gradient-to-b from-green-200 to-white-200 shadow-lg h-screen absolute top-0 left-0 transition-all duration-200
-          ${isCollapsed ? "w-16 left-0" : "w-64 left-0"} flex flex-col items-left`} 
+        className={`glass-medical backdrop-blur-xl border-r border-medical-100/30 h-screen fixed top-0 left-0 transition-all duration-300 z-40
+          ${isCollapsed ? "w-16" : "w-64"} flex flex-col`} 
       >
         {/* Logo */}
-        <div className="p-4 flex items-center justify-center">
-          <img src={logo} alt="HealthSync Logo" className="w-48 h-15" />
+        <div className={`p-6 flex items-center ${isCollapsed ? 'justify-center' : 'justify-start'} border-b border-medical-100/30`}>
+          {isCollapsed ? (
+            <div className="w-10 h-10 bg-gradient-medical rounded-xl flex items-center justify-center">
+              <Stethoscope className="h-6 w-6 text-white" />
+            </div>
+          ) : (
+            <div className="flex items-center space-x-3">
+              <div className="w-10 h-10 bg-gradient-medical rounded-xl flex items-center justify-center">
+                <Stethoscope className="h-6 w-6 text-white" />
+              </div>
+              <div>
+                <h1 className="text-xl font-bold text-gradient">HealthSync</h1>
+                <p className="text-xs text-medical-500">Plateforme Médicale</p>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Menu */}
-        <nav className="mt-6">
-          <ul>
+        <nav className="flex-1 px-4 py-6 space-y-2">
             {routes.map((route, index) => (
-              <li key={route.path} className="px-3 py-2">
+              <div key={route.path}>
                 {route.subRoutes ? (
                   <>
                     <button
                       onClick={() => handleSubMenuToggle(index)}
-                      className={`flex items-center p-3 w-full rounded-lg transition-colors duration-200 
-                        ${location.pathname.startsWith(route.path) ? "bg-green-600 text-white" : "hover:bg-green-300"} 
-                        text-[var(--font-size)] font-[var(--font-family)]`}
+                      className={`nav-item w-full ${
+                        location.pathname.startsWith(route.path) ? "active" : ""
+                      } ${isCollapsed ? 'justify-center px-3' : 'justify-between'}`}
                     >
-                      {route.icon}
-                      {!isCollapsed && <span className="ml-3">{route.label}</span>}
-                      {!isCollapsed && (openSubMenu === index ? <ChevronUp className="ml-auto h-5 w-5" /> : <ChevronDown className="ml-auto h-5 w-5" />)}
+                      <div className="flex items-center">
+                        <span className="nav-icon">{route.icon}</span>
+                        {!isCollapsed && <span className="font-medium">{route.label}</span>}
+                      </div>
+                      {!isCollapsed && (
+                        <span className="ml-auto">
+                          {openSubMenu === index ? 
+                            <ChevronUp className="h-4 w-4" /> : 
+                            <ChevronDown className="h-4 w-4" />
+                          }
+                        </span>
+                      )}
                     </button>
                     {openSubMenu === index && !isCollapsed && (
-                      <ul className="pl-6 mt-2 space-y-2">
+                      <div className="ml-8 mt-2 space-y-1 animate-slide-down">
                         {route.subRoutes.map((subRoute) => (
-                          <li key={subRoute.path}>
-                            <Link
-                              to={subRoute.path}
-                              className={`block p-3 rounded-lg transition-colors duration-200 
-                                ${location.pathname === subRoute.path ? "bg-green-600 text-white" : "hover:bg-green-300"}`}
-                            >
-                              {subRoute.label}
-                            </Link>
-                          </li>
+                          <Link
+                            key={subRoute.path}
+                            to={subRoute.path}
+                            className={`block px-4 py-2 text-sm rounded-lg transition-all duration-200 ${
+                              location.pathname === subRoute.path 
+                                ? "bg-medical-100 text-medical-700 font-medium" 
+                                : "text-neutral-600 hover:bg-medical-50 hover:text-medical-600"
+                            }`}
+                          >
+                            {subRoute.label}
+                          </Link>
                         ))}
-                      </ul>
+                      </div>
                     )}
                   </>
                 ) : null}
-              </li>
+              </div>
             ))}
-          </ul>
         </nav>
+
+        {/* Footer */}
+        {!isCollapsed && (
+          <div className="p-4 border-t border-medical-100/30">
+            <div className="flex items-center space-x-3 text-xs text-neutral-500">
+              <Activity className="h-4 w-4 text-health-500" />
+              <span>Système opérationnel</span>
+            </div>
+          </div>
+        )}
       </div>
     </>
   );
