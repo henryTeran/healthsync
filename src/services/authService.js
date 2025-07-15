@@ -129,6 +129,14 @@ class AuthService {
       throw new AuthError('Erreur lors du changement de mot de passe');
     }
   }, 'AuthService.changePassword');
+  static async logout() {
+    try {
+      await signOut(auth);
+    } catch (error) {
+      console.error("Erreur de déconnexion :", error.message);
+      throw error;
+    }
+  }
 }
 
 export { AuthService };
