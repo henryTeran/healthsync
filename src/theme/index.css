@@ -65,7 +65,7 @@
 
   /* Navigation moderne */
   .nav-item {
-    @apply flex items-center px-4 py-3 text-neutral-600 rounded-xl transition-all duration-200 hover:bg-medical-50 hover:text-medical-700 group;
+    @apply flex items-center px-4 py-3 text-neutral-600 rounded-xl transition-all duration-200 hover:bg-medical-50 hover:text-medical-700;
   }
 
   .nav-item.active {
