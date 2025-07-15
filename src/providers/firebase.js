@@ -5,14 +5,26 @@ import { getStorage } from "firebase/storage";
 import { getMessaging, getToken, onMessage } from "firebase/messaging";
 import { getFunctions } from "firebase/functions";
 
-const firebaseConfig = {
+// Debug environment variables
+console.log('Firebase Config Environment Variables:', {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
   authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
   projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
   storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
   messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
   appId: import.meta.env.VITE_FIREBASE_APP_ID,
+});
+
+const firebaseConfig = {
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "AIzaSyDtnJPt4gTWc5Hf8g7349xJYmU4bjrbTWQ",
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "healthsync-ef94b.firebaseapp.com",
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "healthsync-ef94b",
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "healthsync-ef94b.firebasestorage.app",
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "262506780152",
+  appId: import.meta.env.VITE_FIREBASE_APP_ID || "1:262506780152:web:845b098c530eba71ecf20d",
 };
+
+console.log('Final Firebase Config:', firebaseConfig);
 
 export const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
