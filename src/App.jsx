@@ -17,7 +17,7 @@ import { Register } from "./pages/Login/Register";
 import { PrivateRoute } from "./components/PrivateRoute";
 import { Sidebar } from "./components/Sidebar";  
 import { Header } from "./components/Header";  
-import { AuthProvider, useAuth } from "./hooks/useAuth";
+import { AuthProvider, useAuth } from "./hooks/useAuth.jsx";
 import { Notifications } from "./pages/NotificationsHeader/Notifications";
 import { Chat } from "./pages/Chat/Chat";
 import { requestForFCMToken, messaging } from "./config/firebase";

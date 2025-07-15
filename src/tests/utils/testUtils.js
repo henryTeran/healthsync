@@ -1,6 +1,6 @@
 import { render } from '@testing-library/react';
 import { BrowserRouter } from 'react-router-dom';
-import { AuthProvider } from '../../hooks/useAuth';
+import { AuthProvider } from '../../hooks/useAuth.jsx';
 import { ErrorBoundary } from '../../components/ui/ErrorBoundary';
 
 // Wrapper personnalisé pour les tests
