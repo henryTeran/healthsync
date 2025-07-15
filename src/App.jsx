@@ -20,7 +20,7 @@ import { Header } from "./components/Header";
 import { AuthProvider, useAuth } from "./hooks/useAuth.jsx";
 import { Notifications } from "./pages/NotificationsHeader/Notifications";
 import { Chat } from "./pages/Chat/Chat";
-import { requestForFCMToken, messaging } from "./config/firebase";
+import { requestForFCMToken, messaging } from "./providers/firebase";
 import { onMessage } from "firebase/messaging";
 import toast, { Toaster } from "react-hot-toast";
 import { PrescriptionHistory } from "./pages/medications/PrescriptionHistory";
