@@ -1,20 +1,22 @@
-import React, { useContext } from "react";
+import React from "react";
 import { Navigate, Outlet } from "react-router-dom";
-import { AuthContext } from "../contexts/AuthContext";
+import { useAuth } from "../hooks/useAuth";
 
 export const PrivateRoute = () => {
-  const { user, loading } = useContext(AuthContext);
+  const { user, loading, isAuthenticated } = useAuth();
  
-  if (loading) return null; // Attendre que l'état soit chargé, sinon afficher un écran vide pour éviter les redirections 
-
-  if (!user) return <Navigate to="/login" />; // Rediriger vers la page de connexion si non connecté 
-  // Redirection selon le type d'utilisateur
-  if (user.userType === "doctor") {
-    return <Outlet />;
-  } else if (user.userType === "patient") {
-    return <Outlet />;
-  } else {
-    return <Navigate to="/login" />;
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
+      </div>
+    );
   }
+
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
+
+  return <Outlet />;
 };
 
