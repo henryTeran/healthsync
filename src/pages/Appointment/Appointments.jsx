@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useContext } from "react";
-import { createAppointment, getAppointmentsByUser, getAppointmentsByDoctor, updateAppointment, deleteAppointment, createUnavailability, getUnavailabilitiesByDoctor, updateUnavailability, deleteUnavailability } from "../../services/appointmentService";
+import { createAppointment, getAppointmentsByUser, getAppointmentsByDoctor, updateAppointment, deleteAppointment, addDoctorAvailability, getUnavailabilitiesByDoctor, updateUnavailability, deleteUnavailability } from "../../services/appointmentService";
 import { getUserProfile } from "../../services/profileService";
 import { getAuthorizedDoctors, getAuthorizedPatients } from "../../services/patientServices";
 import { addNotification } from "../../services/notificationService"; 
@@ -271,7 +271,7 @@ export const Appointments = ({ navigate }) => {
       if (editingUnavailability) {
         await updateUnavailability(editingUnavailability.id, unavailabilityData);
       } else {
-        await createUnavailability(unavailabilityData);
+        await addDoctorAvailability(unavailabilityData);
       }
 
       setShowUnavailabilityModal(false);
