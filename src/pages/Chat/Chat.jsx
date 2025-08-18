@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useContext } from "react";
 import { useParams, useNavigate } from "react-router-dom"; // ✅ Ajout de `useNavigate()`
+import { MessageSquare } from "lucide-react";
 import { AuthContext } from "../../contexts/AuthContext";
 import { ContactList } from "../../components/chat/ContactList";
 import { ChatInterface } from "../../components/chat/ChatInterface";
