@@ -1,187 +1,81 @@
 import React, { useState, useEffect, useContext } from "react";
-import { Calendar, momentLocalizer } from "react-big-calendar";
-import moment from "moment";
-import "react-big-calendar/lib/css/react-big-calendar.css";
-import {
-  getAppointmentsByUser,
-  deleteAppointment,
-  updateAppointment,
-  getDoctorAvailability,
-  addDoctorAvailability,
-  deleteDoctorAvailability
-} from "../../services/appointmentService";
-import { getAuthorizedPatients } from "../../services/doctorServices";
-import { getAuthorizedDoctors } from "../../services/patientServices";
-import { getAllDoctors } from "../../services/doctorServices";
+import { createAppointment, getAppointmentsByUser, getAppointmentsByDoctor, updateAppointment, deleteAppointment, createUnavailability, getUnavailabilitiesByDoctor, updateUnavailability, deleteUnavailability } from "../../services/appointmentService";
 import { getUserProfile } from "../../services/profileService";
-import { markNotificationAsRead, addNotification } from "../../services/notificationService";
+import { getAuthorizedDoctors, getAuthorizedPatients } from "../../services/patientServices";
+import { addNotification } from "../../services/notificationService"; 
 import { AuthContext } from "../../contexts/AuthContext";
 import PropTypes from "prop-types";
-import "moment/locale/fr";
-import withDragAndDrop from "react-big-calendar/lib/addons/dragAndDrop";
-import "react-big-calendar/lib/addons/dragAndDrop/styles.css";
-import { updateDoc, doc, query, collection, where, onSnapshot } from "firebase/firestore";
-import { db } from "../../providers/firebase";
-import { Calendar as CalendarIcon, Clock, User, MapPin, Phone, Mail, Edit3, Trash2, Plus, Filter, Search, FileText, Bell, Info, AlertCircle } from "lucide-react";
+import { Calendar, Clock, User, FileText, Bell, Send, ArrowLeft, Search, X, Plus, Edit, Trash2, Info, MapPin, Stethoscope, UserCheck } from "lucide-react";
+import { Calendar as BigCalendar, momentLocalizer } from 'react-big-calendar';
+import moment from 'moment';
+import 'moment/locale/fr';
+import 'react-big-calendar/lib/css/react-big-calendar.css';
 
-moment.locale("fr");
-  const [searchTerm, setSearchTerm] = useState("");
-  const [searchResults, setSearchResults] = useState([]);
-  const [selectedSearchUser, setSelectedSearchUser] = useState(null);
-  const [showSearchDropdown, setShowSearchDropdown] = useState(false);
-  const [allUsers, setAllUsers] = useState([]);
+moment.locale('fr');
 const localizer = momentLocalizer(moment);
-const DnDCalendar = withDragAndDrop(Calendar);
 
 const messages = {
-  allDay: "Toute la journée",
-  previous: "Précédent",
-  next: "Suivant",
+  allDay: 'Toute la journée',
+  previous: 'Précédent',
+  next: 'Suivant',
   today: "Aujourd'hui",
-  month: "Mois",
-  week: "Semaine",
-  day: "Jour",
-  agenda: "Agenda",
-  date: "Date",
-  time: "Heure",
-  event: "Événement",
-  showMore: (total) => `+ ${total} plus`
+  month: 'Mois',
+  week: 'Semaine',
+  day: 'Jour',
+  agenda: 'Agenda',
+  date: 'Date',
+  time: 'Heure',
+  event: 'Événement',
+  noEventsInRange: 'Aucun événement dans cette période',
+  showMore: total => `+ ${total} de plus`
 };
 
-export class Appointments extends Component {
-  constructor(props) {
-    super(props);
-    this.state = {
-      user: null,
-      appointments: [],
-      doctorAvailability: [],
-      isLoading: true,
-      error: "",
-      showModal: false,
-      showAppointmentModal: false,
-      selectedSlot: null,
-      selectedAppointment: null,
-      selectedAvailability: null,
-      showAvailabilityModal: false,
-      editMode: false,
-      editAvailabilityMode: false,
-      availabilityType: "vacances",
-      view: "month",
-      searchTerm: "",
-      filterStatus: "all",
-      appointmentForm: {
-        patientName: "",
-        patientEmail: "",
-        patientPhone: "",
-        reason: "",
-        notes: "",
-        reminderTime: 24 // heures avant le RDV
-      },
-      appointmentForm: {
-        date: "",
-        time: "",
-        notes: "",
-        reason: "",
-        urgency: "normal"
-      },
-      availabilityForm: {
-        type: "vacances",
-        startDate: "",
-        startTime: "",
-        endDate: "",
-        endTime: "",
-        notes: ""
-      }
-    };
-  }
+export const Appointments = ({ navigate }) => {
+  const { user } = useContext(AuthContext);
+  const [currentUser, setCurrentUser] = useState(null);
+  const [appointments, setAppointments] = useState([]);
+  const [unavailabilities, setUnavailabilities] = useState([]);
+  const [authorizedContacts, setAuthorizedContacts] = useState([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [selectedEvent, setSelectedEvent] = useState(null);
+  const [showModal, setShowModal] = useState(false);
+  const [showUnavailabilityModal, setShowUnavailabilityModal] = useState(false);
+  const [editingUnavailability, setEditingUnavailability] = useState(null);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [searchResults, setSearchResults] = useState([]);
+  const [selectedContact, setSelectedContact] = useState(null);
+  const [showSearchDropdown, setShowSearchDropdown] = useState(false);
+  const [unavailabilityForm, setUnavailabilityForm] = useState({
+    type: 'vacances',
+    startDate: '',
+    startTime: '',
+    endDate: '',
+    endTime: '',
+    notes: ''
+  });
 
-  static contextType = AuthContext;
-
-  componentDidMount() {
-    this.fetchAppointments();
-    this.fetchDoctorAvailability();
-    this.checkNotification();
-    this.setupRealtimeAppointments();
-  }
-
-  setupRealtimeAppointments = () => {
-    const { user } = this.context;
-    if (!user) return;
-
-    // Écoute en temps réel des rendez-vous
-    const appointmentsQuery = query(
-      collection(db, "appointments"),
-      where(user.userType === "doctor" ? "doctorId" : "patientId", "==", user.uid)
-    );
-
-    this.unsubscribeAppointments = onSnapshot(appointmentsQuery, async (snapshot) => {
-      const appointments = await Promise.all(
-        snapshot.docs.map(async (docSnap) => {
-          const appointment = { id: docSnap.id, ...docSnap.data() };
-          
-          // Enrichir avec les informations de contact
-          let contactInfo = {};
-          if (user.userType === "doctor" && appointment.patientId) {
-            contactInfo = await getUserProfile(appointment.patientId);
-          } else if (user.userType === "patient" && appointment.doctorId) {
-            contactInfo = await getUserProfile(appointment.doctorId);
-          }
-          
-          return { ...appointment, contactInfo };
-        })
-      );
-      
-      this.setState({ appointments });
-    });
-  };
-
-  componentWillUnmount() {
-    if (this.unsubscribeAppointments) {
-      this.unsubscribeAppointments();
+  useEffect(() => {
+    if (user) {
+      fetchUserProfile();
     }
-  }
+  }, [user]);
 
-  getMinDate = () => {
-    const today = new Date();
-    return today.toISOString().split('T')[0];
-  };
-
-  fetchAppointments = async () => {
-    try {
-      const { user } = this.context;
-      if (!user) {
-      fetchAllUsers();
-        this.setState({ error: "Utilisateur non connecté.", isLoading: false });
-        return;
+  useEffect(() => {
+    if (currentUser) {
+      fetchAppointments();
+      fetchAuthorizedContacts();
+      if (currentUser.type === 'doctor') {
+        fetchUnavailabilities();
       }
-  // Récupérer tous les utilisateurs selon le type
-  const fetchAllUsers = async () => {
-    try {
-      if (isDoctor) {
-        // Pour un médecin : récupérer ses patients + tous les médecins
-        const [patients, doctors] = await Promise.all([
-          getAuthorizedPatients(user.uid),
-          getAllDoctors()
-        ]);
-        setAllUsers([...patients, ...doctors]);
-      } else {
-        // Pour un patient : récupérer seulement ses médecins autorisés
-        const doctors = await getAuthorizedDoctors(user.uid);
-        setAllUsers(doctors);
-      }
-    } catch (error) {
-      console.error("Erreur lors de la récupération des utilisateurs :", error);
     }
-  };
+  }, [currentUser, selectedContact]);
 
-  // Gérer la recherche
-  const handleSearch = (searchValue) => {
-    setSearchTerm(searchValue);
-    
-    if (searchValue.length > 1) {
-      const filtered = allUsers.filter(user => 
-        `${user.firstName} ${user.lastName}`.toLowerCase().includes(searchValue.toLowerCase()) ||
-        user.department?.toLowerCase().includes(searchValue.toLowerCase())
+  useEffect(() => {
+    if (searchTerm && authorizedContacts.length > 0) {
+      const filtered = authorizedContacts.filter(contact =>
+        `${contact.firstName} ${contact.lastName}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (contact.department && contact.department.toLowerCase().includes(searchTerm.toLowerCase()))
       );
       setSearchResults(filtered);
       setShowSearchDropdown(true);
@@ -189,1288 +83,737 @@ export class Appointments extends Component {
       setSearchResults([]);
       setShowSearchDropdown(false);
     }
-  };
+  }, [searchTerm, authorizedContacts]);
 
-  // Sélectionner un utilisateur depuis la recherche
-  const handleSelectUser = async (selectedUser) => {
-    setSelectedSearchUser(selectedUser);
-    setSearchTerm(`${selectedUser.firstName} ${selectedUser.lastName}`);
-    setShowSearchDropdown(false);
-    
-    // Charger le calendrier de l'utilisateur sélectionné
-    await fetchAppointmentsForUser(selectedUser.id, selectedUser.type);
-  };
-
-  // Récupérer les RDV pour un utilisateur spécifique
-  const fetchAppointmentsForUser = async (userId, userType) => {
+  const fetchUserProfile = async () => {
     try {
-      let appointments = [];
-      
-      if (isDoctor) {
-        if (userType === "patient") {
-          // Médecin regarde le calendrier d'un patient
-          appointments = await getAppointmentsByUser(userId, "patient");
+      const profileData = await getUserProfile(user.uid);
+      setCurrentUser({ ...profileData, uid: user.uid });
+    } catch (error) {
+      console.error("Erreur lors de la récupération du profil :", error);
+      setError(error.message);
+    }
+  };
+
+  const fetchAppointments = async () => {
+    try {
+      setIsLoading(true);
+      let appointmentsData = [];
+
+      if (selectedContact) {
+        // Afficher les RDV du contact sélectionné
+        if (currentUser.type === 'doctor') {
+          if (selectedContact.type === 'patient') {
+            appointmentsData = await getAppointmentsByUser(selectedContact.id);
+          } else {
+            appointmentsData = await getAppointmentsByDoctor(selectedContact.id);
+          }
         } else {
-          // Médecin regarde le calendrier d'un autre médecin
-          appointments = await getAppointmentsByUser(userId, "doctor");
+          // Patient regardant le calendrier d'un médecin
+          appointmentsData = await getAppointmentsByDoctor(selectedContact.id);
         }
       } else {
-        // Patient regarde le calendrier d'un médecin
-        appointments = await getAppointmentsByUser(userId, "doctor");
+        // Afficher ses propres RDV
+        if (currentUser.type === 'doctor') {
+          appointmentsData = await getAppointmentsByDoctor(user.uid);
+        } else {
+          appointmentsData = await getAppointmentsByUser(user.uid);
+        }
       }
-      
-      const formattedEvents = await Promise.all(
-        appointments.map(async (appointment) => {
-          const [doctorProfile, patientProfile] = await Promise.all([
-            getUserProfile(appointment.doctorId),
-            getUserProfile(appointment.patientId)
-          ]);
-          
-          return {
-            id: appointment.id,
-            title: isDoctor 
-              ? `${patientProfile?.firstName} ${patientProfile?.lastName}` 
-              : `Dr. ${doctorProfile?.firstName} ${doctorProfile?.lastName}`,
-            start: new Date(`${appointment.date}T${appointment.time}`),
-            end: new Date(new Date(`${appointment.date}T${appointment.time}`).getTime() + 60 * 60 * 1000),
-            resource: {
-              type: "appointment",
-              status: appointment.status,
-              notes: appointment.notes,
-              patientId: appointment.patientId,
-              doctorId: appointment.doctorId
-            }
-          };
-        })
-      );
-      
-      setEvents(formattedEvents);
-      
-      // Charger aussi les indisponibilités si c'est un médecin
-      if (userType === "doctor") {
-        const userAvailabilities = await getDoctorAvailability(userId);
-        const formattedAvailabilities = userAvailabilities.map(availability => ({
-          id: availability.id,
-          title: availability.type,
-          start: new Date(availability.start),
-          end: new Date(availability.end),
-          resource: {
-            type: "availability",
-            availabilityType: availability.type,
-            notes: availability.notes
-          }
-        }));
-        setAvailabilities(formattedAvailabilities);
-      }
-      
+
+      setAppointments(appointmentsData);
     } catch (error) {
-      console.error("Erreur lors de la récupération des RDV :", error);
+      console.error("Erreur lors de la récupération des rendez-vous :", error);
+      setError(error.message);
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  // Réinitialiser la vue au calendrier personnel
-  const resetToPersonalCalendar = () => {
-    setSelectedSearchUser(null);
-    setSearchTerm("");
-    fetchAppointments();
-    if (isDoctor) {
-      fetchAvailabilities();
-    }
-  };
-      const profileData = await getUserProfile(user.uid);
-      const appointments = await getAppointmentsByUser(user.uid, profileData.type);
-      
-      // Enrichir les données des rendez-vous avec les informations des patients/médecins
-      const enrichedAppointments = await Promise.all(
-        appointments.map(async (appointment) => {
-          let contactInfo = {};
-          if (profileData.type === "doctor" && appointment.patientId) {
-            contactInfo = await getUserProfile(appointment.patientId);
-          } else if (profileData.type === "patient" && appointment.doctorId) {
-            contactInfo = await getUserProfile(appointment.doctorId);
-          }
-          return { ...appointment, contactInfo };
-        })
-      );
-
-      this.setState({ isLoading: false, user, appointments: enrichedAppointments });
-    } catch (error) {
-      this.setState({ error: error.message, isLoading: false });
-    }
-  };
-
-  fetchDoctorAvailability = async () => {
+  const fetchUnavailabilities = async () => {
     try {
-      const { user } = this.context;
-      if (!user) return;
-  
-      const availabilities = await getDoctorAvailability(user.uid);
-      const formattedAvailabilities = availabilities.map(av => ({
-        ...av,
-        start: av.start.toDate ? av.start.toDate() : new Date(av.start),
-        end: av.end.toDate ? av.end.toDate() : new Date(av.end)
-      }));
-  
-      this.setState({ doctorAvailability: formattedAvailabilities });
+      const doctorId = selectedContact?.type === 'doctor' ? selectedContact.id : user.uid;
+      const unavailabilitiesData = await getUnavailabilitiesByDoctor(doctorId);
+      setUnavailabilities(unavailabilitiesData);
     } catch (error) {
-      console.error("❌ Erreur lors du chargement des disponibilités :", error);
+      console.error("Erreur lors de la récupération des indisponibilités :", error);
     }
   };
 
-  checkNotification = async () => {
-    const viewedNotificationId = sessionStorage.getItem("viewedNotificationId");
-    if (viewedNotificationId) {
-      await markNotificationAsRead(viewedNotificationId);
-      sessionStorage.removeItem("viewedNotificationId");
+  const fetchAuthorizedContacts = async () => {
+    try {
+      let contacts = [];
+      if (currentUser.type === 'doctor') {
+        // Médecin peut voir patients et autres médecins
+        const patients = await getAuthorizedPatients(user.uid);
+        const doctors = await getAuthorizedDoctors(user.uid);
+        contacts = [
+          ...patients.map(p => ({ ...p, type: 'patient' })),
+          ...doctors.map(d => ({ ...d, type: 'doctor' }))
+        ];
+      } else {
+        // Patient ne peut voir que les médecins
+        const doctors = await getAuthorizedDoctors(user.uid);
+        contacts = doctors.map(d => ({ ...d, type: 'doctor' }));
+      }
+      setAuthorizedContacts(contacts);
+    } catch (error) {
+      console.error("Erreur lors de la récupération des contacts :", error);
     }
   };
 
-  handleSlotSelect = ({ start, end }) => {
-    this.setState({ 
-      showModal: true, 
-      selectedSlot: { start, end },
-      availabilityType: "vacances"
+  const handleSelectContact = (contact) => {
+    setSelectedContact(contact);
+    setSearchTerm(`${contact.firstName} ${contact.lastName}`);
+    setShowSearchDropdown(false);
+  };
+
+  const handleClearSearch = () => {
+    setSelectedContact(null);
+    setSearchTerm("");
+    setShowSearchDropdown(false);
+  };
+
+  const handleSelectSlot = ({ start, end }) => {
+    if (currentUser?.type !== 'doctor') return;
+
+    const startDate = moment(start).format('YYYY-MM-DD');
+    const startTime = moment(start).format('HH:mm');
+    const endDate = moment(end).format('YYYY-MM-DD');
+    const endTime = moment(end).format('HH:mm');
+
+    setUnavailabilityForm({
+      type: 'vacances',
+      startDate,
+      startTime,
+      endDate,
+      endTime,
+      notes: ''
     });
+    setEditingUnavailability(null);
+    setShowUnavailabilityModal(true);
   };
 
-  handleEventSelect = (event) => {
-    if (event.typeAction === "availability") {
-      this.setState({
-        selectedAvailability: event,
-        showAvailabilityModal: true,
-        availabilityForm: {
-          type: event.type,
+  const handleSelectEvent = (event) => {
+    if (event.type === 'unavailability') {
+      if (currentUser?.type === 'doctor') {
+        setEditingUnavailability(event);
+        setUnavailabilityForm({
+          type: event.unavailabilityType,
           startDate: moment(event.start).format('YYYY-MM-DD'),
           startTime: moment(event.start).format('HH:mm'),
           endDate: moment(event.end).format('YYYY-MM-DD'),
           endTime: moment(event.end).format('HH:mm'),
-          notes: event.resource?.notes || ''
-        }
-      });
-    } else if (event.type === "appointment") {
-      this.setState({
-        selectedAppointment: event,
-        showAppointmentModal: true,
-        appointmentForm: {
-          date: moment(event.start).format('YYYY-MM-DD'),
-          time: moment(event.start).format('HH:mm'),
-          notes: event.resource?.notes || '',
-          reason: event.resource?.reason || '',
-          urgency: event.resource?.urgency || 'normal'
-        }
-      });
-    }
-  };
-
-  handleEventDrop = async ({ event, start, end }) => {
-    const { user } = this.context;
-    
-    if (event.typeAction === "availability" && user?.userType === "doctor") {
-      try {
-        await updateDoc(doc(db, "availabilities", event.id), {
-          start: start,
-          end: end
+          notes: event.notes || ''
         });
-        this.fetchDoctorAvailability();
-      } catch (error) {
-        console.error("Erreur lors du déplacement de l'indisponibilité :", error);
-      }
-    } else if (event.type === "appointment") {
-      try {
-        const newDate = moment(start).format('YYYY-MM-DD');
-        const newTime = moment(start).format('HH:mm');
-        
-        await this.handleUpdateAppointment(event.id, {
-          date: newDate,
-          time: newTime
-        });
-      } catch (error) {
-        console.error("Erreur lors du déplacement du rendez-vous :", error);
-      }
-    }
-  };
-
-  handleAddAvailability = async () => {
-    const { user } = this.context;
-    const { availabilityForm } = this.state;
-
-    if (!user || user.userType !== "doctor") return;
-
-    try {
-      const startDateTime = new Date(`${availabilityForm.startDate}T${availabilityForm.startTime}`);
-      const endDateTime = new Date(`${availabilityForm.endDate}T${availabilityForm.endTime}`);
-      
-      await addDoctorAvailability(user.uid, startDateTime, endDateTime, availabilityForm.type, availabilityForm.notes);
-      this.setState({ showModal: false, selectedSlot: null, availabilityForm: {
-        type: "vacances",
-        startDate: "",
-        startTime: "",
-        endDate: "",
-        endTime: "",
-        notes: ""
-      }});
-      this.fetchDoctorAvailability();
-    } catch (error) {
-      console.error("Erreur lors de l'ajout de la disponibilité :", error);
-    }
-  };
-
-  handleUpdateAvailability = async () => {
-    const { selectedAvailability, availabilityForm } = this.state;
-    if (!selectedAvailability) return;
-
-    try {
-      const startDateTime = new Date(`${availabilityForm.startDate}T${availabilityForm.startTime}`);
-      const endDateTime = new Date(`${availabilityForm.endDate}T${availabilityForm.endTime}`);
-      
-      await updateDoc(doc(db, "availabilities", selectedAvailability.id), {
-        type: availabilityForm.type,
-        start: startDateTime,
-        end: endDateTime,
-        notes: availabilityForm.notes
-      });
-      
-      this.setState({ showAvailabilityModal: false, editAvailabilityMode: false });
-      this.fetchDoctorAvailability();
-    } catch (error) {
-      console.error("Erreur lors de la modification de l'indisponibilité :", error);
-    }
-  };
-
-  handleDeleteAvailability = async (availabilityId) => {
-    if (!window.confirm("Êtes-vous sûr de vouloir supprimer cette indisponibilité ?")) return;
-
-    try {
-      await deleteDoctorAvailability(availabilityId);
-      this.setState({ showAvailabilityModal: false });
-      this.fetchDoctorAvailability();
-    } catch (error) {
-      console.error("Erreur lors de la suppression :", error);
-    }
-  };
-
-  handleAvailabilityFormChange = (field, value) => {
-    this.setState(prevState => ({
-      availabilityForm: {
-        ...prevState.availabilityForm,
-        [field]: value
-      }
-    }));
-  };
-
-  handleDeleteAppointment = async (appointmentId) => {
-    if (!window.confirm("Êtes-vous sûr de vouloir annuler ce rendez-vous ?")) return;
-
-    try {
-      const appointment = this.state.appointments.find(apt => apt.id === appointmentId);
-      
-      // Notifier le patient/médecin de l'annulation
-      const { user } = this.context;
-      const contactId = user.userType === "doctor" ? appointment.patientId : appointment.doctorId;
-      const contactInfo = appointment.contactInfo;
-      
-      await addNotification(contactId, {
-        type: "appointment_cancelled",
-        message: `Votre rendez-vous du ${moment(appointment.date).format('DD/MM/YYYY')} à ${appointment.time} a été annulé.`,
-        appointmentId: appointmentId,
-        read: false
-      });
-
-      await deleteAppointment(appointmentId);
-      this.fetchAppointments();
-      this.setState({ showAppointmentModal: false });
-    } catch (error) {
-      console.error("Erreur lors de l'annulation :", error);
-    }
-  };
-
-  handleUpdateAppointmentForm = (field, value) => {
-    this.setState(prevState => ({
-      appointmentForm: {
-        ...prevState.appointmentForm,
-        [field]: value
-      }
-    }));
-  };
-
-  handleSaveAppointmentChanges = async () => {
-    const { selectedAppointment, appointmentForm } = this.state;
-    if (!selectedAppointment) return;
-
-    try {
-      const updates = {
-        date: appointmentForm.date,
-        time: appointmentForm.time,
-        notes: appointmentForm.notes,
-        reason: appointmentForm.reason,
-        urgency: appointmentForm.urgency
-      };
-
-      await this.handleUpdateAppointment(selectedAppointment.id, updates);
-      this.setState({ showAppointmentModal: false });
-    } catch (error) {
-      console.error("Erreur lors de la modification :", error);
-      this.setState({ error: error.message });
-    }
-  };
-
-  handleUpdateAppointment = async (appointmentId, updates) => {
-    try {
-      await updateAppointment(appointmentId, updates);
-      
-      // Notifier le contact du changement
-      const appointment = this.state.appointments.find(apt => apt.id === appointmentId);
-      const { user } = this.context;
-      const contactId = user.userType === "doctor" ? appointment.patientId : appointment.doctorId;
-      
-      await addNotification(contactId, {
-        type: "appointment_updated",
-        message: `Votre rendez-vous a été modifié. Nouvelle date: ${moment(updates.date || appointment.date).format('DD/MM/YYYY')} à ${updates.time || appointment.time}`,
-        appointmentId: appointmentId,
-        read: false
-      });
-
-      this.fetchAppointments();
-      this.setState({ showAppointmentModal: false });
-    } catch (error) {
-      console.error("Erreur lors de la modification :", error);
-      throw error;
-    }
-  };
-
-  scheduleReminder = async (appointment) => {
-    const reminderTime = new Date(appointment.date + "T" + appointment.time);
-    reminderTime.setHours(reminderTime.getHours() - (appointment.reminderTime || 24));
-    
-    // Programmer le rappel
-    await addNotification(appointment.patientId, {
-      type: "appointment_reminder",
-      message: `Rappel: Vous avez un rendez-vous demain à ${appointment.time}`,
-      appointmentId: appointment.id,
-      scheduledFor: reminderTime.toISOString(),
-      read: false
-    });
-  };
-
-  getEventStyle = (event) => {
-    let backgroundColor, borderColor;
-    
-    if (event.typeAction === "availability") {
-      switch (event.type) {
-        case "vacances":
-          backgroundColor = "#F59E0B";
-          borderColor = "#D97706";
-          break;
-        case "réunion":
-          backgroundColor = "#6366F1";
-          borderColor = "#4F46E5";
-          break;
-        case "maladie":
-          backgroundColor = "#E11D48";
-          borderColor = "#BE185D";
-          break;
-        default:
-          backgroundColor = "#6B7280";
-          borderColor = "#4B5563";
+        setShowUnavailabilityModal(true);
       }
     } else {
-      switch (event.status) {
-        case "accepté":
-          backgroundColor = "#10B981";
-          borderColor = "#059669";
-          break;
-        case "en attente":
-          backgroundColor = "#3B82F6";
-          borderColor = "#2563EB";
-          break;
-        case "refusé":
-          backgroundColor = "#EF4444";
-          borderColor = "#DC2626";
-          break;
-        default:
-          backgroundColor = "#6B7280";
-          borderColor = "#4B5563";
+      setSelectedEvent(event);
+      setShowModal(true);
+    }
+  };
+
+  const handleEventDrop = async ({ event, start, end }) => {
+    if (event.type === 'unavailability' && currentUser?.type === 'doctor') {
+      try {
+        const updatedUnavailability = {
+          ...event,
+          start: start.toISOString(),
+          end: end.toISOString()
+        };
+        
+        await updateUnavailability(event.id, updatedUnavailability);
+        console.log('Indisponibilité déplacée avec succès');
+        fetchUnavailabilities();
+      } catch (error) {
+        console.error('Erreur lors du déplacement :', error);
       }
     }
+  };
 
+  const handleEventResize = async ({ event, start, end }) => {
+    if (event.type === 'unavailability' && currentUser?.type === 'doctor') {
+      try {
+        const updatedUnavailability = {
+          ...event,
+          start: start.toISOString(),
+          end: end.toISOString()
+        };
+        
+        await updateUnavailability(event.id, updatedUnavailability);
+        console.log('Indisponibilité redimensionnée avec succès');
+        fetchUnavailabilities();
+      } catch (error) {
+        console.error('Erreur lors du redimensionnement :', error);
+      }
+    }
+  };
+
+  const handleUnavailabilitySubmit = async (e) => {
+    e.preventDefault();
+    
+    try {
+      setIsLoading(true);
+      
+      const startDateTime = new Date(`${unavailabilityForm.startDate}T${unavailabilityForm.startTime}`);
+      const endDateTime = new Date(`${unavailabilityForm.endDate}T${unavailabilityForm.endTime}`);
+      
+      const unavailabilityData = {
+        doctorId: user.uid,
+        type: unavailabilityForm.type,
+        start: startDateTime.toISOString(),
+        end: endDateTime.toISOString(),
+        notes: unavailabilityForm.notes,
+        createdAt: new Date().toISOString()
+      };
+
+      if (editingUnavailability) {
+        await updateUnavailability(editingUnavailability.id, unavailabilityData);
+      } else {
+        await createUnavailability(unavailabilityData);
+      }
+
+      setShowUnavailabilityModal(false);
+      setEditingUnavailability(null);
+      fetchUnavailabilities();
+    } catch (error) {
+      console.error("Erreur lors de la sauvegarde :", error);
+      setError(error.message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleDeleteUnavailability = async () => {
+    if (!editingUnavailability) return;
+    
+    try {
+      await deleteUnavailability(editingUnavailability.id);
+      setShowUnavailabilityModal(false);
+      setEditingUnavailability(null);
+      fetchUnavailabilities();
+    } catch (error) {
+      console.error("Erreur lors de la suppression :", error);
+      setError(error.message);
+    }
+  };
+
+  const handleUnavailabilityFormChange = (e) => {
+    const { name, value } = e.target;
+    setUnavailabilityForm(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
+
+  const getCalendarEvents = () => {
+    const appointmentEvents = appointments.map(appointment => ({
+      id: appointment.id,
+      title: appointment.patientName || appointment.doctorName || 'Rendez-vous',
+      start: new Date(appointment.date + 'T' + appointment.time),
+      end: new Date(new Date(appointment.date + 'T' + appointment.time).getTime() + 60 * 60 * 1000),
+      resource: appointment,
+      type: 'appointment'
+    }));
+
+    const unavailabilityEvents = unavailabilities.map(unavailability => {
+      const typeConfig = {
+        vacances: { color: '#f59e0b', icon: '🏖️', label: 'Vacances' },
+        reunion: { color: '#8b5cf6', icon: '👥', label: 'Réunion' },
+        maladie: { color: '#dc2626', icon: '🤒', label: 'Maladie' },
+        formation: { color: '#2563eb', icon: '📚', label: 'Formation' }
+      };
+
+      const config = typeConfig[unavailability.type] || typeConfig.vacances;
+
+      return {
+        id: unavailability.id,
+        title: `${config.icon} ${config.label}`,
+        start: new Date(unavailability.start),
+        end: new Date(unavailability.end),
+        resource: unavailability,
+        type: 'unavailability',
+        unavailabilityType: unavailability.type,
+        notes: unavailability.notes,
+        style: {
+          backgroundColor: config.color,
+          borderColor: config.color,
+          color: 'white'
+        }
+      };
+    });
+
+    return [...appointmentEvents, ...unavailabilityEvents];
+  };
+
+  const eventStyleGetter = (event) => {
+    if (event.type === 'unavailability') {
+      return {
+        style: {
+          backgroundColor: event.style.backgroundColor,
+          borderColor: event.style.borderColor,
+          color: event.style.color,
+          border: 'none',
+          borderRadius: '6px',
+          fontSize: '12px',
+          fontWeight: '600',
+          textShadow: '0 1px 2px rgba(0,0,0,0.3)',
+          boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+        }
+      };
+    }
+    
     return {
       style: {
-        backgroundColor,
-        borderColor,
-        color: "white",
-        borderRadius: "8px",
-        border: `2px solid ${borderColor}`,
-        fontSize: "12px",
-        fontWeight: "500"
+        backgroundColor: '#10b981',
+        borderColor: '#059669',
+        color: 'white',
+        border: 'none',
+        borderRadius: '6px'
       }
     };
   };
 
-  filteredAppointments = () => {
-    const { appointments, searchTerm, filterStatus } = this.state;
+  const getSearchPlaceholder = () => {
+    if (!currentUser) return "Rechercher...";
     
-    return appointments.filter(appointment => {
-      const matchesSearch = !searchTerm || 
-        appointment.contactInfo?.firstName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        appointment.contactInfo?.lastName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        appointment.notes?.toLowerCase().includes(searchTerm.toLowerCase());
-      
-      const matchesFilter = filterStatus === "all" || appointment.status === filterStatus;
-      
-      return matchesSearch && matchesFilter;
-    });
-  };
-
-  getAvailabilityIcon = (type) => {
-    switch (type) {
-      case "vacances":
-        return "🏖️";
-      case "réunion":
-        return "👥";
-      case "maladie":
-        return "🤒";
-      case "formation":
-        return "📚";
-      default:
-        return "🔧";
+    if (currentUser.type === 'doctor') {
+      return "Rechercher un patient ou médecin...";
+    } else {
+      return "Rechercher un médecin...";
     }
   };
 
-  handleEventResize = async ({ event, start, end }) => {
-    const { user } = this.context;
-    
-    if (event.typeAction === "availability" && user?.userType === "doctor") {
-      try {
-        await updateDoc(doc(db, "availabilities", event.id), {
-          start: start,
-          end: end
-        });
-        this.fetchDoctorAvailability();
-        console.log(`✅ Indisponibilité redimensionnée: ${moment(start).format('DD/MM/YYYY HH:mm')} - ${moment(end).format('DD/MM/YYYY HH:mm')}`);
-      } catch (error) {
-        console.error("Erreur lors du redimensionnement de l'indisponibilité :", error);
-      }
-    }
-  };
+  const renderUnavailabilityLegend = () => {
+    if (currentUser?.type !== 'doctor') return null;
 
-  render() {
-    const { 
-      isLoading, 
-      error, 
-      appointments, 
-      doctorAvailability, 
-      showModal, 
-      showAppointmentModal,
-      showAvailabilityModal,
-      selectedAppointment,
-      selectedAvailability,
-      editAvailabilityMode,
-      view,
-      searchTerm,
-      filterStatus,
-      availabilityForm
-    } = this.state;
-    const { user } = this.context;
-
-    if (isLoading) {
-      return (
-        <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-medical-50 to-health-50">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-medical-500 mx-auto mb-4"></div>
-            <p className="text-medical-600 font-medium">Chargement de votre planning...</p>
-          </div>
-        </div>
-      );
-    }
-
-    if (error) {
-      return (
-        <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-red-50 to-red-100">
-          <div className="card-medical p-8 text-center max-w-md">
-            <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <CalendarIcon className="h-8 w-8 text-red-600" />
-            </div>
-            <h3 className="text-lg font-semibold text-red-800 mb-2">Erreur de chargement</h3>
-            <p className="text-red-600">{error}</p>
-          </div>
-        </div>
-      );
-    }
-
-    const events = [
-      ...this.filteredAppointments().map((appointment) => ({
-        id: appointment.id,
-        title: `${appointment.contactInfo?.firstName || 'Patient'} ${appointment.contactInfo?.lastName || ''}`,
-        start: new Date(appointment.date + "T" + appointment.time),
-        end: new Date(new Date(appointment.date + "T" + appointment.time).getTime() + 60 * 60 * 1000),
-        status: appointment.status,
-        type: "appointment",
-        resource: appointment
-      })),
-      ...doctorAvailability.map((availability) => ({
-        id: availability.id,
-        title: `${this.getAvailabilityIcon(availability.type)} ${availability.type}`,
-        start: availability.start,
-        end: availability.end,
-        type: availability.type,
-        typeAction: "availability",
-        resource: availability
-      }))
+    const types = [
+      { key: 'vacances', color: '#f59e0b', icon: '🏖️', label: 'Vacances' },
+      { key: 'reunion', color: '#8b5cf6', icon: '👥', label: 'Réunion' },
+      { key: 'maladie', color: '#dc2626', icon: '🤒', label: 'Maladie' },
+      { key: 'formation', color: '#2563eb', icon: '📚', label: 'Formation' }
     ];
 
     return (
-      <div className="min-h-screen bg-gradient-to-br from-medical-50 via-white to-health-50">
-        {/* Header moderne */}
-        <div className="bg-white/80 backdrop-blur-xl border-b border-medical-100/30 p-6">
-          <div className="max-w-7xl mx-auto">
-            <div className="flex items-center justify-between mb-6">
-              <div className="flex items-center space-x-4">
-                <div className="w-12 h-12 bg-gradient-medical rounded-2xl flex items-center justify-center">
-                  <CalendarIcon className="h-6 w-6 text-white" />
-                </div>
-                <div>
-                  <h1 className="text-3xl font-bold text-gradient">Planning des Rendez-vous</h1>
-                  <p className="text-neutral-600">Gérez vos consultations et disponibilités</p>
-                </div>
-              </div>
-              
-              <div className="flex items-center space-x-4">
-                <div className="flex items-center space-x-2 bg-white/60 backdrop-blur-sm rounded-xl p-2">
-                  <button
-                    onClick={() => this.setState({ view: 'month' })}
-                    className={`px-4 py-2 rounded-lg transition-all ${view === 'month' ? 'bg-medical-500 text-white' : 'text-medical-600 hover:bg-medical-50'}`}
-                  >
-                    Mois
-                  </button>
-                  <button
-                    onClick={() => this.setState({ view: 'week' })}
-                    className={`px-4 py-2 rounded-lg transition-all ${view === 'week' ? 'bg-medical-500 text-white' : 'text-medical-600 hover:bg-medical-50'}`}
-                  >
-                    Semaine
-                  </button>
-                  <button
-                    onClick={() => this.setState({ view: 'day' })}
-                    className={`px-4 py-2 rounded-lg transition-all ${view === 'day' ? 'bg-medical-500 text-white' : 'text-medical-600 hover:bg-medical-50'}`}
-                  >
-                    Jour
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            {/* Barre de recherche et filtres */}
-            <div className="flex items-center space-x-4 mb-6">
-              <div className="relative flex-1 max-w-md">
-                <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-medical-400" />
-                <input
-                  type="text"
-                  placeholder="Rechercher un patient..."
-                  value={searchTerm}
-                  onChange={(e) => this.setState({ searchTerm: e.target.value })}
-                  className="input pl-12 w-full"
-                />
-              </div>
-              
-              <div className="relative">
-                <Filter className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-medical-400" />
-                <select
-                  value={filterStatus}
-                  onChange={(e) => this.setState({ filterStatus: e.target.value })}
-                  className="input pl-12 pr-8"
-                >
-                  <option value="all">Tous les statuts</option>
-                  <option value="en attente">En attente</option>
-                  <option value="accepté">Accepté</option>
-                  <option value="refusé">Refusé</option>
-                </select>
-              </div>
-
-              <div className="flex items-center space-x-2">
-                <div className="flex items-center space-x-2 text-sm">
-                  <div className="w-3 h-3 bg-health-500 rounded-full"></div>
-                  <span className="text-neutral-600">Accepté</span>
-                </div>
-                <div className="flex items-center space-x-2 text-sm">
-                  <div className="w-3 h-3 bg-medical-500 rounded-full"></div>
-                  <span className="text-neutral-600">En attente</span>
-                </div>
-                <div className="flex items-center space-x-2 text-sm">
-                  <div className="w-3 h-3 bg-red-500 rounded-full"></div>
-                  <span className="text-neutral-600">Refusé</span>
-                </div>
-                {user?.userType === "doctor" && (
-                  <>
-                    <div className="w-px h-4 bg-neutral-300 mx-2"></div>
-                    <div className="flex items-center space-x-2 text-sm">
-                      <div className="w-3 h-3 bg-yellow-500 rounded-full"></div>
-                      <span className="text-neutral-600">Vacances</span>
-                    </div>
-                    <div className="flex items-center space-x-2 text-sm">
-                      <div className="w-3 h-3 bg-purple-500 rounded-full"></div>
-                      <span className="text-neutral-600">Réunion</span>
-                    </div>
-                    <div className="flex items-center space-x-2 text-sm">
-                      <div className="w-3 h-3 bg-red-600 rounded-full"></div>
-                      <span className="text-neutral-600">Maladie</span>
-                    </div>
-                    <div className="flex items-center space-x-2 text-sm">
-                      <div className="w-3 h-3 bg-blue-600 rounded-full"></div>
-                      <span className="text-neutral-600">Formation</span>
-                    </div>
-                  </>
-                )}
-              </div>
-            </div>
-          </div>
+      <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-6">
+        <div className="flex items-center mb-3">
+          <Info className="h-5 w-5 text-blue-600 mr-2" />
+          <h3 className="font-semibold text-blue-800">Gestion des indisponibilités</h3>
+        </div>
+        
+        <div className="text-sm text-blue-700 mb-4 space-y-1">
+          <p>• <strong>Cliquez sur une plage horaire</strong> pour ajouter une indisponibilité</p>
+          <p>• <strong>Glissez-déposez</strong> les blocs d'indisponibilité pour les déplacer</p>
+          <p>• <strong>Cliquez sur un bloc</strong> d'indisponibilité pour le modifier ou le supprimer</p>
+          <p>• Les patients verront vos indisponibilités et ne pourront pas prendre de RDV sur ces créneaux</p>
         </div>
 
-        {/* Instructions pour les médecins */}
-        {user?.userType === "doctor" && (
-          <div className="max-w-7xl mx-auto px-6 mb-4">
-            <div className="bg-gradient-to-r from-medical-50 to-health-50 border border-medical-200 rounded-xl p-6">
-              <div className="flex items-start space-x-3">
-                {selectedSearchUser 
-                  ? `Calendrier de ${selectedSearchUser.firstName} ${selectedSearchUser.lastName}` 
-                  : "Gérez vos consultations et disponibilités"
-                }
-                <Info className="h-5 w-5 text-medical-600 mt-0.5 flex-shrink-0" />
-                <div>
-                  <h4 className="font-medium text-medical-800 mb-1">Gestion des indisponibilités</h4>
-                  <div className="text-sm text-medical-700 space-y-2">
-          {/* Barre de recherche spécialisée */}
-          <div className="flex items-center space-x-4">
-            <div className="relative">
-              <input
-                type="text"
-                placeholder={isDoctor ? "Rechercher un patient ou médecin..." : "Rechercher un médecin..."}
-                value={searchTerm}
-                onChange={(e) => handleSearch(e.target.value)}
-                className="input w-80 pl-4 pr-4"
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          {types.map(type => (
+            <div key={type.key} className="flex items-center space-x-2">
+              <div 
+                className="w-4 h-4 rounded-full shadow-sm"
+                style={{ backgroundColor: type.color }}
               />
-              
-              {/* Dropdown des résultats de recherche */}
-              {showSearchDropdown && searchResults.length > 0 && (
-                <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-medical-200 rounded-xl shadow-lg z-50 max-h-60 overflow-y-auto">
-                  {searchResults.map((searchUser) => (
-                    <div
-                      key={searchUser.id}
-                      className="flex items-center p-3 hover:bg-medical-50 cursor-pointer border-b border-medical-100 last:border-b-0"
-                      onClick={() => handleSelectUser(searchUser)}
-                    >
-                      <div className="w-10 h-10 bg-gradient-medical rounded-full flex items-center justify-center mr-3">
-                        <User className="h-5 w-5 text-white" />
-                      </div>
-                      <div>
-                        <p className="font-medium text-neutral-800">
-                          {searchUser.type === "doctor" ? "Dr. " : ""}{searchUser.firstName} {searchUser.lastName}
-                        </p>
-                        <p className="text-sm text-neutral-500">
-                          {searchUser.type === "doctor" ? searchUser.department || "Médecin" : "Patient"}
-                        </p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
+              <span className="text-sm font-medium text-gray-700">
+                {type.icon} {type.label}
+              </span>
             </div>
-            
-            {/* Bouton pour revenir au calendrier personnel */}
-            {selectedSearchUser && (
+          ))}
+        </div>
+      </div>
+    );
+  };
+
+  const renderSearchBar = () => {
+    return (
+      <div className="relative mb-6">
+        <div className="flex items-center space-x-3">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-neutral-400" />
+            <input
+              type="text"
+              placeholder={getSearchPlaceholder()}
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="input pl-10 pr-10 w-full"
+            />
+            {searchTerm && (
               <button
-                onClick={resetToPersonalCalendar}
-                className="btn-secondary"
+                onClick={handleClearSearch}
+                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-neutral-400 hover:text-neutral-600"
               >
-                Mon calendrier
+                <X className="h-4 w-4" />
               </button>
             )}
           </div>
-                    <p>
-                      • <strong>Cliquez sur une plage horaire</strong> pour ajouter une indisponibilité
-        {/* Indicateur de vue actuelle */}
-        {selectedSearchUser && (
-          <div className="mb-4 p-4 bg-medical-100 rounded-xl border border-medical-200">
-            <div className="flex items-center space-x-3">
-              <User className="h-5 w-5 text-medical-600" />
-              <span className="font-medium text-medical-800">
-                Vous consultez le calendrier de {selectedSearchUser.type === "doctor" ? "Dr. " : ""}{selectedSearchUser.firstName} {selectedSearchUser.lastName}
-              </span>
-              {selectedSearchUser.type === "doctor" && selectedSearchUser.department && (
-                <span className="badge-info">{selectedSearchUser.department}</span>
-              )}
-            </div>
-          </div>
-        )}
-                    </p>
-                    <p>
-                      • <strong>Glissez-déposez</strong> les blocs d'indisponibilité pour les déplacer (mise à jour automatique)
-                    </p>
-                    <p>
-                      • <strong>Cliquez sur un bloc</strong> d'indisponibilité pour le modifier ou le supprimer
-                    </p>
-                    <p>
-                      • <strong>Redimensionnez</strong> les blocs en tirant sur les bords pour ajuster la durée
-                    </p>
-                    <p>
-                      • Les patients verront vos indisponibilités et ne pourront pas prendre de RDV sur ces créneaux
-                    </p>
-                  </div>
-                  
-                  {/* Légende des types d'indisponibilité */}
-                  <div className="mt-4 pt-4 border-t border-medical-200">
-                    <h5 className="font-medium text-medical-800 mb-3">Types d'indisponibilité :</h5>
-                      <li>• <strong>Recherchez</strong> un patient ou médecin pour voir leur calendrier</li>
-                    <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-                      <div className="flex items-center space-x-2">
-                        <div className="w-4 h-4 bg-yellow-500 rounded-md"></div>
-                        <span className="text-sm">🏖️ Vacances</span>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <div className="w-4 h-4 bg-purple-500 rounded-md"></div>
-                        <span className="text-sm">👥 Réunion</span>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <div className="w-4 h-4 bg-red-600 rounded-md"></div>
-                        <span className="text-sm">🤒 Maladie</span>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <div className="w-4 h-4 bg-blue-600 rounded-md"></div>
-                        <span className="text-sm">📚 Formation</span>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <div className="w-4 h-4 bg-gray-600 rounded-md"></div>
-                        <span className="text-sm">🔧 Autre</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Instructions pour les patients */}
-        {!isDoctor && (
-          <div className="mb-6 card-medical p-6">
-            <div className="flex items-start space-x-4">
-              <div className="w-10 h-10 bg-health-100 rounded-xl flex items-center justify-center">
-                <Info className="h-5 w-5 text-health-600" />
-              </div>
-              <div className="flex-1">
-                <h3 className="text-lg font-semibold text-health-800 mb-3">Consultation des calendriers</h3>
-                <div className="text-sm text-neutral-600 space-y-1">
-                  <p>• <strong>Recherchez un médecin</strong> pour voir ses disponibilités et indisponibilités</p>
-                  <p>• Les créneaux colorés indiquent les indisponibilités du médecin</p>
-                  <p>• Vous pouvez voir vos propres rendez-vous et ceux du médecin sélectionné</p>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-        {/* Calendrier principal */}
-        <div className="max-w-7xl mx-auto p-6">
-          <div className="card-medical p-6">
-            <DnDCalendar
-              localizer={localizer}
-              events={events}
-              startAccessor="start"
-              endAccessor="end"
-              selectable={user?.userType === "doctor"}
-              resizable
-              onSelectSlot={this.handleSlotSelect}
-              onSelectEvent={this.handleEventSelect}
-              onEventDrop={this.handleEventDrop}
-              onEventResize={this.handleEventResize}
-              view={view}
-              onView={(newView) => this.setState({ view: newView })}
-              style={{ height: 600 }}
-              eventPropGetter={this.getEventStyle}
-              messages={messages}
-              className="modern-calendar"
-              step={30}
-              timeslots={2}
-              min={new Date(2025, 0, 1, 7, 0, 0)}
-              max={new Date(2025, 0, 1, 22, 0, 0)}
-            />
-          </div>
+          
+          {selectedContact && (
+            <button
+              onClick={handleClearSearch}
+              className="btn-secondary whitespace-nowrap"
+            >
+              Mon calendrier
+            </button>
+          )}
         </div>
 
-        {/* Modal de disponibilité */}
-        {showModal && user?.userType === "doctor" && (
-          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-            <div className="card-medical max-w-md w-full animate-scale-in">
-              <div className="p-6">
-                <div className="flex items-center space-x-3 mb-6">
-                  <AlertCircle className="h-6 w-6 text-medical-600" />
-                  <h3 className="text-xl font-semibold text-medical-800">Ajouter une indisponibilité</h3>
-                </div>
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-neutral-700 mb-2">Type d'indisponibilité</label>
-                    <select
-                      value={availabilityForm.type}
-                      onChange={(e) => this.handleAvailabilityFormChange('type', e.target.value)}
-                      className="input w-full"
-                    >
-                      <option value="vacances">🏖️ Vacances</option>
-                      <option value="réunion">👥 Réunion</option>
-                      <option value="maladie">🤒 Maladie</option>
-                      <option value="formation">📚 Formation</option>
-                      <option value="autre">🔧 Autre</option>
-                    </select>
-                  </div>
-                  
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-neutral-700 mb-2">Date de début</label>
-                      <input
-                        type="date"
-                        value={availabilityForm.startDate}
-                        onChange={(e) => this.handleAvailabilityFormChange('startDate', e.target.value)}
-                        className="input w-full"
-                        min={this.getMinDate()}
-                        required
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-neutral-700 mb-2">Heure de début</label>
-                      <input
-                        type="time"
-                        value={availabilityForm.startTime}
-                        onChange={(e) => this.handleAvailabilityFormChange('startTime', e.target.value)}
-                        className="input w-full"
-                        required
-                      />
-                    </div>
-                  </div>
-                  
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-neutral-700 mb-2">Date de fin</label>
-                      <input
-                        type="date"
-                        value={availabilityForm.endDate}
-                        onChange={(e) => this.handleAvailabilityFormChange('endDate', e.target.value)}
-                        className="input w-full"
-                        min={availabilityForm.startDate || this.getMinDate()}
-                        required
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-neutral-700 mb-2">Heure de fin</label>
-                      <input
-                        type="time"
-                        value={availabilityForm.endTime}
-                        onChange={(e) => this.handleAvailabilityFormChange('endTime', e.target.value)}
-                        className="input w-full"
-                        required
-                      />
-                    </div>
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-neutral-700 mb-2">Notes (optionnel)</label>
-                    <textarea
-                      value={availabilityForm.notes}
-                      onChange={(e) => this.handleAvailabilityFormChange('notes', e.target.value)}
-                      className="input w-full resize-none"
-                      rows="3"
-                      placeholder="Détails supplémentaires..."
-                    />
-                  </div>
-                  
-                  <div className="flex space-x-3">
-                    <button
-                      onClick={this.handleAddAvailability}
-                      disabled={!availabilityForm.startDate || !availabilityForm.endDate || !availabilityForm.startTime || !availabilityForm.endTime}
-                      className="btn-primary flex-1"
-                    >
-                      Confirmer
-                    </button>
-                    <button
-                      onClick={() => this.setState({ showModal: false })}
-                      className="btn-secondary flex-1"
-                    >
-                      Annuler
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Modal de détail d'indisponibilité */}
-        {showAvailabilityModal && selectedAvailability && user?.userType === "doctor" && (
-          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
-            <div className="card-medical max-w-lg w-full animate-scale-in">
-              <div className="p-6">
-                <div className="flex items-center justify-between mb-6">
-                  <h3 className="text-xl font-semibold text-medical-800">Indisponibilité</h3>
-                  <div className={`badge ${
-                    selectedAvailability.type === 'vacances' ? 'bg-yellow-100 text-yellow-800' :
-                    selectedAvailability.type === 'réunion' ? 'bg-purple-100 text-purple-800' :
-                    selectedAvailability.type === 'maladie' ? 'bg-red-100 text-red-800' :
-                    selectedAvailability.type === 'formation' ? 'bg-blue-100 text-blue-800' :
-                    'bg-gray-100 text-gray-800'
-                  }`}>
-                    {selectedAvailability.type}
-                  </div>
-                </div>
-
-                {editAvailabilityMode ? (
-                  <div className="space-y-4">
-                    <div>
-                      <label className="block text-sm font-medium text-neutral-700 mb-2">Type</label>
-                      <select
-                        value={availabilityForm.type}
-                        onChange={(e) => this.handleAvailabilityFormChange('type', e.target.value)}
-                        className="input w-full"
-                      >
-                        <option value="vacances">🏖️ Vacances</option>
-                        <option value="réunion">👥 Réunion</option>
-                        <option value="maladie">🤒 Maladie</option>
-                        <option value="formation">📚 Formation</option>
-                        <option value="autre">🔧 Autre</option>
-                      </select>
-                    </div>
-                    
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm font-medium text-neutral-700 mb-2">Date de début</label>
-                        <input
-                          type="date"
-                          value={availabilityForm.startDate}
-                          onChange={(e) => this.handleAvailabilityFormChange('startDate', e.target.value)}
-                          className="input w-full"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-neutral-700 mb-2">Heure de début</label>
-                        <input
-                          type="time"
-                          value={availabilityForm.startTime}
-                          onChange={(e) => this.handleAvailabilityFormChange('startTime', e.target.value)}
-                          className="input w-full"
-                        />
-                      </div>
-                    </div>
-                    
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm font-medium text-neutral-700 mb-2">Date de fin</label>
-                        <input
-                          type="date"
-                          value={availabilityForm.endDate}
-                          onChange={(e) => this.handleAvailabilityFormChange('endDate', e.target.value)}
-                          className="input w-full"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-neutral-700 mb-2">Heure de fin</label>
-                        <input
-                          type="time"
-                          value={availabilityForm.endTime}
-                          onChange={(e) => this.handleAvailabilityFormChange('endTime', e.target.value)}
-                          className="input w-full"
-                        />
-                      </div>
-                    </div>
-                    
-                    <div>
-                      <label className="block text-sm font-medium text-neutral-700 mb-2">Notes</label>
-                      <textarea
-                        value={availabilityForm.notes}
-                        onChange={(e) => this.handleAvailabilityFormChange('notes', e.target.value)}
-                        className="input w-full resize-none"
-                        rows="3"
-                        placeholder="Détails supplémentaires..."
-                      />
-                    </div>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    <div className="flex items-center space-x-3">
-                      <CalendarIcon className="h-5 w-5 text-medical-500" />
-                      <div>
-                        <p className="text-sm text-neutral-500">Période</p>
-                        <p className="font-medium">
-                          Du {moment(selectedAvailability.start).format('DD/MM/YYYY à HH:mm')} 
-                          au {moment(selectedAvailability.end).format('DD/MM/YYYY à HH:mm')}
-                        </p>
-                      </div>
-                    </div>
-                    
-                    <div className="flex items-center space-x-3">
-                      <Clock className="h-5 w-5 text-medical-500" />
-                      <div>
-                        <p className="text-sm text-neutral-500">Durée</p>
-                        <p className="font-medium">
-                          {moment.duration(moment(selectedAvailability.end).diff(moment(selectedAvailability.start))).humanize()}
-                        </p>
-                      </div>
-                    </div>
-                    
-                    {selectedAvailability.notes && (
-                      <div>
-                        <p className="text-sm text-neutral-500 mb-1">Notes</p>
-                        <p className="text-sm bg-neutral-50 p-3 rounded-lg">{selectedAvailability.notes}</p>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                <div className="flex space-x-3 mt-6">
-                  {editAvailabilityMode ? (
-                    <>
-                      <button
-                        onClick={this.handleUpdateAvailability}
-                        className="btn-success flex items-center space-x-2"
-                      >
-                        <span>Sauvegarder</span>
-                      </button>
-                      <button
-                        onClick={() => this.setState({ editAvailabilityMode: false })}
-                        className="btn-secondary"
-                      >
-                        Annuler
-                      </button>
-                    </>
+        {/* Dropdown des résultats */}
+        {showSearchDropdown && searchResults.length > 0 && (
+          <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-neutral-200 rounded-xl shadow-lg z-50 max-h-60 overflow-y-auto">
+            {searchResults.map(contact => (
+              <button
+                key={contact.id}
+                onClick={() => handleSelectContact(contact)}
+                className="w-full px-4 py-3 text-left hover:bg-neutral-50 flex items-center space-x-3 border-b border-neutral-100 last:border-b-0"
+              >
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-semibold ${
+                  contact.type === 'doctor' ? 'bg-medical-500' : 'bg-health-500'
+                }`}>
+                  {contact.type === 'doctor' ? (
+                    <Stethoscope className="h-4 w-4" />
                   ) : (
-                    <>
-                      <button
-                        onClick={() => this.setState({ editAvailabilityMode: true })}
-                        className="btn-secondary flex items-center space-x-2"
-                      >
-                        <Edit3 className="h-4 w-4" />
-                        <span>Modifier</span>
-                      </button>
-                      
-                      <button
-                        onClick={() => this.handleDeleteAvailability(selectedAvailability.id)}
-                        className="btn-danger flex items-center space-x-2"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                        <span>Supprimer</span>
-                      </button>
-                    </>
-                  )}
-                  
-                  <button
-                    onClick={() => this.setState({ showAvailabilityModal: false, editAvailabilityMode: false })}
-                    className="btn-ghost flex-1"
-                  >
-                    Fermer
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-        {/* Modal de détail du rendez-vous */}
-        {showAppointmentModal && selectedAppointment && (
-          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
-            <div className="card-medical max-w-2xl w-full animate-scale-in">
-              <div className="p-6">
-                <div className="flex items-center justify-between mb-6">
-                  <h3 className="text-xl font-semibold text-medical-800">Détails du rendez-vous</h3>
-                  <div className={`badge ${
-                    selectedAppointment.status === 'accepté' ? 'badge-success' : 
-                    selectedAppointment.status === 'en attente' ? 'badge-info' : 'badge-error'
-                  }`}>
-                    {selectedAppointment.status}
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-                  {this.state.editMode ? (
-                    // Mode édition
-                    <div className="col-span-2 space-y-4">
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <label className="block text-sm font-medium text-neutral-700 mb-2">Date</label>
-                          <input
-                            type="date"
-                            value={this.state.appointmentForm.date}
-                            onChange={(e) => this.handleUpdateAppointmentForm('date', e.target.value)}
-                            className="input w-full"
-                            min={this.getMinDate()}
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-neutral-700 mb-2">Heure</label>
-                          <input
-                            type="time"
-                            value={this.state.appointmentForm.time}
-                            onChange={(e) => this.handleUpdateAppointmentForm('time', e.target.value)}
-                            className="input w-full"
-                          />
-                        </div>
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-neutral-700 mb-2">Motif</label>
-                        <select
-                          value={this.state.appointmentForm.reason}
-                          onChange={(e) => this.handleUpdateAppointmentForm('reason', e.target.value)}
-                          className="input w-full"
-                        >
-                          <option value="consultation">Consultation générale</option>
-                          <option value="suivi">Suivi médical</option>
-                          <option value="urgence">Consultation d'urgence</option>
-                          <option value="controle">Contrôle post-traitement</option>
-                          <option value="prevention">Médecine préventive</option>
-                          <option value="autre">Autre</option>
-                        </select>
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-neutral-700 mb-2">Notes</label>
-                        <textarea
-                          value={this.state.appointmentForm.notes}
-                          onChange={(e) => this.handleUpdateAppointmentForm('notes', e.target.value)}
-                          className="input w-full resize-none"
-                          rows="3"
-                          placeholder="Notes complémentaires..."
-                        />
-                      </div>
-                    </div>
-                  ) : (
-                    // Mode affichage
-                    <>
-                      <div className="space-y-4">
-                        <div className="flex items-center space-x-3">
-                          <User className="h-5 w-5 text-medical-500" />
-                          <div>
-                            <p className="text-sm text-neutral-500">Patient</p>
-                            <p className="font-medium">
-                              {selectedAppointment.resource?.contactInfo?.firstName} {selectedAppointment.resource?.contactInfo?.lastName}
-                            </p>
-                          </div>
-                        </div>
-                        
-                        <div className="flex items-center space-x-3">
-                          <CalendarIcon className="h-5 w-5 text-medical-500" />
-                          <div>
-                            <p className="text-sm text-neutral-500">Date</p>
-                            <p className="font-medium">{moment(selectedAppointment.start).format('DD MMMM YYYY')}</p>
-                          </div>
-                        </div>
-
-                        <div className="flex items-center space-x-3">
-                          <Clock className="h-5 w-5 text-medical-500" />
-                          <div>
-                            <p className="text-sm text-neutral-500">Heure</p>
-                            <p className="font-medium">{moment(selectedAppointment.start).format('HH:mm')}</p>
-                          </div>
-                        </div>
-
-                        <div className="flex items-center space-x-3">
-                          <FileText className="h-5 w-5 text-medical-500" />
-                          <div>
-                            <p className="text-sm text-neutral-500">Motif</p>
-                            <p className="font-medium">{selectedAppointment.resource?.reason || 'Non spécifié'}</p>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="space-y-4">
-                        {selectedAppointment.resource?.contactInfo?.email && (
-                          <div className="flex items-center space-x-3">
-                            <Mail className="h-5 w-5 text-medical-500" />
-                            <div>
-                              <p className="text-sm text-neutral-500">Email</p>
-                              <p className="font-medium">{selectedAppointment.resource.contactInfo.email}</p>
-                            </div>
-                          </div>
-                        )}
-
-                        {selectedAppointment.resource?.contactInfo?.mobileNumber && (
-                          <div className="flex items-center space-x-3">
-                            <Phone className="h-5 w-5 text-medical-500" />
-                            <div>
-                              <p className="text-sm text-neutral-500">Téléphone</p>
-                              <p className="font-medium">{selectedAppointment.resource.contactInfo.mobileNumber}</p>
-                            </div>
-                          </div>
-                        )}
-
-                        {selectedAppointment.resource?.urgency && (
-                          <div className="flex items-center space-x-3">
-                            <Bell className="h-5 w-5 text-medical-500" />
-                            <div>
-                              <p className="text-sm text-neutral-500">Urgence</p>
-                              <span className={`inline-flex px-2 py-1 rounded-full text-xs font-medium ${
-                                selectedAppointment.resource.urgency === 'tres_urgent' ? 'bg-red-100 text-red-800' :
-                                selectedAppointment.resource.urgency === 'urgent' ? 'bg-yellow-100 text-yellow-800' :
-                                'bg-health-100 text-health-800'
-                              }`}>
-                                {selectedAppointment.resource.urgency === 'tres_urgent' ? 'Très urgent' :
-                                 selectedAppointment.resource.urgency === 'urgent' ? 'Urgent' : 'Normal'}
-                              </span>
-                            </div>
-                          </div>
-                        )}
-
-                        {selectedAppointment.resource?.notes && (
-                          <div>
-                            <p className="text-sm text-neutral-500 mb-1">Notes</p>
-                            <p className="text-sm bg-neutral-50 p-3 rounded-lg">{selectedAppointment.resource.notes}</p>
-                          </div>
-                        )}
-                      </div>
-                    </>
+                    <UserCheck className="h-4 w-4" />
                   )}
                 </div>
-
-                <div className="flex space-x-3">
-                  {this.state.editMode ? (
-                    <>
-                      <button
-                        onClick={this.handleSaveAppointmentChanges}
-                        className="btn-success flex items-center space-x-2"
-                      >
-                        <span>Sauvegarder</span>
-                      </button>
-                      <button
-                        onClick={() => this.setState({ editMode: false })}
-                        className="btn-secondary"
-                      >
-                        Annuler
-                      </button>
-                    </>
-                  ) : (
-                    <>
-                      <button
-                        onClick={() => this.setState({ editMode: true })}
-                        className="btn-secondary flex items-center space-x-2"
-                      >
-                        <Edit3 className="h-4 w-4" />
-                        <span>Modifier</span>
-                      </button>
-                      
-                      <button
-                        onClick={() => this.handleDeleteAppointment(selectedAppointment.id)}
-                        className="btn-danger flex items-center space-x-2"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                        <span>Annuler</span>
-                      </button>
-                    </>
+                <div className="flex-1">
+                  <div className="font-medium text-neutral-800">
+                    {contact.type === 'doctor' ? 'Dr. ' : ''}{contact.firstName} {contact.lastName}
+                  </div>
+                  {contact.department && (
+                    <div className="text-sm text-neutral-500">{contact.department}</div>
                   )}
-                  
-                  <button
-                    onClick={() => this.setState({ showAppointmentModal: false, editMode: false })}
-                    className="btn-ghost flex-1"
-                  >
-                    Fermer
-                  </button>
                 </div>
-              </div>
-            </div>
+                <div className={`px-2 py-1 rounded-full text-xs font-medium ${
+                  contact.type === 'doctor' 
+                    ? 'bg-medical-100 text-medical-700' 
+                    : 'bg-health-100 text-health-700'
+                }`}>
+                  {contact.type === 'doctor' ? 'Médecin' : 'Patient'}
+                </div>
+              </button>
+            ))}
           </div>
         )}
       </div>
     );
+  };
+
+  const renderViewIndicator = () => {
+    if (!selectedContact) return null;
+
+    return (
+      <div className="bg-gradient-to-r from-medical-50 to-health-50 border border-medical-200 rounded-xl p-4 mb-6">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-3">
+            <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white ${
+              selectedContact.type === 'doctor' ? 'bg-medical-500' : 'bg-health-500'
+            }`}>
+              {selectedContact.type === 'doctor' ? (
+                <Stethoscope className="h-5 w-5" />
+              ) : (
+                <UserCheck className="h-5 w-5" />
+              )}
+            </div>
+            <div>
+              <h3 className="font-semibold text-medical-800">
+                Calendrier de {selectedContact.type === 'doctor' ? 'Dr. ' : ''}{selectedContact.firstName} {selectedContact.lastName}
+              </h3>
+              {selectedContact.department && (
+                <p className="text-sm text-medical-600">{selectedContact.department}</p>
+              )}
+            </div>
+          </div>
+          <div className={`px-3 py-1 rounded-full text-sm font-medium ${
+            selectedContact.type === 'doctor' 
+              ? 'bg-medical-100 text-medical-700' 
+              : 'bg-health-100 text-health-700'
+          }`}>
+            {selectedContact.type === 'doctor' ? 'Médecin' : 'Patient'}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderInstructions = () => {
+    if (currentUser?.type === 'doctor') {
+      return (
+        <div className="text-sm text-neutral-600 mb-4">
+          <p>• Recherchez un patient ou médecin pour voir son calendrier</p>
+          <p>• Cliquez sur une plage horaire pour créer une indisponibilité</p>
+          <p>• Glissez-déposez les indisponibilités pour les modifier</p>
+        </div>
+      );
+    } else {
+      return (
+        <div className="text-sm text-neutral-600 mb-4">
+          <p>• Recherchez un médecin pour voir ses disponibilités</p>
+          <p>• Les zones colorées indiquent les indisponibilités du médecin</p>
+          <p>• Utilisez le bouton "Nouveau RDV" pour prendre rendez-vous</p>
+        </div>
+      );
+    }
+  };
+
+  if (!currentUser) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-medical-50 via-white to-health-50 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-medical-500"></div>
+      </div>
+    );
   }
-}
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-medical-50 via-white to-health-50 py-8">
+      <div className="max-w-7xl mx-auto px-4">
+        {/* Header */}
+        <div className="text-center mb-8">
+          <h1 className="text-3xl font-bold text-gradient mb-2">Planning des rendez-vous</h1>
+          <p className="text-neutral-600">Gérez vos rendez-vous et consultations</p>
+        </div>
+
+        {/* Barre de recherche */}
+        {renderSearchBar()}
+
+        {/* Indicateur de vue */}
+        {renderViewIndicator()}
+
+        {/* Instructions */}
+        {renderInstructions()}
+
+        {/* Légende des indisponibilités */}
+        {renderUnavailabilityLegend()}
+
+        {/* Actions */}
+        <div className="flex justify-between items-center mb-6">
+          <div className="flex space-x-3">
+            {currentUser.type === 'patient' && (
+              <button
+                onClick={() => navigate("/appointments/new")}
+                className="btn-primary inline-flex items-center space-x-2"
+              >
+                <Plus className="h-4 w-4" />
+                <span>Nouveau RDV</span>
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Erreur */}
+        {error && (
+          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl">
+            <p className="text-red-600 text-sm">{error}</p>
+          </div>
+        )}
+
+        {/* Calendrier */}
+        <div className="card-medical p-6">
+          {isLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-medical-500"></div>
+            </div>
+          ) : (
+            <BigCalendar
+              localizer={localizer}
+              events={getCalendarEvents()}
+              startAccessor="start"
+              endAccessor="end"
+              style={{ height: 600 }}
+              messages={messages}
+              onSelectEvent={handleSelectEvent}
+              onSelectSlot={handleSelectSlot}
+              onEventDrop={handleEventDrop}
+              onEventResize={handleEventResize}
+              selectable={currentUser?.type === 'doctor'}
+              resizable={currentUser?.type === 'doctor'}
+              dragFromOutsideItem={currentUser?.type === 'doctor'}
+              eventPropGetter={eventStyleGetter}
+              step={30}
+              timeslots={2}
+              min={new Date(0, 0, 0, 7, 0, 0)}
+              max={new Date(0, 0, 0, 22, 0, 0)}
+              formats={{
+                timeGutterFormat: 'HH:mm',
+                eventTimeRangeFormat: ({ start, end }) => 
+                  `${moment(start).format('HH:mm')} - ${moment(end).format('HH:mm')}`
+              }}
+            />
+          )}
+        </div>
+
+        {/* Modal Rendez-vous */}
+        {showModal && selectedEvent && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-xl p-6 max-w-md w-full mx-4">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-semibold">Détails du rendez-vous</h3>
+                <button
+                  onClick={() => setShowModal(false)}
+                  className="text-neutral-400 hover:text-neutral-600"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+              
+              <div className="space-y-3">
+                <p><strong>Titre:</strong> {selectedEvent.title}</p>
+                <p><strong>Date:</strong> {moment(selectedEvent.start).format('DD/MM/YYYY')}</p>
+                <p><strong>Heure:</strong> {moment(selectedEvent.start).format('HH:mm')} - {moment(selectedEvent.end).format('HH:mm')}</p>
+                {selectedEvent.resource?.notes && (
+                  <p><strong>Notes:</strong> {selectedEvent.resource.notes}</p>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Modal Indisponibilité */}
+        {showUnavailabilityModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-xl p-6 max-w-md w-full mx-4">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-semibold">
+                  {editingUnavailability ? 'Modifier' : 'Ajouter'} une indisponibilité
+                </h3>
+                <button
+                  onClick={() => setShowUnavailabilityModal(false)}
+                  className="text-neutral-400 hover:text-neutral-600"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+              
+              <form onSubmit={handleUnavailabilitySubmit} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-neutral-700 mb-1">
+                    Type d'indisponibilité
+                  </label>
+                  <select
+                    name="type"
+                    value={unavailabilityForm.type}
+                    onChange={handleUnavailabilityFormChange}
+                    className="input w-full"
+                    required
+                  >
+                    <option value="vacances">🏖️ Vacances</option>
+                    <option value="reunion">👥 Réunion</option>
+                    <option value="maladie">🤒 Maladie</option>
+                    <option value="formation">📚 Formation</option>
+                  </select>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-sm font-medium text-neutral-700 mb-1">
+                      Date de début
+                    </label>
+                    <input
+                      type="date"
+                      name="startDate"
+                      value={unavailabilityForm.startDate}
+                      onChange={handleUnavailabilityFormChange}
+                      className="input w-full"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-neutral-700 mb-1">
+                      Heure de début
+                    </label>
+                    <input
+                      type="time"
+                      name="startTime"
+                      value={unavailabilityForm.startTime}
+                      onChange={handleUnavailabilityFormChange}
+                      className="input w-full"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-sm font-medium text-neutral-700 mb-1">
+                      Date de fin
+                    </label>
+                    <input
+                      type="date"
+                      name="endDate"
+                      value={unavailabilityForm.endDate}
+                      onChange={handleUnavailabilityFormChange}
+                      min={unavailabilityForm.startDate}
+                      className="input w-full"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-neutral-700 mb-1">
+                      Heure de fin
+                    </label>
+                    <input
+                      type="time"
+                      name="endTime"
+                      value={unavailabilityForm.endTime}
+                      onChange={handleUnavailabilityFormChange}
+                      className="input w-full"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-neutral-700 mb-1">
+                    Notes (optionnel)
+                  </label>
+                  <textarea
+                    name="notes"
+                    value={unavailabilityForm.notes}
+                    onChange={handleUnavailabilityFormChange}
+                    rows="3"
+                    className="input w-full resize-none"
+                    placeholder="Détails supplémentaires..."
+                  />
+                </div>
+
+                <div className="flex justify-between pt-4">
+                  {editingUnavailability && (
+                    <button
+                      type="button"
+                      onClick={handleDeleteUnavailability}
+                      className="btn-danger inline-flex items-center space-x-2"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      <span>Supprimer</span>
+                    </button>
+                  )}
+                  
+                  <div className="flex space-x-3 ml-auto">
+                    <button
+                      type="button"
+                      onClick={() => setShowUnavailabilityModal(false)}
+                      className="btn-secondary"
+                    >
+                      Annuler
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={isLoading || !unavailabilityForm.startDate || !unavailabilityForm.endDate}
+                      className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {isLoading ? 'Sauvegarde...' : (editingUnavailability ? 'Modifier' : 'Ajouter')}
+                    </button>
+                  </div>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
 
 Appointments.propTypes = {
   navigate: PropTypes.func.isRequired,
