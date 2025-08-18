@@ -379,8 +379,13 @@ export const Appointments = ({ navigate }) => {
        return null;
      }
       return {
+      // 🔹 Affichage différent selon le type d'utilisateur
+      const displayTitle = currentUser?.type === 'patient' 
+        ? '🚫 Indisponible' // Patient ne voit que "Indisponible"
+        : `${config.icon} ${config.label}`; // Médecin voit le détail
+
         id: unavailability.id,
-        title: `${config.icon} ${config.label}`,
+        title: displayTitle,
        start: startDate,
        end: endDate,
         resource: unavailability,
@@ -388,8 +393,8 @@ export const Appointments = ({ navigate }) => {
         unavailabilityType: unavailability.type,
         notes: unavailability.notes,
         style: {
-          backgroundColor: config.color,
-          borderColor: config.color,
+          backgroundColor: currentUser?.type === 'patient' ? '#6b7280' : config.color, // Gris pour patient, couleur spécifique pour médecin
+          borderColor: currentUser?.type === 'patient' ? '#6b7280' : config.color,
           color: 'white'
         }
       };
@@ -439,6 +444,27 @@ export const Appointments = ({ navigate }) => {
   };
 
   const renderUnavailabilityLegend = () => {
+    // 🔹 Affichage différent selon le type d'utilisateur
+    if (currentUser?.type === 'patient') {
+      return (
+        <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 mb-6">
+          <div className="flex items-center mb-3">
+            <Info className="h-5 w-5 text-gray-600 mr-2" />
+            <h3 className="font-semibold text-gray-800">Légende du calendrier</h3>
+          </div>
+          
+          <div className="flex items-center space-x-2">
+            <div className="w-4 h-4 rounded-full bg-gray-500 shadow-sm" />
+            <span className="text-sm font-medium text-gray-700">🚫 Créneaux indisponibles</span>
+          </div>
+          
+          <p className="text-sm text-gray-600 mt-3">
+            Les créneaux grisés indiquent que le médecin n'est pas disponible pour ces horaires.
+          </p>
+        </div>
+      );
+    }
+
     if (currentUser?.type !== 'doctor') return null;
 
     const types = [
