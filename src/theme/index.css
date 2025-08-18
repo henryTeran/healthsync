@@ -279,6 +279,54 @@
   border-color: #0284c7;
 }
 
+/* Amélioration de l'affichage des événements dans toutes les vues */
+.modern-calendar .rbc-event {
+  border-radius: 8px;
+  border: none;
+  font-size: 12px;
+  font-weight: 500;
+  padding: 2px 6px;
+  min-height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Amélioration pour la vue semaine */
+.modern-calendar .rbc-time-view .rbc-event {
+  min-height: 30px;
+  padding: 4px 8px;
+  font-size: 11px;
+  line-height: 1.2;
+  white-space: normal;
+  word-wrap: break-word;
+}
+
+/* Amélioration pour la vue jour */
+.modern-calendar .rbc-day-slot .rbc-event {
+  min-height: 25px;
+  padding: 3px 6px;
+}
+
+/* Assurer que les événements sont visibles dans toutes les vues */
+.modern-calendar .rbc-event-content {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Amélioration du contraste pour la lisibilité */
+.modern-calendar .rbc-event {
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
 /* Animations personnalisées */
 @keyframes shimmer {
   0% {

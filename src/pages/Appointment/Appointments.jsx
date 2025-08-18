@@ -489,6 +489,38 @@ export class Appointments extends Component {
     });
   };
 
+  getAvailabilityIcon = (type) => {
+    switch (type) {
+      case "vacances":
+        return "🏖️";
+      case "réunion":
+        return "👥";
+      case "maladie":
+        return "🤒";
+      case "formation":
+        return "📚";
+      default:
+        return "🔧";
+    }
+  };
+
+  handleEventResize = async ({ event, start, end }) => {
+    const { user } = this.context;
+    
+    if (event.typeAction === "availability" && user?.userType === "doctor") {
+      try {
+        await updateDoc(doc(db, "availabilities", event.id), {
+          start: start,
+          end: end
+        });
+        this.fetchDoctorAvailability();
+        console.log(`✅ Indisponibilité redimensionnée: ${moment(start).format('DD/MM/YYYY HH:mm')} - ${moment(end).format('DD/MM/YYYY HH:mm')}`);
+      } catch (error) {
+        console.error("Erreur lors du redimensionnement de l'indisponibilité :", error);
+      }
+    }
+  };
+
   render() {
     const { 
       isLoading, 
@@ -500,7 +532,6 @@ export class Appointments extends Component {
       showAvailabilityModal,
       selectedAppointment,
       selectedAvailability,
-      availabilityType,
       editAvailabilityMode,
       view,
       searchTerm,
@@ -546,11 +577,12 @@ export class Appointments extends Component {
       })),
       ...doctorAvailability.map((availability) => ({
         id: availability.id,
-        title: availability.type,
+        title: `${this.getAvailabilityIcon(availability.type)} ${availability.type}`,
         start: availability.start,
         end: availability.end,
         type: availability.type,
-        typeAction: "availability"
+        typeAction: "availability",
+        resource: availability
       }))
     ];
 
@@ -663,17 +695,55 @@ export class Appointments extends Component {
         {/* Instructions pour les médecins */}
         {user?.userType === "doctor" && (
           <div className="max-w-7xl mx-auto px-6 mb-4">
-            <div className="bg-gradient-to-r from-medical-50 to-health-50 border border-medical-200 rounded-xl p-4">
+            <div className="bg-gradient-to-r from-medical-50 to-health-50 border border-medical-200 rounded-xl p-6">
               <div className="flex items-start space-x-3">
                 <Info className="h-5 w-5 text-medical-600 mt-0.5 flex-shrink-0" />
                 <div>
                   <h4 className="font-medium text-medical-800 mb-1">Gestion des indisponibilités</h4>
-                  <p className="text-sm text-medical-700">
-                    • <strong>Cliquez sur une plage horaire</strong> pour ajouter une indisponibilité
-                    • <strong>Glissez-déposez</strong> les blocs d'indisponibilité pour les déplacer
-                    • <strong>Cliquez sur un bloc</strong> d'indisponibilité pour le modifier ou le supprimer
-                    • Les patients verront vos indisponibilités et ne pourront pas prendre de RDV sur ces créneaux
-                  </p>
+                  <div className="text-sm text-medical-700 space-y-2">
+                    <p>
+                      • <strong>Cliquez sur une plage horaire</strong> pour ajouter une indisponibilité
+                    </p>
+                    <p>
+                      • <strong>Glissez-déposez</strong> les blocs d'indisponibilité pour les déplacer (mise à jour automatique)
+                    </p>
+                    <p>
+                      • <strong>Cliquez sur un bloc</strong> d'indisponibilité pour le modifier ou le supprimer
+                    </p>
+                    <p>
+                      • <strong>Redimensionnez</strong> les blocs en tirant sur les bords pour ajuster la durée
+                    </p>
+                    <p>
+                      • Les patients verront vos indisponibilités et ne pourront pas prendre de RDV sur ces créneaux
+                    </p>
+                  </div>
+                  
+                  {/* Légende des types d'indisponibilité */}
+                  <div className="mt-4 pt-4 border-t border-medical-200">
+                    <h5 className="font-medium text-medical-800 mb-3">Types d'indisponibilité :</h5>
+                    <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                      <div className="flex items-center space-x-2">
+                        <div className="w-4 h-4 bg-yellow-500 rounded-md"></div>
+                        <span className="text-sm">🏖️ Vacances</span>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <div className="w-4 h-4 bg-purple-500 rounded-md"></div>
+                        <span className="text-sm">👥 Réunion</span>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <div className="w-4 h-4 bg-red-600 rounded-md"></div>
+                        <span className="text-sm">🤒 Maladie</span>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <div className="w-4 h-4 bg-blue-600 rounded-md"></div>
+                        <span className="text-sm">📚 Formation</span>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <div className="w-4 h-4 bg-gray-600 rounded-md"></div>
+                        <span className="text-sm">🔧 Autre</span>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -693,13 +763,17 @@ export class Appointments extends Component {
               onSelectSlot={this.handleSlotSelect}
               onSelectEvent={this.handleEventSelect}
               onEventDrop={this.handleEventDrop}
-              onEventResize={this.handleEventDrop}
+              onEventResize={this.handleEventResize}
               view={view}
               onView={(newView) => this.setState({ view: newView })}
               style={{ height: 600 }}
               eventPropGetter={this.getEventStyle}
               messages={messages}
               className="modern-calendar"
+              step={30}
+              timeslots={2}
+              min={new Date(2025, 0, 1, 7, 0, 0)}
+              max={new Date(2025, 0, 1, 22, 0, 0)}
             />
           </div>
         </div>
@@ -737,6 +811,7 @@ export class Appointments extends Component {
                         value={availabilityForm.startDate}
                         onChange={(e) => this.handleAvailabilityFormChange('startDate', e.target.value)}
                         className="input w-full"
+                        min={this.getMinDate()}
                         required
                       />
                     </div>
@@ -760,6 +835,7 @@ export class Appointments extends Component {
                         value={availabilityForm.endDate}
                         onChange={(e) => this.handleAvailabilityFormChange('endDate', e.target.value)}
                         className="input w-full"
+                        min={availabilityForm.startDate || this.getMinDate()}
                         required
                       />
                     </div>
@@ -789,6 +865,7 @@ export class Appointments extends Component {
                   <div className="flex space-x-3">
                     <button
                       onClick={this.handleAddAvailability}
+                      disabled={!availabilityForm.startDate || !availabilityForm.endDate || !availabilityForm.startTime || !availabilityForm.endTime}
                       className="btn-primary flex-1"
                     >
                       Confirmer
@@ -917,10 +994,10 @@ export class Appointments extends Component {
                       </div>
                     </div>
                     
-                    {selectedAvailability.resource?.notes && (
+                    {selectedAvailability.notes && (
                       <div>
                         <p className="text-sm text-neutral-500 mb-1">Notes</p>
-                        <p className="text-sm bg-neutral-50 p-3 rounded-lg">{selectedAvailability.resource.notes}</p>
+                        <p className="text-sm bg-neutral-50 p-3 rounded-lg">{selectedAvailability.notes}</p>
                       </div>
                     )}
                   </div>
