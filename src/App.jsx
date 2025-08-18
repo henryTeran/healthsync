@@ -29,6 +29,42 @@ import { RemindersPage } from "./pages/Reminders/RemindersPage";
 import { ErrorBoundary } from "./components/ui/ErrorBoundary";
 import { LoadingSpinner } from "./components/ui/LoadingSpinner";
 
+export const App = () => {
+  return (
+    <ErrorBoundary>
+      <AuthProvider>
+        <AppContent />
+      </AuthProvider>
+    </ErrorBoundary>
+  );
+};
+
+const AppContent = () => {
+  const { loading, user } = useAuth();
+
+  useEffect(() => {
+    const initializeNotifications = async () => {
+      try {
+        await requestForFCMToken();
+        if (messaging) {
+          onMessage(messaging, (payload) => {
+            console.log('Notification reçue:', payload);
+            toast(payload.notification.body);
+          });
+        }
+        if (user?.uid) {
+          listenForReminders(user.uid);
+        }
+      } catch (error) {
+        console.error('Erreur lors de l\'initialisation des notifications:', error);
+      }
+    };
+
+    if (user) {
+      initializeNotifications();
+    }
+  }, [user]);
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
