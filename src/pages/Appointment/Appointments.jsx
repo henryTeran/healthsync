@@ -280,7 +280,7 @@ export const Appointments = ({ navigate }) => {
       if (editingUnavailability) {
         await updateUnavailability(editingUnavailability.id, unavailabilityData);
       } else {
-        await addDoctorAvailability(unavailabilityData);
+        await addDoctorAvailability(user.uid, unavailabilityData.start, unavailabilityData.end, unavailabilityData.type, unavailabilityData.notes);
       }
 
       setShowUnavailabilityModal(false);

@@ -306,7 +306,7 @@ export const addDoctorAvailability = async (doctorId, startDate, endDate, type, 
       createdAt: new Date().toISOString()
     };
     
-    const docRef = await addDoc(collection(db, "availabilities"), newAvailability);
+    const docRef = await addDoc(collection(db, "availabilities"), unavailabilityData);
     return docRef.id;
   } catch (error) {
     console.error("Erreur lors de l'ajout de disponibilité :", error);
