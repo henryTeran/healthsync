@@ -266,13 +266,15 @@ export const getDoctorAvailability = async (doctorId) => {
 /**
  * Ajoute une disponibilité pour un docteur.
  */
-export const addDoctorAvailability = async (doctorId, startDate, endDate, type) => {
+export const addDoctorAvailability = async (doctorId, startDate, endDate, type, notes = "") => {
   try {
     const newAvailability = {
       doctorId,
       start: startDate,
       end: endDate,
-      type, // Exemple : "vacances", "réunion", "maladie", etc.
+      type,
+      notes,
+      createdAt: new Date().toISOString()
     };
     
     const docRef = await addDoc(collection(db, "availabilities"), newAvailability);

@@ -19,7 +19,7 @@ import withDragAndDrop from "react-big-calendar/lib/addons/dragAndDrop";
 import "react-big-calendar/lib/addons/dragAndDrop/styles.css";
 import { updateDoc, doc, query, collection, where, onSnapshot } from "firebase/firestore";
 import { db } from "../../providers/firebase";
-import { Calendar as CalendarIcon, Clock, User, MapPin, Phone, Mail, Edit3, Trash2, Plus, Filter, Search, FileText, Bell } from "lucide-react";
+import { Calendar as CalendarIcon, Clock, User, MapPin, Phone, Mail, Edit3, Trash2, Plus, Filter, Search, FileText, Bell, Info, AlertCircle } from "lucide-react";
 
 moment.locale("fr");
 const localizer = momentLocalizer(moment);
@@ -53,7 +53,10 @@ export class Appointments extends Component {
       showAppointmentModal: false,
       selectedSlot: null,
       selectedAppointment: null,
+      selectedAvailability: null,
+      showAvailabilityModal: false,
       editMode: false,
+      editAvailabilityMode: false,
       availabilityType: "vacances",
       view: "month",
       searchTerm: "",
@@ -72,6 +75,14 @@ export class Appointments extends Component {
         notes: "",
         reason: "",
         urgency: "normal"
+      },
+      availabilityForm: {
+        type: "vacances",
+        startDate: "",
+        startTime: "",
+        endDate: "",
+        endTime: "",
+        notes: ""
       }
     };
   }
@@ -191,7 +202,20 @@ export class Appointments extends Component {
   };
 
   handleEventSelect = (event) => {
-    if (event.type === "appointment") {
+    if (event.typeAction === "availability") {
+      this.setState({
+        selectedAvailability: event,
+        showAvailabilityModal: true,
+        availabilityForm: {
+          type: event.type,
+          startDate: moment(event.start).format('YYYY-MM-DD'),
+          startTime: moment(event.start).format('HH:mm'),
+          endDate: moment(event.end).format('YYYY-MM-DD'),
+          endTime: moment(event.end).format('HH:mm'),
+          notes: event.resource?.notes || ''
+        }
+      });
+    } else if (event.type === "appointment") {
       this.setState({
         selectedAppointment: event,
         showAppointmentModal: true,
@@ -206,19 +230,100 @@ export class Appointments extends Component {
     }
   };
 
+  handleEventDrop = async ({ event, start, end }) => {
+    const { user } = this.context;
+    
+    if (event.typeAction === "availability" && user?.userType === "doctor") {
+      try {
+        await updateDoc(doc(db, "availabilities", event.id), {
+          start: start,
+          end: end
+        });
+        this.fetchDoctorAvailability();
+      } catch (error) {
+        console.error("Erreur lors du déplacement de l'indisponibilité :", error);
+      }
+    } else if (event.type === "appointment") {
+      try {
+        const newDate = moment(start).format('YYYY-MM-DD');
+        const newTime = moment(start).format('HH:mm');
+        
+        await this.handleUpdateAppointment(event.id, {
+          date: newDate,
+          time: newTime
+        });
+      } catch (error) {
+        console.error("Erreur lors du déplacement du rendez-vous :", error);
+      }
+    }
+  };
+
   handleAddAvailability = async () => {
     const { user } = this.context;
-    const { selectedSlot, availabilityType } = this.state;
+    const { availabilityForm } = this.state;
 
-    if (!selectedSlot || !user) return;
+    if (!user || user.userType !== "doctor") return;
 
     try {
-      await addDoctorAvailability(user.uid, selectedSlot.start, selectedSlot.end, availabilityType);
-      this.setState({ showModal: false, selectedSlot: null });
+      const startDateTime = new Date(`${availabilityForm.startDate}T${availabilityForm.startTime}`);
+      const endDateTime = new Date(`${availabilityForm.endDate}T${availabilityForm.endTime}`);
+      
+      await addDoctorAvailability(user.uid, startDateTime, endDateTime, availabilityForm.type, availabilityForm.notes);
+      this.setState({ showModal: false, selectedSlot: null, availabilityForm: {
+        type: "vacances",
+        startDate: "",
+        startTime: "",
+        endDate: "",
+        endTime: "",
+        notes: ""
+      }});
       this.fetchDoctorAvailability();
     } catch (error) {
       console.error("Erreur lors de l'ajout de la disponibilité :", error);
     }
+  };
+
+  handleUpdateAvailability = async () => {
+    const { selectedAvailability, availabilityForm } = this.state;
+    if (!selectedAvailability) return;
+
+    try {
+      const startDateTime = new Date(`${availabilityForm.startDate}T${availabilityForm.startTime}`);
+      const endDateTime = new Date(`${availabilityForm.endDate}T${availabilityForm.endTime}`);
+      
+      await updateDoc(doc(db, "availabilities", selectedAvailability.id), {
+        type: availabilityForm.type,
+        start: startDateTime,
+        end: endDateTime,
+        notes: availabilityForm.notes
+      });
+      
+      this.setState({ showAvailabilityModal: false, editAvailabilityMode: false });
+      this.fetchDoctorAvailability();
+    } catch (error) {
+      console.error("Erreur lors de la modification de l'indisponibilité :", error);
+    }
+  };
+
+  handleDeleteAvailability = async (availabilityId) => {
+    if (!window.confirm("Êtes-vous sûr de vouloir supprimer cette indisponibilité ?")) return;
+
+    try {
+      await deleteDoctorAvailability(availabilityId);
+      this.setState({ showAvailabilityModal: false });
+      this.fetchDoctorAvailability();
+    } catch (error) {
+      console.error("Erreur lors de la suppression :", error);
+    }
+  };
+
+  handleAvailabilityFormChange = (field, value) => {
+    this.setState(prevState => ({
+      availabilityForm: {
+        ...prevState.availabilityForm,
+        [field]: value
+      }
+    }));
   };
 
   handleDeleteAppointment = async (appointmentId) => {
@@ -392,11 +497,15 @@ export class Appointments extends Component {
       doctorAvailability, 
       showModal, 
       showAppointmentModal,
+      showAvailabilityModal,
       selectedAppointment,
+      selectedAvailability,
       availabilityType,
+      editAvailabilityMode,
       view,
       searchTerm,
-      filterStatus
+      filterStatus,
+      availabilityForm
     } = this.state;
     const { user } = this.context;
 
@@ -525,10 +634,51 @@ export class Appointments extends Component {
                   <div className="w-3 h-3 bg-red-500 rounded-full"></div>
                   <span className="text-neutral-600">Refusé</span>
                 </div>
+                {user?.userType === "doctor" && (
+                  <>
+                    <div className="w-px h-4 bg-neutral-300 mx-2"></div>
+                    <div className="flex items-center space-x-2 text-sm">
+                      <div className="w-3 h-3 bg-yellow-500 rounded-full"></div>
+                      <span className="text-neutral-600">Vacances</span>
+                    </div>
+                    <div className="flex items-center space-x-2 text-sm">
+                      <div className="w-3 h-3 bg-purple-500 rounded-full"></div>
+                      <span className="text-neutral-600">Réunion</span>
+                    </div>
+                    <div className="flex items-center space-x-2 text-sm">
+                      <div className="w-3 h-3 bg-red-600 rounded-full"></div>
+                      <span className="text-neutral-600">Maladie</span>
+                    </div>
+                    <div className="flex items-center space-x-2 text-sm">
+                      <div className="w-3 h-3 bg-blue-600 rounded-full"></div>
+                      <span className="text-neutral-600">Formation</span>
+                    </div>
+                  </>
+                )}
               </div>
             </div>
           </div>
         </div>
+
+        {/* Instructions pour les médecins */}
+        {user?.userType === "doctor" && (
+          <div className="max-w-7xl mx-auto px-6 mb-4">
+            <div className="bg-gradient-to-r from-medical-50 to-health-50 border border-medical-200 rounded-xl p-4">
+              <div className="flex items-start space-x-3">
+                <Info className="h-5 w-5 text-medical-600 mt-0.5 flex-shrink-0" />
+                <div>
+                  <h4 className="font-medium text-medical-800 mb-1">Gestion des indisponibilités</h4>
+                  <p className="text-sm text-medical-700">
+                    • <strong>Cliquez sur une plage horaire</strong> pour ajouter une indisponibilité
+                    • <strong>Glissez-déposez</strong> les blocs d'indisponibilité pour les déplacer
+                    • <strong>Cliquez sur un bloc</strong> d'indisponibilité pour le modifier ou le supprimer
+                    • Les patients verront vos indisponibilités et ne pourront pas prendre de RDV sur ces créneaux
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Calendrier principal */}
         <div className="max-w-7xl mx-auto p-6">
@@ -538,10 +688,12 @@ export class Appointments extends Component {
               events={events}
               startAccessor="start"
               endAccessor="end"
-              selectable
+              selectable={user?.userType === "doctor"}
               resizable
               onSelectSlot={this.handleSlotSelect}
               onSelectEvent={this.handleEventSelect}
+              onEventDrop={this.handleEventDrop}
+              onEventResize={this.handleEventDrop}
               view={view}
               onView={(newView) => this.setState({ view: newView })}
               style={{ height: 600 }}
@@ -553,25 +705,87 @@ export class Appointments extends Component {
         </div>
 
         {/* Modal de disponibilité */}
-        {showModal && (
+        {showModal && user?.userType === "doctor" && (
           <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
             <div className="card-medical max-w-md w-full animate-scale-in">
               <div className="p-6">
-                <h3 className="text-xl font-semibold text-medical-800 mb-4">Ajouter une indisponibilité</h3>
+                <div className="flex items-center space-x-3 mb-6">
+                  <AlertCircle className="h-6 w-6 text-medical-600" />
+                  <h3 className="text-xl font-semibold text-medical-800">Ajouter une indisponibilité</h3>
+                </div>
                 <div className="space-y-4">
                   <div>
                     <label className="block text-sm font-medium text-neutral-700 mb-2">Type d'indisponibilité</label>
                     <select
-                      value={availabilityType}
-                      onChange={(e) => this.setState({ availabilityType: e.target.value })}
+                      value={availabilityForm.type}
+                      onChange={(e) => this.handleAvailabilityFormChange('type', e.target.value)}
                       className="input w-full"
                     >
                       <option value="vacances">🏖️ Vacances</option>
                       <option value="réunion">👥 Réunion</option>
                       <option value="maladie">🤒 Maladie</option>
                       <option value="formation">📚 Formation</option>
+                      <option value="autre">🔧 Autre</option>
                     </select>
                   </div>
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-neutral-700 mb-2">Date de début</label>
+                      <input
+                        type="date"
+                        value={availabilityForm.startDate}
+                        onChange={(e) => this.handleAvailabilityFormChange('startDate', e.target.value)}
+                        className="input w-full"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-neutral-700 mb-2">Heure de début</label>
+                      <input
+                        type="time"
+                        value={availabilityForm.startTime}
+                        onChange={(e) => this.handleAvailabilityFormChange('startTime', e.target.value)}
+                        className="input w-full"
+                        required
+                      />
+                    </div>
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-neutral-700 mb-2">Date de fin</label>
+                      <input
+                        type="date"
+                        value={availabilityForm.endDate}
+                        onChange={(e) => this.handleAvailabilityFormChange('endDate', e.target.value)}
+                        className="input w-full"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-neutral-700 mb-2">Heure de fin</label>
+                      <input
+                        type="time"
+                        value={availabilityForm.endTime}
+                        onChange={(e) => this.handleAvailabilityFormChange('endTime', e.target.value)}
+                        className="input w-full"
+                        required
+                      />
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-neutral-700 mb-2">Notes (optionnel)</label>
+                    <textarea
+                      value={availabilityForm.notes}
+                      onChange={(e) => this.handleAvailabilityFormChange('notes', e.target.value)}
+                      className="input w-full resize-none"
+                      rows="3"
+                      placeholder="Détails supplémentaires..."
+                    />
+                  </div>
+                  
                   <div className="flex space-x-3">
                     <button
                       onClick={this.handleAddAvailability}
@@ -592,6 +806,173 @@ export class Appointments extends Component {
           </div>
         )}
 
+        {/* Modal de détail d'indisponibilité */}
+        {showAvailabilityModal && selectedAvailability && user?.userType === "doctor" && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
+            <div className="card-medical max-w-lg w-full animate-scale-in">
+              <div className="p-6">
+                <div className="flex items-center justify-between mb-6">
+                  <h3 className="text-xl font-semibold text-medical-800">Indisponibilité</h3>
+                  <div className={`badge ${
+                    selectedAvailability.type === 'vacances' ? 'bg-yellow-100 text-yellow-800' :
+                    selectedAvailability.type === 'réunion' ? 'bg-purple-100 text-purple-800' :
+                    selectedAvailability.type === 'maladie' ? 'bg-red-100 text-red-800' :
+                    selectedAvailability.type === 'formation' ? 'bg-blue-100 text-blue-800' :
+                    'bg-gray-100 text-gray-800'
+                  }`}>
+                    {selectedAvailability.type}
+                  </div>
+                </div>
+
+                {editAvailabilityMode ? (
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-neutral-700 mb-2">Type</label>
+                      <select
+                        value={availabilityForm.type}
+                        onChange={(e) => this.handleAvailabilityFormChange('type', e.target.value)}
+                        className="input w-full"
+                      >
+                        <option value="vacances">🏖️ Vacances</option>
+                        <option value="réunion">👥 Réunion</option>
+                        <option value="maladie">🤒 Maladie</option>
+                        <option value="formation">📚 Formation</option>
+                        <option value="autre">🔧 Autre</option>
+                      </select>
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-neutral-700 mb-2">Date de début</label>
+                        <input
+                          type="date"
+                          value={availabilityForm.startDate}
+                          onChange={(e) => this.handleAvailabilityFormChange('startDate', e.target.value)}
+                          className="input w-full"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-neutral-700 mb-2">Heure de début</label>
+                        <input
+                          type="time"
+                          value={availabilityForm.startTime}
+                          onChange={(e) => this.handleAvailabilityFormChange('startTime', e.target.value)}
+                          className="input w-full"
+                        />
+                      </div>
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-neutral-700 mb-2">Date de fin</label>
+                        <input
+                          type="date"
+                          value={availabilityForm.endDate}
+                          onChange={(e) => this.handleAvailabilityFormChange('endDate', e.target.value)}
+                          className="input w-full"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-neutral-700 mb-2">Heure de fin</label>
+                        <input
+                          type="time"
+                          value={availabilityForm.endTime}
+                          onChange={(e) => this.handleAvailabilityFormChange('endTime', e.target.value)}
+                          className="input w-full"
+                        />
+                      </div>
+                    </div>
+                    
+                    <div>
+                      <label className="block text-sm font-medium text-neutral-700 mb-2">Notes</label>
+                      <textarea
+                        value={availabilityForm.notes}
+                        onChange={(e) => this.handleAvailabilityFormChange('notes', e.target.value)}
+                        className="input w-full resize-none"
+                        rows="3"
+                        placeholder="Détails supplémentaires..."
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <div className="flex items-center space-x-3">
+                      <CalendarIcon className="h-5 w-5 text-medical-500" />
+                      <div>
+                        <p className="text-sm text-neutral-500">Période</p>
+                        <p className="font-medium">
+                          Du {moment(selectedAvailability.start).format('DD/MM/YYYY à HH:mm')} 
+                          au {moment(selectedAvailability.end).format('DD/MM/YYYY à HH:mm')}
+                        </p>
+                      </div>
+                    </div>
+                    
+                    <div className="flex items-center space-x-3">
+                      <Clock className="h-5 w-5 text-medical-500" />
+                      <div>
+                        <p className="text-sm text-neutral-500">Durée</p>
+                        <p className="font-medium">
+                          {moment.duration(moment(selectedAvailability.end).diff(moment(selectedAvailability.start))).humanize()}
+                        </p>
+                      </div>
+                    </div>
+                    
+                    {selectedAvailability.resource?.notes && (
+                      <div>
+                        <p className="text-sm text-neutral-500 mb-1">Notes</p>
+                        <p className="text-sm bg-neutral-50 p-3 rounded-lg">{selectedAvailability.resource.notes}</p>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                <div className="flex space-x-3 mt-6">
+                  {editAvailabilityMode ? (
+                    <>
+                      <button
+                        onClick={this.handleUpdateAvailability}
+                        className="btn-success flex items-center space-x-2"
+                      >
+                        <span>Sauvegarder</span>
+                      </button>
+                      <button
+                        onClick={() => this.setState({ editAvailabilityMode: false })}
+                        className="btn-secondary"
+                      >
+                        Annuler
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        onClick={() => this.setState({ editAvailabilityMode: true })}
+                        className="btn-secondary flex items-center space-x-2"
+                      >
+                        <Edit3 className="h-4 w-4" />
+                        <span>Modifier</span>
+                      </button>
+                      
+                      <button
+                        onClick={() => this.handleDeleteAvailability(selectedAvailability.id)}
+                        className="btn-danger flex items-center space-x-2"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                        <span>Supprimer</span>
+                      </button>
+                    </>
+                  )}
+                  
+                  <button
+                    onClick={() => this.setState({ showAvailabilityModal: false, editAvailabilityMode: false })}
+                    className="btn-ghost flex-1"
+                  >
+                    Fermer
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
         {/* Modal de détail du rendez-vous */}
         {showAppointmentModal && selectedAppointment && (
           <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
