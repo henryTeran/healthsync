@@ -296,3 +296,19 @@ export const deleteUnavailability = async (availabilityId) => {
     throw new Error("Impossible de supprimer la disponibilité.");
   }
 };
+
+/**
+ * Met à jour une disponibilité.
+ */
+export const updateUnavailability = async (availabilityId, updatedData) => {
+  try {
+    const availabilityRef = doc(db, "availabilities", availabilityId);
+    await updateDoc(availabilityRef, {
+      ...updatedData,
+      updatedAt: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error("Erreur lors de la mise à jour de la disponibilité :", error);
+    throw new Error("Impossible de mettre à jour la disponibilité.");
+  }
+};
