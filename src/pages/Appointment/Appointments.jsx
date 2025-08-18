@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useContext } from "react";
-import { createAppointment, getAppointmentsByUser, getAppointmentsByDoctor, updateAppointment, deleteAppointment, addDoctorAvailability, getUnavailabilitiesByDoctor, updateUnavailability, deleteUnavailability } from "../../services/appointmentService";
+import { createAppointment, getAppointmentsByUser, updateAppointment, deleteAppointment, addDoctorAvailability, getUnavailabilitiesByDoctor, updateUnavailability, deleteUnavailability } from "../../services/appointmentService";
 import { getUserProfile } from "../../services/profileService";
 import { getAuthorizedDoctors, getAuthorizedPatients } from "../../services/patientServices";
 import { addNotification } from "../../services/notificationService"; 
@@ -106,16 +106,16 @@ export const Appointments = ({ navigate }) => {
           if (selectedContact.type === 'patient') {
             appointmentsData = await getAppointmentsByUser(selectedContact.id);
           } else {
-            appointmentsData = await getAppointmentsByDoctor(selectedContact.id);
+            appointmentsData = await getAppointmentsByUser(selectedContact.id, 'doctor');
           }
         } else {
           // Patient regardant le calendrier d'un médecin
-          appointmentsData = await getAppointmentsByDoctor(selectedContact.id);
+          appointmentsData = await getAppointmentsByUser(selectedContact.id, 'doctor');
         }
       } else {
         // Afficher ses propres RDV
         if (currentUser.type === 'doctor') {
-          appointmentsData = await getAppointmentsByDoctor(user.uid);
+          appointmentsData = await getAppointmentsByUser(user.uid, 'doctor');
         } else {
           appointmentsData = await getAppointmentsByUser(user.uid);
         }
