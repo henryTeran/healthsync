@@ -282,10 +282,13 @@ const getAppointmentById = async (appointmentId) => {
 
 export const getUnavailabilitiesByDoctor = async (doctorId) => {
   try {
+    console.log("🔍 Recherche des indisponibilités pour le docteur:", doctorId);
     const q = query(collection(db, "availabilities"), where("doctorId", "==", doctorId));
     const snapshot = await getDocs(q);
     
-    return snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+    const unavailabilities = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+    console.log("📊 Indisponibilités trouvées:", unavailabilities);
+    return unavailabilities;
   } catch (error) {
     console.error("Erreur lors de la récupération des disponibilités :", error);
     throw new Error("Impossible de récupérer les disponibilités.");

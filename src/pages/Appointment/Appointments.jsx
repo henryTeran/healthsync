@@ -134,15 +134,19 @@ export const Appointments = ({ navigate }) => {
       let doctorId;
       if (selectedContact?.type === 'doctor') {
         doctorId = selectedContact.id;
+        console.log("🔍 Récupération des indisponibilités pour le médecin sélectionné:", doctorId);
       } else if (currentUser?.type === 'doctor') {
         doctorId = user.uid;
+        console.log("🔍 Récupération des indisponibilités pour le médecin connecté:", doctorId);
       } else {
         // Patient regardant son propre calendrier - pas d'indisponibilités à afficher
+        console.log("👤 Patient - pas d'indisponibilités à afficher");
         setUnavailabilities([]);
         return;
       }
       
       const unavailabilitiesData = await getUnavailabilitiesByDoctor(doctorId);
+      console.log("📅 Indisponibilités récupérées:", unavailabilitiesData);
       setUnavailabilities(unavailabilitiesData);
     } catch (error) {
       console.error("Erreur lors de la récupération des indisponibilités :", error);
@@ -317,6 +321,10 @@ export const Appointments = ({ navigate }) => {
   };
 
   const getCalendarEvents = () => {
+    console.log("🗓️ Génération des événements du calendrier");
+    console.log("📋 Rendez-vous:", appointments);
+    console.log("🚫 Indisponibilités:", unavailabilities);
+    
     const appointmentEvents = appointments.map(appointment => ({
       id: appointment.id,
       title: currentUser?.type === 'doctor' 
@@ -355,7 +363,9 @@ export const Appointments = ({ navigate }) => {
       };
     });
 
-    return [...appointmentEvents, ...unavailabilityEvents];
+    const allEvents = [...appointmentEvents, ...unavailabilityEvents];
+    console.log("🎯 Événements finaux pour le calendrier:", allEvents);
+    return allEvents;
   };
 
   const eventStyleGetter = (event) => {
