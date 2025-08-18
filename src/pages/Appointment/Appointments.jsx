@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useContext } from "react";
 import { createAppointment, getAppointmentsByUser, updateAppointment, deleteAppointment, addDoctorAvailability, getUnavailabilitiesByDoctor, updateUnavailability, deleteUnavailability } from "../../services/appointmentService";
 import { getUserProfile } from "../../services/profileService";
-import { getAuthorizedDoctors, getAuthorizedPatients } from "../../services/patientServices";
+import { getAuthorizedDoctors } from "../../services/patientServices";
+import { getAuthorizedPatients } from "../../services/doctorServices";
 import { addNotification } from "../../services/notificationService"; 
 import { AuthContext } from "../../contexts/AuthContext";
 import PropTypes from "prop-types";
