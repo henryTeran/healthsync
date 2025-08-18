@@ -18,6 +18,7 @@ export const Header = ({ toggleSidebar, isCollapsed }) => {
   const [unreadChatCount, setUnreadChatCount] = useState(0); 
   const [unreadMessages, setUnreadMessages] = useState({});
   const [ProfilPhoto, setProfilPhoto] = useState(PhotoProfil);
+  const [currentUser, setCurrentUser] = useState(null);
 
   const dropdownRef = useRef(null);
   const chatRef = useRef(null);
@@ -28,6 +29,29 @@ export const Header = ({ toggleSidebar, isCollapsed }) => {
     navigate("/login");
   };
 
+  // 🔹 Récupérer les informations de l'utilisateur connecté
+  useEffect(() => {
+    const fetchCurrentUser = async () => {
+      const auth = getAuth();
+      const user = auth.currentUser;
+      if (user) {
+        const userProfile = await getUserProfile(user.uid);
+        setCurrentUser(userProfile);
+      }
+    };
+    fetchCurrentUser();
+  }, []);
+
+  // 🔹 Déterminer le placeholder de la barre de recherche
+  const getSearchPlaceholder = () => {
+    if (!currentUser) return "Rechercher...";
+    
+    if (currentUser.type === "doctor") {
+      return "Rechercher un patient...";
+    } else {
+      return "Rechercher un médecin...";
+    }
+  };
   // 🔹 Fonction pour écouter les messages non lus en temps réel
   const fetchUnreadChatCountRealtime = (userId) => {
     const q = query(collection(db, "messages"), where("receiverId", "==", userId), where("status", "!=", "read"));
@@ -133,7 +157,7 @@ export const Header = ({ toggleSidebar, isCollapsed }) => {
         <div className="relative">
           <input 
             type="text" 
-            placeholder="Rechercher un patient..." 
+            placeholder={getSearchPlaceholder()}
             className="input pl-12 pr-4 w-80 bg-white/60 backdrop-blur-sm" 
           />
           <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-medical-400" />
