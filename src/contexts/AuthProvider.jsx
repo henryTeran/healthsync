@@ -42,13 +42,16 @@ export const AuthProvider = ({ children }) => {
   const register = async (email, password) => {
     return AuthService.register (email, password );
   };
+    isAuthenticated: !!user,
+    isDoctor: user?.type === 'doctor',
+    isPatient: user?.type === 'patient',
 
   const logout = async () => {
     return AuthService.logout ();
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout }}>
+    <AuthContext.Provider value={value}>
       {/* Afficher les enfants seulement après que Firebase soit prêt */}
       {authReady ? children : <p>Chargement...</p>}
     </AuthContext.Provider>
