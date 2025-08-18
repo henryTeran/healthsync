@@ -50,14 +50,15 @@ export const AppointmentRequestsTable = () => {
   const handleAccept = async (appointmentId, patientId, date, time) => {
     try {
       await updateAppointment(appointmentId, { status: "accepté" });
+      
+      // Envoyer la confirmation avec rappels automatiques
+      await sendAppointmentConfirmation(appointmentId, "accepté", user.uid, patientId);
+      
       const doctorData = await getUserProfile(user.uid);
-      await addNotification(patientId, {
-        type: "reponse_appointment_request",
-        message: `Le Dr ${doctorData.firstName} ${doctorData.lastName} a accepté votre RDV du ${date} à ${time}.`,
-        patientId,
-        appointmentId,
-      });
+      
+      alert("Rendez-vous accepté ! Le patient a été notifié et des rappels ont été programmés.");
     } catch (error) {
+      console.error("Erreur lors de l'acceptation:", error);
       alert(error.message);
     }
   };
@@ -65,14 +66,15 @@ export const AppointmentRequestsTable = () => {
   const handleReject = async (appointmentId, patientId, date, time) => {
     try {
       await updateAppointment(appointmentId, { status: "refusé" });
+      
+      // Envoyer la notification de refus
+      await sendAppointmentConfirmation(appointmentId, "refusé", user.uid, patientId);
+      
       const doctorData = await getUserProfile(user.uid);
-      await addNotification(patientId, {
-        type: "reponse_appointment_request",
-        message: `Le Dr ${doctorData.firstName} ${doctorData.lastName} a refusé votre RDV du ${date} à ${time}.`,
-        patientId,
-        appointmentId,
-      });
+      
+      alert("Rendez-vous refusé. Le patient a été notifié.");
     } catch (error) {
+      console.error("Erreur lors du refus:", error);
       alert(error.message);
     }
   };
