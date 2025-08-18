@@ -40,7 +40,7 @@ export const DoctorProfile = () => {
     <div className="p-6 bg-gray-100 min-h-screen">
       <h1 className="text-2xl font-semibold text-gray-800 mb-4">Profil Médecin</h1>
       <ProfileWrapper id={doctorId} />
-      <FollowedTable />
+      {isOwner && <FollowedTable />}
       {isOwner && <AppointmentRequestsTable />}
     </div>
   );
