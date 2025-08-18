@@ -86,7 +86,7 @@ export const NotificationWidget = () => {
 
       {/* 🔹 Popup des notifications */}
       {showPopup && (
-        <div ref={popupRef} className="absolute right-0 mt-3 w-80 card-medical animate-slide-down z-[9999]">
+        <div ref={popupRef} className="absolute right-0 mt-3 w-80 card-medical animate-slide-down z-[99999]" style={{ zIndex: 99999 }}>
           <div className="px-6 py-4 border-b border-medical-100">
             <h3 className="font-semibold text-medical-800">Notifications</h3>
           </div>

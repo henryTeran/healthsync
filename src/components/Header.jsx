@@ -155,7 +155,7 @@ export const Header = ({ toggleSidebar, isCollapsed }) => {
         </button>
 
         {showChatPopup && (
-          <div ref={chatRef} className="absolute right-4 top-16 w-96 card-medical z-[9999] animate-slide-down">
+          <div ref={chatRef} className="absolute right-4 top-16 w-96 card-medical z-[99999] animate-slide-down" style={{ zIndex: 99999 }}>
             <h3 className="px-6 py-4 font-semibold text-medical-800 border-b border-medical-100">Messages non lus</h3>
             <ul className="max-h-64 overflow-y-auto scrollbar-thin">
               {Object.keys(unreadMessages).length > 0 ? (
@@ -188,7 +188,7 @@ export const Header = ({ toggleSidebar, isCollapsed }) => {
           </button>
 
           {showDropdown && (
-            <div ref={dropdownRef} className="absolute right-0 mt-3 w-56 card-medical animate-slide-down z-[9999]">
+            <div ref={dropdownRef} className="absolute right-0 mt-3 w-56 card-medical animate-slide-down z-[99999]" style={{ zIndex: 99999 }}>
               <Link to="/settings" className="flex items-center px-4 py-3 text-neutral-700 hover:bg-medical-50 transition-colors duration-200 rounded-t-xl">
                 <Settings className="h-4 w-4 mr-3 text-medical-500" />
                 Paramètres
