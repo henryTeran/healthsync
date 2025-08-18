@@ -1,6 +1,7 @@
 import { 
   createUserWithEmailAndPassword, 
   signInWithEmailAndPassword,
+  signOut,
   sendPasswordResetEmail,
   updatePassword,
   sendEmailVerification
