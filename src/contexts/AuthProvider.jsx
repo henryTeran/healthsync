@@ -42,13 +42,18 @@ export const AuthProvider = ({ children }) => {
   const register = async (email, password) => {
     return AuthService.register (email, password );
   };
-    isAuthenticated: !!user,
-    isDoctor: user?.type === 'doctor',
-    isPatient: user?.type === 'patient',
 
   const logout = async () => {
     return AuthService.logout ();
   };
+
+  const value = {
+    user,
+    loading,
+    authReady,
+    isAuthenticated: !!user,
+    isDoctor: user?.type === 'doctor',
+    isPatient: user?.type === 'patient',
     login,
     register,
     logout
