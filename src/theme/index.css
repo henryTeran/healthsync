@@ -201,6 +201,19 @@
 }
 
 /* Styles pour le calendrier moderne */
+.rbc-calendar {
+  position: relative;
+  z-index: 1;
+}
+
+.rbc-overlay {
+  z-index: 10 !important;
+}
+
+.rbc-popup {
+  z-index: 20 !important;
+}
+
 .modern-calendar {
   font-family: 'Inter', sans-serif;
 }
