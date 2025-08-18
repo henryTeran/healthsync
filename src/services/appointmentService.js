@@ -1,10 +1,10 @@
 // src/services/appointmentService.js
 import { Appointment } from "../models/Appointment";
 import { db } from "../providers/firebase";
-import { doc, addDoc, getDocs, query, where, collection, deleteDoc, updateDoc } from "firebase/firestore";
+import { doc, addDoc, getDocs, query, where, collection, deleteDoc, updateDoc, getDoc } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
 import { getUserProfile } from "./profileService";
-import { sendNotification } from "./notificationService";
+import { sendNotification, addNotification } from "./notificationService";
 
 
 export const getAppointmentsByUser = async (userId, userType) => {
@@ -50,22 +50,35 @@ export const deleteAppointment = async (appointmentId) => {
 /**
  * Programme un rappel de rendez-vous X heures avant.
  */
-export const scheduleAppointmentReminder = async (appointment) => {
-  const { patientId, date, reminderTime } = appointment;
+export const scheduleAppointmentReminder = async (appointment, reminderHours = 24) => {
+  const { patientId, doctorId, date, time, id } = appointment;
   const appointmentDate = new Date(date);
-  const reminderDate = new Date(appointmentDate.getTime() - reminderTime * 60 * 60 * 1000); // X heures avant
+  const reminderDate = new Date(appointmentDate.getTime() - reminderHours * 60 * 60 * 1000);
 
-  const delay = reminderDate - new Date(); // Temps restant avant l'envoi du rappel
-  if (delay < 0) {
-    console.log("Le rappel est déjà passé, aucun envoi.");
-    return;
+  try {
+    // Programmer le rappel pour le patient
+    await addNotification(patientId, {
+      type: "appointment_reminder",
+      message: `Rappel: Vous avez un rendez-vous demain à ${time}`,
+      appointmentId: id,
+      scheduledFor: reminderDate.toISOString(),
+      read: false
+    });
+
+    // Programmer le rappel pour le médecin
+    const patientProfile = await getUserProfile(patientId);
+    await addNotification(doctorId, {
+      type: "appointment_reminder",
+      message: `Rappel: Rendez-vous avec ${patientProfile?.firstName} ${patientProfile?.lastName} demain à ${time}`,
+      appointmentId: id,
+      scheduledFor: reminderDate.toISOString(),
+      read: false
+    });
+
+    console.log(`Rappels programmés pour ${reminderDate.toLocaleString()}`);
+  } catch (error) {
+    console.error("Erreur lors de la programmation des rappels:", error);
   }
-
-  setTimeout(() => {
-    sendNotification(patientId, "Rappel de RDV 🏥", `Votre rendez-vous est prévu le ${new Date(date).toLocaleString()}`);
-  }, delay);
-
-  console.log(`Notification programmée pour ${reminderDate.toLocaleString()}`);
 };
 
 export const createAppointment = async (appointmentData) => {
@@ -80,15 +93,85 @@ export const createAppointment = async (appointmentData) => {
 
     console.log("RDV ajouté avec succès :", appointmentRef.id);
 
-    // Envoyer une notification au patient
-    sendNotification(appointmentData.patientId, "Nouveau RDV 🏥", "Un rendez-vous a été planifié pour vous.");
+    // Envoyer une notification au médecin
+    const patientProfile = await getUserProfile(appointmentData.patientId);
+    await addNotification(appointmentData.doctorId, {
+      type: "new_appointment_request",
+      message: `Nouvelle demande de RDV de ${patientProfile?.firstName} ${patientProfile?.lastName} pour le ${appointmentData.date} à ${appointmentData.time}`,
+      patientId: appointmentData.patientId,
+      appointmentId: appointmentRef.id,
+      urgency: appointmentData.urgency || "normal",
+      read: false
+    });
 
     // Planifier un rappel automatique
-    scheduleAppointmentReminder({ id: appointmentRef.id, ...appointmentData });
+    if (appointmentData.reminderTime && appointmentData.reminderTime > 0) {
+      await scheduleAppointmentReminder(
+        { id: appointmentRef.id, ...appointmentData }, 
+        appointmentData.reminderTime
+      );
+    }
 
     return appointmentRef.id;
   } catch (error) {
     throw new Error(error.message);
+  }
+};
+
+/**
+ * Envoie une notification de confirmation de rendez-vous
+ */
+export const sendAppointmentConfirmation = async (appointmentId, status, doctorId, patientId) => {
+  try {
+    const [doctorProfile, patientProfile] = await Promise.all([
+      getUserProfile(doctorId),
+      getUserProfile(patientId)
+    ]);
+
+    const appointment = await getAppointmentById(appointmentId);
+    
+    if (status === "accepté") {
+      // Notification au patient
+      await addNotification(patientId, {
+        type: "appointment_confirmed",
+        message: `Votre rendez-vous avec Dr. ${doctorProfile?.firstName} ${doctorProfile?.lastName} du ${appointment.date} à ${appointment.time} a été confirmé`,
+        appointmentId,
+        read: false
+      });
+
+      // Programmer les rappels automatiques
+      await scheduleAppointmentReminder(appointment, 24); // 24h avant
+      await scheduleAppointmentReminder(appointment, 2);  // 2h avant
+      
+    } else if (status === "refusé") {
+      // Notification au patient
+      await addNotification(patientId, {
+        type: "appointment_rejected",
+        message: `Votre demande de rendez-vous avec Dr. ${doctorProfile?.firstName} ${doctorProfile?.lastName} du ${appointment.date} à ${appointment.time} a été refusée`,
+        appointmentId,
+        read: false
+      });
+    }
+  } catch (error) {
+    console.error("Erreur lors de l'envoi de la confirmation:", error);
+  }
+};
+
+/**
+ * Récupère un rendez-vous par son ID
+ */
+const getAppointmentById = async (appointmentId) => {
+  try {
+    const appointmentRef = doc(db, "appointments", appointmentId);
+    const appointmentDoc = await getDoc(appointmentRef);
+    
+    if (appointmentDoc.exists()) {
+      return { id: appointmentDoc.id, ...appointmentDoc.data() };
+    }
+    throw new Error("Rendez-vous introuvable");
+  } catch (error) {
+    console.error("Erreur lors de la récupération du rendez-vous:", error);
+    throw error;
   }
 };
 
@@ -135,4 +218,3 @@ export const deleteDoctorAvailability = async (availabilityId) => {
     throw new Error("Impossible de supprimer la disponibilité.");
   }
 };
-
