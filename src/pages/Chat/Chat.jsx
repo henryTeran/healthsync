@@ -1,35 +1,38 @@
 import React, { useState, useEffect, useContext } from "react";
 import { useParams, useNavigate } from "react-router-dom"; // ✅ Ajout de `useNavigate()`
 import { AuthContext } from "../../contexts/AuthContext";
+import { ContactList } from "../../components/chat/ContactList";
+import { ChatInterface } from "../../components/chat/ChatInterface";
 import { getAuthorizedPatients } from "../../services/doctorServices";
 import { getAuthorizedDoctors } from "../../services/patientServices";
 import { getUserProfile } from "../../services/profileService";
-import { ChatComponent } from "../../components/ChatComponent";
-import { UserCircle } from "lucide-react";
-import { getConversationsByDoctor, getConversationsByPatient, getUnreadMessagesByUser, markMessagesAsRead } from "../../services/chatService";
+import { 
+  getConversationsByDoctor, 
+  getConversationsByPatient, 
+  getUnreadMessagesByUser, 
+  markMessagesAsRead,
+  sendMessage
+} from "../../services/chatService";
 import PropTypes from "prop-types";
-
 
 export const Chat = ({ setUnreadChatCount }) => { // 🔥 Ajout de la prop
   const { user } = useContext(AuthContext);
   const { contactId } = useParams(); // ✅ Récupération de l'ID depuis l'URL
   const navigate = useNavigate(); // ✅ Permet de naviguer dynamiquement
-  console.log("🆔 Contact ID depuis l'URL :", contactId);
 
   const [contacts, setContacts] = useState([]); // ✅ Liste des contacts (patients ou médecins)
   const [dataUser, setDataUser] = useState(null); // ✅ Informations de l'utilisateur connecté
   const [unreadMessages, setUnreadMessages] = useState({}); // ✅ Messages non lus
   const [selectedContact, setSelectedContact] = useState(null); // ✅ Contact sélectionné
   const [messages, setMessages] = useState([]); // ✅ Liste des messages de la conversation
-
+  const [isTyping, setIsTyping] = useState(false);
+  const [onlineStatuses, setOnlineStatuses] = useState({});
 
   useEffect(() => {
-    console.log("🆔 Contact ID détecté :", contactId);
     fetchConversations();
     fetchUnreadChatCount();
   }, [contactId]); // ✅ Surveille `contactId` pour recharger les conversations si l’URL change
 
-  // 🔹 Fonction pour récupérer les contacts et le profil utilisateur
   const fetchConversations = async () => {
     try {
       if (!user) return;
@@ -38,26 +41,18 @@ export const Chat = ({ setUnreadChatCount }) => { // 🔥 Ajout de la prop
         ? await getAuthorizedPatients(user.uid) 
         : await getAuthorizedDoctors(user.uid);
 
-      console.log("📌 Contacts récupérés :", contactsData);
-
       const userData = await getUserProfile(user.uid);
       if (userData) {
         setDataUser({ ...userData, id: user.uid });
-      } else {
-        console.warn("⚠️ Aucun profil utilisateur trouvé pour l'ID :", user.uid);
       }
 
       setContacts(contactsData);
 
-      // 🔹 Si `contactId` est défini, sélectionne automatiquement le contact
       if (contactId) {
         const contactFromNotif = contactsData.find(c => String(c.id) === String(contactId));
         if (contactFromNotif) {
-          console.log("✅ Contact trouvé :", contactFromNotif);
           setSelectedContact(contactFromNotif);
           handleStatusConversationReceived(contactFromNotif);
-        } else {
-          console.warn("⚠️ Aucun contact trouvé avec cet ID :", contactId);
         }
       }
     } catch (error) {
@@ -65,7 +60,6 @@ export const Chat = ({ setUnreadChatCount }) => { // 🔥 Ajout de la prop
     }
   };
 
-  // 🔹 Récupération des messages non lus
   const fetchUnreadChatCount = async () => {
     try {
       if (!user) return;
@@ -81,22 +75,19 @@ export const Chat = ({ setUnreadChatCount }) => { // 🔥 Ajout de la prop
     handleStatusConversationReceived(contact);
 
     if (unreadMessages[contact.id]?.count > 0) {
-        await markMessagesAsRead(user.uid, contact.id);
+       await markMessagesAsRead(user.uid, contact.id);
     }
 
-    // 🔥 Supprime uniquement les messages non lus du contact sélectionné
-    setUnreadMessages((prevUnreadMessages) => {
-        const updatedMessages = { ...prevUnreadMessages };
-        delete updatedMessages[contact.id]; 
-        return updatedMessages;
+     setUnreadMessages((prevUnreadMessages) => {
+       const updatedMessages = { ...prevUnreadMessages };
+       delete updatedMessages[contact.id]; 
+       return updatedMessages;
     });
 
-    // 🔹 Met à jour le total des messages non lus
-    setUnreadChatCount((prevCount) => Math.max(0, prevCount - (unreadMessages[contact.id]?.count || 0)));
+     setUnreadChatCount((prevCount) => Math.max(0, prevCount - (unreadMessages[contact.id]?.count || 0)));
     navigate(`/chat/${contact.id}`);
-};
+  };
 
-  // 🔹 Charger les messages du contact sélectionné et les marquer comme lus
   const handleStatusConversationReceived = async (contact) => {
     if (!user || !contact) return;
 
@@ -105,7 +96,6 @@ export const Chat = ({ setUnreadChatCount }) => { // 🔥 Ajout de la prop
         ? await getConversationsByPatient(user.uid, contact.id)
         : await getConversationsByDoctor(user.uid, contact.id);
 
-      console.log("💬 Messages récupérés :", conversation);
       setMessages(conversation);
       markAllMessagesAsRead(conversation);
     } catch (error) {
@@ -127,47 +117,69 @@ export const Chat = ({ setUnreadChatCount }) => { // 🔥 Ajout de la prop
     }
   };
 
+  const handleSendMessage = async (content) => {
+    if (!selectedContact || !content.trim()) return;
+
+    try {
+      await sendMessage(user.uid, selectedContact.id, content);
+      // Les messages seront mis à jour via l'écoute en temps réel
+    } catch (error) {
+      console.error("❌ Erreur lors de l'envoi du message :", error);
+    }
+  };
   return (
-    <div className="flex h-full">
-      {/* Liste des contacts */}
-      <div className="bg-gray-100 w-1/4 p-4 overflow-y-auto">
-        <h2 className="text-lg font-semibold mb-4">
-          {user.userType === "doctor" ? "Patients suivis" : "Médecins disponibles"}
-        </h2>
-        
-        {contacts.map((contact) => (
-          <div
-            key={contact.id}
-            className={`flex items-center justify-between py-2 cursor-pointer hover:bg-gray-200 rounded ${
-              contactId === String(contact.id) ? "bg-green-300" : ""
-            }`}
-            onClick={() => handleContactSelect(contact)}
-          >
-            <div className="flex items-center space-x-2">
-              <UserCircle className="w-8 h-8 text-gray-500" />
-              <span>{user.userType === "doctor" ? `${contact.firstName} ${contact.lastName}` : `Dr. ${contact.firstName} ${contact.lastName}`}</span>
+    <div className="min-h-screen bg-gradient-to-br from-medical-50 via-white to-health-50 p-6">
+      <div className="max-w-7xl mx-auto">
+        {/* Header */}
+        <div className="text-center mb-8">
+          <h1 className="text-3xl font-bold text-gradient mb-2">Messages</h1>
+          <p className="text-neutral-600">Communication sécurisée avec vos contacts médicaux</p>
+        </div>
+
+        {/* Interface de chat */}
+        <div className="card-medical p-0 overflow-hidden" style={{ height: 'calc(100vh - 200px)' }}>
+          <div className="flex h-full">
+            {/* Liste des contacts */}
+            <div className="w-1/3 border-r border-neutral-200">
+              <ContactList
+                contacts={contacts}
+                selectedContactId={selectedContact?.id}
+                onContactSelect={handleContactSelect}
+                unreadMessages={unreadMessages}
+                userType={user.userType}
+                onlineStatuses={onlineStatuses}
+              />
             </div>
 
-            {/* Badge des messages non lus */}
-            {unreadMessages[contact.id]?.count > 0 && (
-              <span className="bg-red-500 text-white px-2 py-1 rounded-full text-sm">
-                {unreadMessages[contact.id].count}
-              </span>
-            )}
+            {/* Interface de chat */}
+            <div className="flex-1">
+              {selectedContact ? (
+                <ChatInterface
+                  messages={messages}
+                  onSendMessage={handleSendMessage}
+                  currentUserId={user.uid}
+                  contactInfo={selectedContact}
+                  isTyping={isTyping}
+                  onlineStatus={onlineStatuses[selectedContact.id] || 'offline'}
+                />
+              ) : (
+                <div className="h-full flex items-center justify-center">
+                  <div className="text-center">
+                    <div className="w-20 h-20 bg-neutral-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                      <MessageSquare className="h-10 w-10 text-neutral-400" />
+                    </div>
+                    <h3 className="text-lg font-semibold text-neutral-600 mb-2">
+                      Sélectionnez une conversation
+                    </h3>
+                    <p className="text-neutral-500">
+                      Choisissez un contact pour commencer à discuter
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
-        ))}
-
-        {/* Afficher un message si aucun contact disponible */}
-        {contacts.length === 0 && <p className="text-center text-gray-500">Aucun contact disponible.</p>}
-      </div>
-
-      {/* Zone de chat */}
-      <div className="flex-1 bg-white p-4 overflow-y-auto">
-        {selectedContact ? (
-          <ChatComponent selectedContact={selectedContact} userType={user.userType} currentUserId={user.uid} />
-        ) : (
-          <p className="text-center text-gray-500">Sélectionnez un contact pour commencer à discuter.</p>
-        )}
+        </div>
       </div>
     </div>
   );

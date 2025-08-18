@@ -1,83 +1,157 @@
 // src/pages/Dashboard/DoctorDashboard.jsx
 import React, { useState, useEffect, useContext } from "react";
-import { StatsCard } from "../../components/StatsCard";
-import { ChartWidget } from "../../components/ChartWidget";
+import { StatsCard } from "../../components/dashboard/StatsCard";
+import { QuickActions } from "../../components/dashboard/QuickActions";
+import { RecentActivity } from "../../components/dashboard/RecentActivity";
+import { ProfileCard } from "../../components/profile/ProfileCard";
 import { FollowRequestsTable } from "../Profile/Doctor/FollowRequestsTable";
-import PropTypes from "prop-types";
-import { getAppointmentsByUser } from "../../services/appointmentService"; // Service pour récupérer les données
+import { getAppointmentsByUser } from "../../services/appointmentService";
+import { getAuthorizedPatients } from "../../services/doctorServices";
+import { getPrescriptionsByUser } from "../../services/prescriptionService";
 import { AuthContext } from "../../contexts/AuthContext";
-
-import { DoctorProfile } from "../Profile/Doctor/DoctorProfile";
+import { getUserProfile } from "../../services/profileService";
+import { 
+  Users, 
+  Calendar, 
+  FileText, 
+  Activity,
+  TrendingUp,
+  Clock
+} from "lucide-react";
 
 export const DoctorDashboard = () => {
   const { user } = useContext(AuthContext);
-  const [appointmentsData, setAppointmentsData] = useState([]); // État pour les données des rendez-vous
-  const [chartType, setChartType] = useState("line"); // Type de graphique (par défaut "line")
-  
-  
+  const [stats, setStats] = useState({
+    totalPatients: 0,
+    todayAppointments: 0,
+    pendingPrescriptions: 0,
+    weeklyConsultations: 0
+  });
+  const [profile, setProfile] = useState(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchAppointmentsData();
-   }, []);
+    if (user) {
+      fetchDashboardData();
+    }
+  }, [user]);
 
-  // Récupération des données des rendez-vous
-  const fetchAppointmentsData = async () => {
+  const fetchDashboardData = async () => {
     try {
-      if (!user) {
-        return;
-      }
-      const appointments = await getAppointmentsByUser(user.uid, "doctor"); // Remplacez "doctorId" par l'ID réel du médecin
-      const data = appointments.map((appointment) => ({
-        label: appointment.date.slice(0, 10), // Afficher uniquement la date (YYYY-MM-DD)
-        value: appointment.status === "accepté" ? 1 : 0, // 1 pour rendez-vous accepté, 0 sinon
-        type: "consultation",
-      }));
-      setAppointmentsData(data);
+      setLoading(true);
+      
+      // Récupérer le profil
+      const profileData = await getUserProfile(user.uid);
+      setProfile(profileData);
+      
+      // Récupérer les statistiques en parallèle
+      const [patients, appointments, prescriptions] = await Promise.all([
+        getAuthorizedPatients(user.uid),
+        getAppointmentsByUser(user.uid, "doctor"),
+        getPrescriptionsByUser(user.uid)
+      ]);
+      
+      // Calculer les statistiques
+      const today = new Date().toISOString().split('T')[0];
+      const todayAppointments = appointments.filter(apt => apt.date === today).length;
+      const pendingPrescriptions = prescriptions.filter(presc => presc.status === 'send').length;
+      
+      // Calculer les consultations de la semaine
+      const weekStart = new Date();
+      weekStart.setDate(weekStart.getDate() - weekStart.getDay());
+      const weeklyConsultations = appointments.filter(apt => {
+        const aptDate = new Date(apt.date);
+        return aptDate >= weekStart && apt.status === 'accepté';
+      }).length;
+      
+      setStats({
+        totalPatients: patients.length,
+        todayAppointments,
+        pendingPrescriptions,
+        weeklyConsultations
+      });
+      
     } catch (error) {
-      console.error("Erreur lors de la récupération des données des rendez-vous :", error);
+      console.error("Erreur lors de la récupération des données du dashboard :", error);
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
-    <div className="p-8">
-      {/* Header avec Notifications */}
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">Tableau de Bord Médecin</h1>
-      </div>
-
-      {/* Section Statistiques */}
-      <div className="grid grid-cols-3 gap-4 mb-8">
-        <StatsCard title="Patients Actifs" value="120" color="success" />
-        <StatsCard title="Rendez-vous Planifiés" value="30" color="primary" />
-        <StatsCard title="Notifications Non Lues" value="5" color="warning" />
-      </div>
-
-      {/* Graphique Évolution Consultations */}
-      <div className="mb-8">
-        <h2 className="text-xl font-bold mb-4">Évolution des Consultations</h2>
-        <div className="flex space-x-4 mb-4">
-          {/* Sélection du type de graphique */}
-          <button
-            onClick={() => setChartType("line")}
-            className={`px-4 py-2 rounded-md ${chartType === "line" ? "bg-blue-500 text-white" : "bg-gray-200 text-gray-700"}`}
-          >
-            Ligne
-          </button>
-          <button
-            onClick={() => setChartType("pie")}
-            className={`px-4 py-2 rounded-md ${chartType === "pie" ? "bg-blue-500 text-white" : "bg-gray-200 text-gray-700"}`}
-          >
-            Camembert
-          </button>
+    <div className="min-h-screen bg-gradient-to-br from-medical-50 via-white to-health-50 p-6">
+      <div className="max-w-7xl mx-auto space-y-8">
+        {/* Header */}
+        <div className="text-center">
+          <h1 className="text-3xl font-bold text-gradient mb-2">Tableau de Bord Médecin</h1>
+          <p className="text-neutral-600">
+            Bienvenue Dr. {profile?.firstName} {profile?.lastName}
+          </p>
         </div>
-        <ChartWidget type={chartType} data={appointmentsData} />
+
+        {/* Statistiques */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <StatsCard
+            title="Patients Suivis"
+            value={stats.totalPatients}
+            icon={Users}
+            color="medical"
+            subtitle="Patients autorisés"
+            loading={loading}
+          />
+          <StatsCard
+            title="RDV Aujourd'hui"
+            value={stats.todayAppointments}
+            icon={Calendar}
+            color="health"
+            subtitle="Consultations prévues"
+            loading={loading}
+          />
+          <StatsCard
+            title="Prescriptions"
+            value={stats.pendingPrescriptions}
+            icon={FileText}
+            color="warning"
+            subtitle="En attente de validation"
+            loading={loading}
+          />
+          <StatsCard
+            title="Cette Semaine"
+            value={stats.weeklyConsultations}
+            icon={TrendingUp}
+            color="info"
+            subtitle="Consultations réalisées"
+            loading={loading}
+          />
+        </div>
+
+        {/* Actions rapides */}
+        <QuickActions userType="doctor" />
+
+        {/* Contenu principal */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          {/* Profil */}
+          <div className="lg:col-span-2">
+            {profile && (
+              <ProfileCard 
+                profile={profile} 
+                isOwner={true} 
+                userType="doctor" 
+              />
+            )}
+          </div>
+
+          {/* Activité récente */}
+          <div>
+            <RecentActivity userType="doctor" />
+          </div>
+        </div>
+
+        {/* Demandes de suivi */}
+        <div className="card-medical p-6">
+          <FollowRequestsTable />
+        </div>
       </div>
-
-      {/* Profil Médecin */}
-      <DoctorProfile />
-
-      {/* Tableau des Demandes de Suivi */}
-      <FollowRequestsTable />
     </div>
   );
 };
