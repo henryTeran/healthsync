@@ -10,6 +10,9 @@ import {
   addDoctorAvailability,
   deleteDoctorAvailability
 } from "../../services/appointmentService";
+import { getAuthorizedPatients } from "../../services/doctorServices";
+import { getAuthorizedDoctors } from "../../services/patientServices";
+import { getAllDoctors } from "../../services/doctorServices";
 import { getUserProfile } from "../../services/profileService";
 import { markNotificationAsRead, addNotification } from "../../services/notificationService";
 import { AuthContext } from "../../contexts/AuthContext";
@@ -22,6 +25,11 @@ import { db } from "../../providers/firebase";
 import { Calendar as CalendarIcon, Clock, User, MapPin, Phone, Mail, Edit3, Trash2, Plus, Filter, Search, FileText, Bell, Info, AlertCircle } from "lucide-react";
 
 moment.locale("fr");
+  const [searchTerm, setSearchTerm] = useState("");
+  const [searchResults, setSearchResults] = useState([]);
+  const [selectedSearchUser, setSelectedSearchUser] = useState(null);
+  const [showSearchDropdown, setShowSearchDropdown] = useState(false);
+  const [allUsers, setAllUsers] = useState([]);
 const localizer = momentLocalizer(moment);
 const DnDCalendar = withDragAndDrop(Calendar);
 
@@ -142,9 +150,133 @@ export class Appointments extends Component {
     try {
       const { user } = this.context;
       if (!user) {
+      fetchAllUsers();
         this.setState({ error: "Utilisateur non connecté.", isLoading: false });
         return;
       }
+  // Récupérer tous les utilisateurs selon le type
+  const fetchAllUsers = async () => {
+    try {
+      if (isDoctor) {
+        // Pour un médecin : récupérer ses patients + tous les médecins
+        const [patients, doctors] = await Promise.all([
+          getAuthorizedPatients(user.uid),
+          getAllDoctors()
+        ]);
+        setAllUsers([...patients, ...doctors]);
+      } else {
+        // Pour un patient : récupérer seulement ses médecins autorisés
+        const doctors = await getAuthorizedDoctors(user.uid);
+        setAllUsers(doctors);
+      }
+    } catch (error) {
+      console.error("Erreur lors de la récupération des utilisateurs :", error);
+    }
+  };
+
+  // Gérer la recherche
+  const handleSearch = (searchValue) => {
+    setSearchTerm(searchValue);
+    
+    if (searchValue.length > 1) {
+      const filtered = allUsers.filter(user => 
+        `${user.firstName} ${user.lastName}`.toLowerCase().includes(searchValue.toLowerCase()) ||
+        user.department?.toLowerCase().includes(searchValue.toLowerCase())
+      );
+      setSearchResults(filtered);
+      setShowSearchDropdown(true);
+    } else {
+      setSearchResults([]);
+      setShowSearchDropdown(false);
+    }
+  };
+
+  // Sélectionner un utilisateur depuis la recherche
+  const handleSelectUser = async (selectedUser) => {
+    setSelectedSearchUser(selectedUser);
+    setSearchTerm(`${selectedUser.firstName} ${selectedUser.lastName}`);
+    setShowSearchDropdown(false);
+    
+    // Charger le calendrier de l'utilisateur sélectionné
+    await fetchAppointmentsForUser(selectedUser.id, selectedUser.type);
+  };
+
+  // Récupérer les RDV pour un utilisateur spécifique
+  const fetchAppointmentsForUser = async (userId, userType) => {
+    try {
+      let appointments = [];
+      
+      if (isDoctor) {
+        if (userType === "patient") {
+          // Médecin regarde le calendrier d'un patient
+          appointments = await getAppointmentsByUser(userId, "patient");
+        } else {
+          // Médecin regarde le calendrier d'un autre médecin
+          appointments = await getAppointmentsByUser(userId, "doctor");
+        }
+      } else {
+        // Patient regarde le calendrier d'un médecin
+        appointments = await getAppointmentsByUser(userId, "doctor");
+      }
+      
+      const formattedEvents = await Promise.all(
+        appointments.map(async (appointment) => {
+          const [doctorProfile, patientProfile] = await Promise.all([
+            getUserProfile(appointment.doctorId),
+            getUserProfile(appointment.patientId)
+          ]);
+          
+          return {
+            id: appointment.id,
+            title: isDoctor 
+              ? `${patientProfile?.firstName} ${patientProfile?.lastName}` 
+              : `Dr. ${doctorProfile?.firstName} ${doctorProfile?.lastName}`,
+            start: new Date(`${appointment.date}T${appointment.time}`),
+            end: new Date(new Date(`${appointment.date}T${appointment.time}`).getTime() + 60 * 60 * 1000),
+            resource: {
+              type: "appointment",
+              status: appointment.status,
+              notes: appointment.notes,
+              patientId: appointment.patientId,
+              doctorId: appointment.doctorId
+            }
+          };
+        })
+      );
+      
+      setEvents(formattedEvents);
+      
+      // Charger aussi les indisponibilités si c'est un médecin
+      if (userType === "doctor") {
+        const userAvailabilities = await getDoctorAvailability(userId);
+        const formattedAvailabilities = userAvailabilities.map(availability => ({
+          id: availability.id,
+          title: availability.type,
+          start: new Date(availability.start),
+          end: new Date(availability.end),
+          resource: {
+            type: "availability",
+            availabilityType: availability.type,
+            notes: availability.notes
+          }
+        }));
+        setAvailabilities(formattedAvailabilities);
+      }
+      
+    } catch (error) {
+      console.error("Erreur lors de la récupération des RDV :", error);
+    }
+  };
+
+  // Réinitialiser la vue au calendrier personnel
+  const resetToPersonalCalendar = () => {
+    setSelectedSearchUser(null);
+    setSearchTerm("");
+    fetchAppointments();
+    if (isDoctor) {
+      fetchAvailabilities();
+    }
+  };
       const profileData = await getUserProfile(user.uid);
       const appointments = await getAppointmentsByUser(user.uid, profileData.type);
       
@@ -697,12 +829,77 @@ export class Appointments extends Component {
           <div className="max-w-7xl mx-auto px-6 mb-4">
             <div className="bg-gradient-to-r from-medical-50 to-health-50 border border-medical-200 rounded-xl p-6">
               <div className="flex items-start space-x-3">
+                {selectedSearchUser 
+                  ? `Calendrier de ${selectedSearchUser.firstName} ${selectedSearchUser.lastName}` 
+                  : "Gérez vos consultations et disponibilités"
+                }
                 <Info className="h-5 w-5 text-medical-600 mt-0.5 flex-shrink-0" />
                 <div>
                   <h4 className="font-medium text-medical-800 mb-1">Gestion des indisponibilités</h4>
                   <div className="text-sm text-medical-700 space-y-2">
+          {/* Barre de recherche spécialisée */}
+          <div className="flex items-center space-x-4">
+            <div className="relative">
+              <input
+                type="text"
+                placeholder={isDoctor ? "Rechercher un patient ou médecin..." : "Rechercher un médecin..."}
+                value={searchTerm}
+                onChange={(e) => handleSearch(e.target.value)}
+                className="input w-80 pl-4 pr-4"
+              />
+              
+              {/* Dropdown des résultats de recherche */}
+              {showSearchDropdown && searchResults.length > 0 && (
+                <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-medical-200 rounded-xl shadow-lg z-50 max-h-60 overflow-y-auto">
+                  {searchResults.map((searchUser) => (
+                    <div
+                      key={searchUser.id}
+                      className="flex items-center p-3 hover:bg-medical-50 cursor-pointer border-b border-medical-100 last:border-b-0"
+                      onClick={() => handleSelectUser(searchUser)}
+                    >
+                      <div className="w-10 h-10 bg-gradient-medical rounded-full flex items-center justify-center mr-3">
+                        <User className="h-5 w-5 text-white" />
+                      </div>
+                      <div>
+                        <p className="font-medium text-neutral-800">
+                          {searchUser.type === "doctor" ? "Dr. " : ""}{searchUser.firstName} {searchUser.lastName}
+                        </p>
+                        <p className="text-sm text-neutral-500">
+                          {searchUser.type === "doctor" ? searchUser.department || "Médecin" : "Patient"}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            
+            {/* Bouton pour revenir au calendrier personnel */}
+            {selectedSearchUser && (
+              <button
+                onClick={resetToPersonalCalendar}
+                className="btn-secondary"
+              >
+                Mon calendrier
+              </button>
+            )}
+          </div>
                     <p>
                       • <strong>Cliquez sur une plage horaire</strong> pour ajouter une indisponibilité
+        {/* Indicateur de vue actuelle */}
+        {selectedSearchUser && (
+          <div className="mb-4 p-4 bg-medical-100 rounded-xl border border-medical-200">
+            <div className="flex items-center space-x-3">
+              <User className="h-5 w-5 text-medical-600" />
+              <span className="font-medium text-medical-800">
+                Vous consultez le calendrier de {selectedSearchUser.type === "doctor" ? "Dr. " : ""}{selectedSearchUser.firstName} {selectedSearchUser.lastName}
+              </span>
+              {selectedSearchUser.type === "doctor" && selectedSearchUser.department && (
+                <span className="badge-info">{selectedSearchUser.department}</span>
+              )}
+            </div>
+          </div>
+        )}
                     </p>
                     <p>
                       • <strong>Glissez-déposez</strong> les blocs d'indisponibilité pour les déplacer (mise à jour automatique)
@@ -721,6 +918,7 @@ export class Appointments extends Component {
                   {/* Légende des types d'indisponibilité */}
                   <div className="mt-4 pt-4 border-t border-medical-200">
                     <h5 className="font-medium text-medical-800 mb-3">Types d'indisponibilité :</h5>
+                      <li>• <strong>Recherchez</strong> un patient ou médecin pour voir leur calendrier</li>
                     <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
                       <div className="flex items-center space-x-2">
                         <div className="w-4 h-4 bg-yellow-500 rounded-md"></div>
@@ -750,6 +948,24 @@ export class Appointments extends Component {
           </div>
         )}
 
+        {/* Instructions pour les patients */}
+        {!isDoctor && (
+          <div className="mb-6 card-medical p-6">
+            <div className="flex items-start space-x-4">
+              <div className="w-10 h-10 bg-health-100 rounded-xl flex items-center justify-center">
+                <Info className="h-5 w-5 text-health-600" />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-lg font-semibold text-health-800 mb-3">Consultation des calendriers</h3>
+                <div className="text-sm text-neutral-600 space-y-1">
+                  <p>• <strong>Recherchez un médecin</strong> pour voir ses disponibilités et indisponibilités</p>
+                  <p>• Les créneaux colorés indiquent les indisponibilités du médecin</p>
+                  <p>• Vous pouvez voir vos propres rendez-vous et ceux du médecin sélectionné</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
         {/* Calendrier principal */}
         <div className="max-w-7xl mx-auto p-6">
           <div className="card-medical p-6">

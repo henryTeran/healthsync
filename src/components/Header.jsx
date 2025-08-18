@@ -47,7 +47,7 @@ export const Header = ({ toggleSidebar, isCollapsed }) => {
     if (!currentUser) return "Rechercher...";
     
     if (currentUser.type === "doctor") {
-      return "Rechercher un patient...";
+      return "Rechercher un patient ou médecin...";
     } else {
       return "Rechercher un médecin...";
     }
