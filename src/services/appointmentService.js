@@ -251,7 +251,7 @@ const getAppointmentById = async (appointmentId) => {
   }
 };
 
-export const getDoctorAvailability = async (doctorId) => {
+export const getUnavailabilitiesByDoctor = async (doctorId) => {
   try {
     const q = query(collection(db, "availabilities"), where("doctorId", "==", doctorId));
     const snapshot = await getDocs(q);
