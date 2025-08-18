@@ -49,6 +49,10 @@ export const AuthProvider = ({ children }) => {
   const logout = async () => {
     return AuthService.logout ();
   };
+    login,
+    register,
+    logout
+  };
 
   return (
     <AuthContext.Provider value={value}>
