@@ -288,7 +288,7 @@ export const addDoctorAvailability = async (doctorId, startDate, endDate, type, 
 /**
  * Supprime une disponibilité.
  */
-export const deleteDoctorAvailability = async (availabilityId) => {
+export const deleteUnavailability = async (availabilityId) => {
   try {
     await deleteDoc(doc(db, "availabilities", availabilityId));
   } catch (error) {
