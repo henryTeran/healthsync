@@ -1,0 +1,64 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Règles pour les utilisateurs
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // Règles pour les liens docteur-patient
+    match /doctor_patient_links/{docId} {
+      allow read: if request.auth != null && 
+        (request.auth.uid == resource.data.doctorId || 
+         request.auth.uid == resource.data.patientId);
+      allow write: if request.auth != null && 
+        request.auth.uid == resource.data.doctorId;
+    }
+    
+    // Règles pour les rendez-vous
+    match /appointments/{docId} {
+      allow read, write: if request.auth != null && 
+        (request.auth.uid == resource.data.doctorId || 
+         request.auth.uid == resource.data.patientId);
+    }
+    
+    // Règles pour les médicaments
+    match /medications/{docId} {
+      allow read, write: if request.auth != null && 
+        (request.auth.uid == resource.data.doctorId || 
+         request.auth.uid == resource.data.patientId);
+    }
+    
+    // Règles pour les symptômes
+    match /symptoms/{docId} {
+      allow read, write: if request.auth != null && 
+        request.auth.uid == resource.data.patientId;
+    }
+    
+    // Règles pour les rappels
+    match /reminders/{docId} {
+      allow read, write: if request.auth != null && 
+        request.auth.uid == resource.data.userId;
+    }
+    
+    // Règles pour les messages de chat
+    match /chat_messages/{docId} {
+      allow read, write: if request.auth != null && 
+        (request.auth.uid == resource.data.senderId || 
+         request.auth.uid == resource.data.receiverId);
+    }
+    
+    // Règles pour les prescriptions
+    match /prescriptions/{docId} {
+      allow read, write: if request.auth != null && 
+        (request.auth.uid == resource.data.doctorId || 
+         request.auth.uid == resource.data.patientId);
+    }
+    
+    // Règles pour les profils publics (lecture seule pour les utilisateurs authentifiés)
+    match /public_profiles/{userId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && request.auth.uid == userId;
+    }
+  }
+}
