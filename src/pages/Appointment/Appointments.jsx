@@ -118,7 +118,7 @@ export const Appointments = ({ navigate }) => {
         if (currentUser.type === 'doctor') {
           appointmentsData = await getAppointmentsByUser(user.uid, 'doctor');
         } else {
-          appointmentsData = await getAppointmentsByUser(user.uid);
+          appointmentsData = await getAppointmentsByUser(user.uid, 'patient');
         }
       }
 
@@ -311,7 +311,9 @@ export const Appointments = ({ navigate }) => {
   const getCalendarEvents = () => {
     const appointmentEvents = appointments.map(appointment => ({
       id: appointment.id,
-      title: appointment.patientName || appointment.doctorName || 'Rendez-vous',
+      title: currentUser?.type === 'doctor' 
+        ? (appointment.patientName || 'Patient inconnu')
+        : (appointment.doctorName || 'Médecin inconnu'),
       start: new Date(appointment.date + 'T' + appointment.time),
       end: new Date(new Date(appointment.date + 'T' + appointment.time).getTime() + 60 * 60 * 1000),
       resource: appointment,

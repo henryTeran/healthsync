@@ -22,7 +22,36 @@ export const getAppointmentsByUser = async (userId, userType) => {
       return [];
     } 
    
-    return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    // Enrichir les données avec les noms des patients/médecins
+    const appointments = await Promise.all(
+      querySnapshot.docs.map(async (doc) => {
+        const appointmentData = { id: doc.id, ...doc.data() };
+        
+        try {
+          // Récupérer le profil du patient
+          if (appointmentData.patientId) {
+            const patientProfile = await getUserProfile(appointmentData.patientId);
+            appointmentData.patientName = patientProfile 
+              ? `${patientProfile.firstName} ${patientProfile.lastName}`
+              : "Patient inconnu";
+          }
+          
+          // Récupérer le profil du médecin
+          if (appointmentData.doctorId) {
+            const doctorProfile = await getUserProfile(appointmentData.doctorId);
+            appointmentData.doctorName = doctorProfile 
+              ? `Dr. ${doctorProfile.firstName} ${doctorProfile.lastName}`
+              : "Médecin inconnu";
+          }
+        } catch (error) {
+          console.error("Erreur lors de la récupération des profils:", error);
+        }
+        
+        return appointmentData;
+      })
+    );
+    
+    return appointments;
 
   } catch (error) {
     console.error(" Erreur lors de la récupération des rendez-vous :", error);
