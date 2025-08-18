@@ -43,6 +43,14 @@ export const Appointments = ({ navigate }) => {
   const [showModal, setShowModal] = useState(false);
   const [showUnavailabilityModal, setShowUnavailabilityModal] = useState(false);
   const [editingUnavailability, setEditingUnavailability] = useState(null);
+  const [showEditAppointmentModal, setShowEditAppointmentModal] = useState(false);
+  const [editingAppointment, setEditingAppointment] = useState(null);
+  const [appointmentForm, setAppointmentForm] = useState({
+    date: '',
+    time: '',
+    notes: '',
+    reason: ''
+  });
   const [searchTerm, setSearchTerm] = useState("");
   const [searchResults, setSearchResults] = useState([]);
   const [selectedContact, setSelectedContact] = useState(null);
@@ -318,6 +326,84 @@ export const Appointments = ({ navigate }) => {
       ...prev,
       [name]: value
     }));
+  };
+
+  const handleEditAppointment = () => {
+    if (!selectedEvent) return;
+    
+    setEditingAppointment(selectedEvent.resource);
+    setAppointmentForm({
+      date: moment(selectedEvent.start).format('YYYY-MM-DD'),
+      time: moment(selectedEvent.start).format('HH:mm'),
+      notes: selectedEvent.resource.notes || '',
+      reason: selectedEvent.resource.reason || ''
+    });
+    setShowModal(false);
+    setShowEditAppointmentModal(true);
+  };
+
+  const handleDeleteAppointment = async () => {
+    if (!selectedEvent) return;
+    
+    if (window.confirm('Êtes-vous sûr de vouloir supprimer ce rendez-vous ?')) {
+      try {
+        await deleteAppointment(selectedEvent.id);
+        setShowModal(false);
+        fetchAppointments();
+      } catch (error) {
+        console.error("Erreur lors de la suppression :", error);
+        setError(error.message);
+      }
+    }
+  };
+
+  const handleAppointmentFormChange = (e) => {
+    const { name, value } = e.target;
+    setAppointmentForm(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
+
+  const handleAppointmentSubmit = async (e) => {
+    e.preventDefault();
+    
+    try {
+      setIsLoading(true);
+      
+      const updatedData = {
+        date: appointmentForm.date,
+        time: appointmentForm.time,
+        notes: appointmentForm.notes,
+        reason: appointmentForm.reason,
+        updatedAt: new Date().toISOString()
+      };
+
+      await updateAppointment(editingAppointment.id, updatedData);
+      setShowEditAppointmentModal(false);
+      setEditingAppointment(null);
+      fetchAppointments();
+    } catch (error) {
+      console.error("Erreur lors de la modification :", error);
+      setError(error.message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const canModifyAppointment = () => {
+    if (!selectedEvent) return false;
+    
+    // Le créateur du RDV peut toujours modifier
+    if (selectedEvent.resource.createdBy === user.uid) return true;
+    
+    // Le médecin peut modifier ses RDV
+    if (currentUser?.type === 'doctor' && selectedEvent.resource.doctorId === user.uid) return true;
+    
+    // Le patient peut modifier ses RDV
+    if (currentUser?.type === 'patient' && selectedEvent.resource.patientId === user.uid) return true;
+    
+    return false;
   };
 
   const getCalendarEvents = () => {
@@ -742,10 +828,42 @@ export const Appointments = ({ navigate }) => {
                 <p><strong>Titre:</strong> {selectedEvent.title}</p>
                 <p><strong>Date:</strong> {moment(selectedEvent.start).format('DD/MM/YYYY')}</p>
                 <p><strong>Heure:</strong> {moment(selectedEvent.start).format('HH:mm')} - {moment(selectedEvent.end).format('HH:mm')}</p>
+                {selectedEvent.resource?.reason && (
+                  <p><strong>Motif:</strong> {selectedEvent.resource.reason}</p>
+                )}
                 {selectedEvent.resource?.notes && (
                   <p><strong>Notes:</strong> {selectedEvent.resource.notes}</p>
                 )}
+                <p><strong>Statut:</strong> 
+                  <span className={`ml-2 px-2 py-1 rounded-full text-xs font-medium ${
+                    selectedEvent.resource?.status === 'accepté' ? 'bg-green-100 text-green-700' :
+                    selectedEvent.resource?.status === 'refusé' ? 'bg-red-100 text-red-700' :
+                    'bg-yellow-100 text-yellow-700'
+                  }`}>
+                    {selectedEvent.resource?.status || 'en attente'}
+                  </span>
+                </p>
               </div>
+              
+              {/* Boutons d'action */}
+              {canModifyAppointment() && (
+                <div className="flex justify-end space-x-3 mt-6 pt-4 border-t border-neutral-200">
+                  <button
+                    onClick={handleEditAppointment}
+                    className="btn-secondary inline-flex items-center space-x-2"
+                  >
+                    <Edit className="h-4 w-4" />
+                    <span>Modifier</span>
+                  </button>
+                  <button
+                    onClick={handleDeleteAppointment}
+                    className="btn-danger inline-flex items-center space-x-2"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    <span>Supprimer</span>
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         )}
