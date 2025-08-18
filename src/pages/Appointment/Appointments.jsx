@@ -53,6 +53,7 @@ export class Appointments extends Component {
       showAppointmentModal: false,
       selectedSlot: null,
       selectedAppointment: null,
+      editMode: false,
       availabilityType: "vacances",
       view: "month",
       searchTerm: "",
@@ -64,6 +65,13 @@ export class Appointments extends Component {
         reason: "",
         notes: "",
         reminderTime: 24 // heures avant le RDV
+      },
+      appointmentForm: {
+        date: "",
+        time: "",
+        notes: "",
+        reason: "",
+        urgency: "normal"
       }
     };
   }
@@ -74,7 +82,50 @@ export class Appointments extends Component {
     this.fetchAppointments();
     this.fetchDoctorAvailability();
     this.checkNotification();
+    this.setupRealtimeAppointments();
   }
+
+  setupRealtimeAppointments = () => {
+    const { user } = this.context;
+    if (!user) return;
+
+    // Écoute en temps réel des rendez-vous
+    const appointmentsQuery = query(
+      collection(db, "appointments"),
+      where(user.userType === "doctor" ? "doctorId" : "patientId", "==", user.uid)
+    );
+
+    this.unsubscribeAppointments = onSnapshot(appointmentsQuery, async (snapshot) => {
+      const appointments = await Promise.all(
+        snapshot.docs.map(async (docSnap) => {
+          const appointment = { id: docSnap.id, ...docSnap.data() };
+          
+          // Enrichir avec les informations de contact
+          let contactInfo = {};
+          if (user.userType === "doctor" && appointment.patientId) {
+            contactInfo = await getUserProfile(appointment.patientId);
+          } else if (user.userType === "patient" && appointment.doctorId) {
+            contactInfo = await getUserProfile(appointment.doctorId);
+          }
+          
+          return { ...appointment, contactInfo };
+        })
+      );
+      
+      this.setState({ appointments });
+    });
+  };
+
+  componentWillUnmount() {
+    if (this.unsubscribeAppointments) {
+      this.unsubscribeAppointments();
+    }
+  }
+
+  getMinDate = () => {
+    const today = new Date();
+    return today.toISOString().split('T')[0];
+  };
 
   fetchAppointments = async () => {
     try {
@@ -143,7 +194,14 @@ export class Appointments extends Component {
     if (event.type === "appointment") {
       this.setState({
         selectedAppointment: event,
-        showAppointmentModal: true
+        showAppointmentModal: true,
+        appointmentForm: {
+          date: moment(event.start).format('YYYY-MM-DD'),
+          time: moment(event.start).format('HH:mm'),
+          notes: event.resource?.notes || '',
+          reason: event.resource?.reason || '',
+          urgency: event.resource?.urgency || 'normal'
+        }
       });
     }
   };
@@ -189,6 +247,36 @@ export class Appointments extends Component {
     }
   };
 
+  handleUpdateAppointmentForm = (field, value) => {
+    this.setState(prevState => ({
+      appointmentForm: {
+        ...prevState.appointmentForm,
+        [field]: value
+      }
+    }));
+  };
+
+  handleSaveAppointmentChanges = async () => {
+    const { selectedAppointment, appointmentForm } = this.state;
+    if (!selectedAppointment) return;
+
+    try {
+      const updates = {
+        date: appointmentForm.date,
+        time: appointmentForm.time,
+        notes: appointmentForm.notes,
+        reason: appointmentForm.reason,
+        urgency: appointmentForm.urgency
+      };
+
+      await this.handleUpdateAppointment(selectedAppointment.id, updates);
+      this.setState({ showAppointmentModal: false });
+    } catch (error) {
+      console.error("Erreur lors de la modification :", error);
+      this.setState({ error: error.message });
+    }
+  };
+
   handleUpdateAppointment = async (appointmentId, updates) => {
     try {
       await updateAppointment(appointmentId, updates);
@@ -209,6 +297,7 @@ export class Appointments extends Component {
       this.setState({ showAppointmentModal: false });
     } catch (error) {
       console.error("Erreur lors de la modification :", error);
+      throw error;
     }
   };
 
@@ -505,7 +594,7 @@ export class Appointments extends Component {
 
         {/* Modal de détail du rendez-vous */}
         {showAppointmentModal && selectedAppointment && (
-          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
             <div className="card-medical max-w-2xl w-full animate-scale-in">
               <div className="p-6">
                 <div className="flex items-center justify-between mb-6">
@@ -519,86 +608,182 @@ export class Appointments extends Component {
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-                  <div className="space-y-4">
-                    <div className="flex items-center space-x-3">
-                      <User className="h-5 w-5 text-medical-500" />
-                      <div>
-                        <p className="text-sm text-neutral-500">Patient</p>
-                        <p className="font-medium">
-                          {selectedAppointment.resource?.contactInfo?.firstName} {selectedAppointment.resource?.contactInfo?.lastName}
-                        </p>
-                      </div>
-                    </div>
-                    
-                    <div className="flex items-center space-x-3">
-                      <CalendarIcon className="h-5 w-5 text-medical-500" />
-                      <div>
-                        <p className="text-sm text-neutral-500">Date</p>
-                        <p className="font-medium">{moment(selectedAppointment.start).format('DD MMMM YYYY')}</p>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center space-x-3">
-                      <Clock className="h-5 w-5 text-medical-500" />
-                      <div>
-                        <p className="text-sm text-neutral-500">Heure</p>
-                        <p className="font-medium">{moment(selectedAppointment.start).format('HH:mm')}</p>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="space-y-4">
-                    {selectedAppointment.resource?.contactInfo?.email && (
-                      <div className="flex items-center space-x-3">
-                        <Mail className="h-5 w-5 text-medical-500" />
+                  {this.state.editMode ? (
+                    // Mode édition
+                    <div className="col-span-2 space-y-4">
+                      <div className="grid grid-cols-2 gap-4">
                         <div>
-                          <p className="text-sm text-neutral-500">Email</p>
-                          <p className="font-medium">{selectedAppointment.resource.contactInfo.email}</p>
+                          <label className="block text-sm font-medium text-neutral-700 mb-2">Date</label>
+                          <input
+                            type="date"
+                            value={this.state.appointmentForm.date}
+                            onChange={(e) => this.handleUpdateAppointmentForm('date', e.target.value)}
+                            className="input w-full"
+                            min={this.getMinDate()}
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-neutral-700 mb-2">Heure</label>
+                          <input
+                            type="time"
+                            value={this.state.appointmentForm.time}
+                            onChange={(e) => this.handleUpdateAppointmentForm('time', e.target.value)}
+                            className="input w-full"
+                          />
                         </div>
                       </div>
-                    )}
+                      <div>
+                        <label className="block text-sm font-medium text-neutral-700 mb-2">Motif</label>
+                        <select
+                          value={this.state.appointmentForm.reason}
+                          onChange={(e) => this.handleUpdateAppointmentForm('reason', e.target.value)}
+                          className="input w-full"
+                        >
+                          <option value="consultation">Consultation générale</option>
+                          <option value="suivi">Suivi médical</option>
+                          <option value="urgence">Consultation d'urgence</option>
+                          <option value="controle">Contrôle post-traitement</option>
+                          <option value="prevention">Médecine préventive</option>
+                          <option value="autre">Autre</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-neutral-700 mb-2">Notes</label>
+                        <textarea
+                          value={this.state.appointmentForm.notes}
+                          onChange={(e) => this.handleUpdateAppointmentForm('notes', e.target.value)}
+                          className="input w-full resize-none"
+                          rows="3"
+                          placeholder="Notes complémentaires..."
+                        />
+                      </div>
+                    </div>
+                  ) : (
+                    // Mode affichage
+                    <>
+                      <div className="space-y-4">
+                        <div className="flex items-center space-x-3">
+                          <User className="h-5 w-5 text-medical-500" />
+                          <div>
+                            <p className="text-sm text-neutral-500">Patient</p>
+                            <p className="font-medium">
+                              {selectedAppointment.resource?.contactInfo?.firstName} {selectedAppointment.resource?.contactInfo?.lastName}
+                            </p>
+                          </div>
+                        </div>
+                        
+                        <div className="flex items-center space-x-3">
+                          <CalendarIcon className="h-5 w-5 text-medical-500" />
+                          <div>
+                            <p className="text-sm text-neutral-500">Date</p>
+                            <p className="font-medium">{moment(selectedAppointment.start).format('DD MMMM YYYY')}</p>
+                          </div>
+                        </div>
 
-                    {selectedAppointment.resource?.contactInfo?.mobileNumber && (
-                      <div className="flex items-center space-x-3">
-                        <Phone className="h-5 w-5 text-medical-500" />
-                        <div>
-                          <p className="text-sm text-neutral-500">Téléphone</p>
-                          <p className="font-medium">{selectedAppointment.resource.contactInfo.mobileNumber}</p>
+                        <div className="flex items-center space-x-3">
+                          <Clock className="h-5 w-5 text-medical-500" />
+                          <div>
+                            <p className="text-sm text-neutral-500">Heure</p>
+                            <p className="font-medium">{moment(selectedAppointment.start).format('HH:mm')}</p>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center space-x-3">
+                          <FileText className="h-5 w-5 text-medical-500" />
+                          <div>
+                            <p className="text-sm text-neutral-500">Motif</p>
+                            <p className="font-medium">{selectedAppointment.resource?.reason || 'Non spécifié'}</p>
+                          </div>
                         </div>
                       </div>
-                    )}
 
-                    {selectedAppointment.resource?.notes && (
-                      <div>
-                        <p className="text-sm text-neutral-500 mb-1">Notes</p>
-                        <p className="text-sm bg-neutral-50 p-3 rounded-lg">{selectedAppointment.resource.notes}</p>
+                      <div className="space-y-4">
+                        {selectedAppointment.resource?.contactInfo?.email && (
+                          <div className="flex items-center space-x-3">
+                            <Mail className="h-5 w-5 text-medical-500" />
+                            <div>
+                              <p className="text-sm text-neutral-500">Email</p>
+                              <p className="font-medium">{selectedAppointment.resource.contactInfo.email}</p>
+                            </div>
+                          </div>
+                        )}
+
+                        {selectedAppointment.resource?.contactInfo?.mobileNumber && (
+                          <div className="flex items-center space-x-3">
+                            <Phone className="h-5 w-5 text-medical-500" />
+                            <div>
+                              <p className="text-sm text-neutral-500">Téléphone</p>
+                              <p className="font-medium">{selectedAppointment.resource.contactInfo.mobileNumber}</p>
+                            </div>
+                          </div>
+                        )}
+
+                        {selectedAppointment.resource?.urgency && (
+                          <div className="flex items-center space-x-3">
+                            <Bell className="h-5 w-5 text-medical-500" />
+                            <div>
+                              <p className="text-sm text-neutral-500">Urgence</p>
+                              <span className={`inline-flex px-2 py-1 rounded-full text-xs font-medium ${
+                                selectedAppointment.resource.urgency === 'tres_urgent' ? 'bg-red-100 text-red-800' :
+                                selectedAppointment.resource.urgency === 'urgent' ? 'bg-yellow-100 text-yellow-800' :
+                                'bg-health-100 text-health-800'
+                              }`}>
+                                {selectedAppointment.resource.urgency === 'tres_urgent' ? 'Très urgent' :
+                                 selectedAppointment.resource.urgency === 'urgent' ? 'Urgent' : 'Normal'}
+                              </span>
+                            </div>
+                          </div>
+                        )}
+
+                        {selectedAppointment.resource?.notes && (
+                          <div>
+                            <p className="text-sm text-neutral-500 mb-1">Notes</p>
+                            <p className="text-sm bg-neutral-50 p-3 rounded-lg">{selectedAppointment.resource.notes}</p>
+                          </div>
+                        )}
                       </div>
-                    )}
-                  </div>
+                    </>
+                  )}
                 </div>
 
                 <div className="flex space-x-3">
-                  <button
-                    onClick={() => {
-                      // Logique de modification
-                      console.log("Modifier le rendez-vous");
-                    }}
-                    className="btn-secondary flex items-center space-x-2"
-                  >
-                    <Edit3 className="h-4 w-4" />
-                    <span>Modifier</span>
-                  </button>
+                  {this.state.editMode ? (
+                    <>
+                      <button
+                        onClick={this.handleSaveAppointmentChanges}
+                        className="btn-success flex items-center space-x-2"
+                      >
+                        <span>Sauvegarder</span>
+                      </button>
+                      <button
+                        onClick={() => this.setState({ editMode: false })}
+                        className="btn-secondary"
+                      >
+                        Annuler
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        onClick={() => this.setState({ editMode: true })}
+                        className="btn-secondary flex items-center space-x-2"
+                      >
+                        <Edit3 className="h-4 w-4" />
+                        <span>Modifier</span>
+                      </button>
+                      
+                      <button
+                        onClick={() => this.handleDeleteAppointment(selectedAppointment.id)}
+                        className="btn-danger flex items-center space-x-2"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                        <span>Annuler</span>
+                      </button>
+                    </>
+                  )}
                   
                   <button
-                    onClick={() => this.handleDeleteAppointment(selectedAppointment.id)}
-                    className="btn-danger flex items-center space-x-2"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                    <span>Annuler</span>
-                  </button>
-                  
-                  <button
-                    onClick={() => this.setState({ showAppointmentModal: false })}
+                    onClick={() => this.setState({ showAppointmentModal: false, editMode: false })}
                     className="btn-ghost flex-1"
                   >
                     Fermer
