@@ -19,7 +19,7 @@ import withDragAndDrop from "react-big-calendar/lib/addons/dragAndDrop";
 import "react-big-calendar/lib/addons/dragAndDrop/styles.css";
 import { updateDoc, doc, query, collection, where, onSnapshot } from "firebase/firestore";
 import { db } from "../../providers/firebase";
-import { Calendar as CalendarIcon, Clock, User, MapPin, Phone, Mail, Edit3, Trash2, Plus, Filter, Search } from "lucide-react";
+import { Calendar as CalendarIcon, Clock, User, MapPin, Phone, Mail, Edit3, Trash2, Plus, Filter, Search, FileText, Bell } from "lucide-react";
 
 moment.locale("fr");
 const localizer = momentLocalizer(moment);
