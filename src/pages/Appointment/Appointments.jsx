@@ -1009,6 +1009,105 @@ export const Appointments = ({ navigate }) => {
             </div>
           </div>
         )}
+
+        {/* Modal Modification Rendez-vous */}
+        {showEditAppointmentModal && editingAppointment && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-xl p-6 max-w-md w-full mx-4">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-semibold">Modifier le rendez-vous</h3>
+                <button
+                  onClick={() => setShowEditAppointmentModal(false)}
+                  className="text-neutral-400 hover:text-neutral-600"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+              
+              <form onSubmit={handleAppointmentSubmit} className="space-y-4">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-sm font-medium text-neutral-700 mb-1">
+                      Date
+                    </label>
+                    <input
+                      type="date"
+                      name="date"
+                      value={appointmentForm.date}
+                      onChange={handleAppointmentFormChange}
+                      className="input w-full"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-neutral-700 mb-1">
+                      Heure
+                    </label>
+                    <input
+                      type="time"
+                      name="time"
+                      value={appointmentForm.time}
+                      onChange={handleAppointmentFormChange}
+                      className="input w-full"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-neutral-700 mb-1">
+                    Motif
+                  </label>
+                  <select
+                    name="reason"
+                    value={appointmentForm.reason}
+                    onChange={handleAppointmentFormChange}
+                    className="input w-full"
+                  >
+                    <option value="">-- Sélectionnez un motif --</option>
+                    <option value="consultation">Consultation générale</option>
+                    <option value="suivi">Suivi médical</option>
+                    <option value="urgence">Consultation d'urgence</option>
+                    <option value="controle">Contrôle post-traitement</option>
+                    <option value="prevention">Médecine préventive</option>
+                    <option value="autre">Autre</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-neutral-700 mb-1">
+                    Notes
+                  </label>
+                  <textarea
+                    name="notes"
+                    value={appointmentForm.notes}
+                    onChange={handleAppointmentFormChange}
+                    rows="3"
+                    className="input w-full resize-none"
+                    placeholder="Notes supplémentaires..."
+                  />
+                </div>
+
+                <div className="flex justify-end space-x-3 pt-4">
+                  <button
+                    type="button"
+                    onClick={() => setShowEditAppointmentModal(false)}
+                    className="btn-secondary"
+                  >
+                    Annuler
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isLoading}
+                    className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isLoading ? 'Modification...' : 'Modifier'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
