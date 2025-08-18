@@ -26,9 +26,14 @@ service cloud.firestore {
     // Règles pour les médicaments - utilise idPrescription
     match /medications/{docId} {
       allow read, write: if request.auth != null && 
-        (request.auth.uid == resource.data.doctorId || 
-         request.auth.uid == resource.data.patientId ||
-         request.auth.uid == resource.data.userId);
+        (request.auth.uid == resource.data.createdBy || 
+         request.auth.uid == resource.data.patientId);
+    }
+    
+    // Règles pour les médicaments utilisateur
+    match /userMedications/{docId} {
+      allow read, write: if request.auth != null && 
+        request.auth.uid == resource.data.userId;
     }
     
     // Règles pour les symptômes - utilise userId
@@ -60,7 +65,7 @@ service cloud.firestore {
     // Règles pour les prescriptions
     match /prescriptions/{docId} {
       allow read, write: if request.auth != null && 
-        (request.auth.uid == resource.data.doctorId || 
+        (request.auth.uid == resource.data.createdBy || 
          request.auth.uid == resource.data.patientId);
     }
     

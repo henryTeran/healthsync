@@ -5,10 +5,12 @@ import { differenceInDays } from "date-fns";
 /**
  * Ajoute un médicament lié à une prescription.
  */
-export const addMedication = async (idPrescription, medication) => {
+export const addMedication = async (idPrescription, medication, patientId, doctorId) => {
   try {
     const medicationData = {
       idPrescription,
+      patientId,
+      createdBy: doctorId,
       ...medication,
     };
 

@@ -67,7 +67,7 @@ export const Medications = () => {
 
         // Enregistrer chaque médicament avec l'ID de la prescription
         for (const medication of selectedMedications) {
-          await addMedication(prescriptionId, medication);
+          await addMedication(prescriptionId, medication, idPatient, user.uid);
         }
       }
     } catch (error) {
@@ -99,7 +99,7 @@ export const Medications = () => {
        
         // Enregistrer chaque médicament avec l'ID de la prescription
         for (const medication of selectedMedications) {
-          await addMedication(idPrescription, medication);
+          await addMedication(idPrescription, medication, idPatient, user.uid);
         }
         
       }
