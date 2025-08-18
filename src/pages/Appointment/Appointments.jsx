@@ -66,9 +66,7 @@ export const Appointments = ({ navigate }) => {
     if (currentUser) {
       fetchAppointments();
       fetchAuthorizedContacts();
-      if (currentUser.type === 'doctor') {
-        fetchUnavailabilities();
-      }
+      fetchUnavailabilities();
     }
   }, [currentUser, selectedContact]);
 
@@ -133,7 +131,17 @@ export const Appointments = ({ navigate }) => {
 
   const fetchUnavailabilities = async () => {
     try {
-      const doctorId = selectedContact?.type === 'doctor' ? selectedContact.id : user.uid;
+      let doctorId;
+      if (selectedContact?.type === 'doctor') {
+        doctorId = selectedContact.id;
+      } else if (currentUser?.type === 'doctor') {
+        doctorId = user.uid;
+      } else {
+        // Patient regardant son propre calendrier - pas d'indisponibilités à afficher
+        setUnavailabilities([]);
+        return;
+      }
+      
       const unavailabilitiesData = await getUnavailabilitiesByDoctor(doctorId);
       setUnavailabilities(unavailabilitiesData);
     } catch (error) {
