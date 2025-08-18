@@ -1,9 +1,10 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Règles pour les utilisateurs
+    // Règles pour les utilisateurs - lecture pour tous les utilisateurs authentifiés
     match /users/{userId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && request.auth.uid == userId;
     }
     
     // Règles pour les liens docteur-patient
@@ -22,17 +23,18 @@ service cloud.firestore {
          request.auth.uid == resource.data.patientId);
     }
     
-    // Règles pour les médicaments
+    // Règles pour les médicaments - utilise idPrescription
     match /medications/{docId} {
       allow read, write: if request.auth != null && 
         (request.auth.uid == resource.data.doctorId || 
-         request.auth.uid == resource.data.patientId);
+         request.auth.uid == resource.data.patientId ||
+         request.auth.uid == resource.data.userId);
     }
     
-    // Règles pour les symptômes
+    // Règles pour les symptômes - utilise userId
     match /symptoms/{docId} {
       allow read, write: if request.auth != null && 
-        request.auth.uid == resource.data.patientId;
+        request.auth.uid == resource.data.userId;
     }
     
     // Règles pour les rappels
@@ -41,7 +43,14 @@ service cloud.firestore {
         request.auth.uid == resource.data.userId;
     }
     
-    // Règles pour les messages de chat
+    // Règles pour les messages - nom de collection corrigé
+    match /messages/{docId} {
+      allow read, write: if request.auth != null && 
+        (request.auth.uid == resource.data.senderId || 
+         request.auth.uid == resource.data.receiverId);
+    }
+    
+    // Règles pour les messages de chat (au cas où)
     match /chat_messages/{docId} {
       allow read, write: if request.auth != null && 
         (request.auth.uid == resource.data.senderId || 
@@ -55,7 +64,13 @@ service cloud.firestore {
          request.auth.uid == resource.data.patientId);
     }
     
-    // Règles pour les profils publics (lecture seule pour les utilisateurs authentifiés)
+    // Règles pour les notifications
+    match /notifications/{docId} {
+      allow read, write: if request.auth != null && 
+        request.auth.uid == resource.data.userId;
+    }
+    
+    // Règles pour les profils publics
     match /public_profiles/{userId} {
       allow read: if request.auth != null;
       allow write: if request.auth != null && request.auth.uid == userId;
