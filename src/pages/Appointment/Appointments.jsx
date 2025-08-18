@@ -346,11 +346,43 @@ export const Appointments = ({ navigate }) => {
 
       const config = typeConfig[unavailability.type] || typeConfig.vacances;
 
+     // Conversion sécurisée des dates
+     let startDate, endDate;
+     
+     try {
+       // Si c'est une chaîne de caractères, la convertir en Date
+       if (typeof unavailability.start === 'string') {
+         startDate = new Date(unavailability.start);
+       } else if (unavailability.start?.toDate) {
+         // Si c'est un Timestamp Firestore
+         startDate = unavailability.start.toDate();
+       } else {
+         startDate = new Date(unavailability.start);
+       }
+       
+       if (typeof unavailability.end === 'string') {
+         endDate = new Date(unavailability.end);
+       } else if (unavailability.end?.toDate) {
+         endDate = unavailability.end.toDate();
+       } else {
+         endDate = new Date(unavailability.end);
+       }
+       
+       // Vérifier si les dates sont valides
+       if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+         console.error("❌ Dates invalides pour l'indisponibilité:", unavailability);
+         return null;
+       }
+       
+     } catch (error) {
+       console.error("❌ Erreur de conversion de date:", error, unavailability);
+       return null;
+     }
       return {
         id: unavailability.id,
         title: `${config.icon} ${config.label}`,
-        start: new Date(unavailability.start),
-        end: new Date(unavailability.end),
+       start: startDate,
+       end: endDate,
         resource: unavailability,
         type: 'unavailability',
         unavailabilityType: unavailability.type,
@@ -361,7 +393,7 @@ export const Appointments = ({ navigate }) => {
           color: 'white'
         }
       };
-    });
+   }).filter(event => event !== null); // Filtrer les événements invalides
 
     const allEvents = [...appointmentEvents, ...unavailabilityEvents];
     console.log("🎯 Événements finaux pour le calendrier:", allEvents);
