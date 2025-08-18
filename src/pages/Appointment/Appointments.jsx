@@ -380,6 +380,8 @@ export const Appointments = ({ navigate }) => {
      }
       return {
       // 🔹 Affichage différent selon le type d'utilisateur
+      
+      // 🔹 Affichage différent selon le type d'utilisateur
       const displayTitle = currentUser?.type === 'patient' 
         ? '🚫 Indisponible' // Patient ne voit que "Indisponible"
         : `${config.icon} ${config.label}`; // Médecin voit le détail
