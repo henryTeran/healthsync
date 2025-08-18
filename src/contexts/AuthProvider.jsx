@@ -36,15 +36,15 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   const login = async (email, password) => {
-    return AuthService.login (email, password );
+    return AuthService.login(email, password);
   };
 
   const register = async (email, password) => {
-    return AuthService.register (email, password );
+    return AuthService.register(email, password);
   };
 
   const logout = async () => {
-    return AuthService.logout ();
+    return AuthService.logout();
   };
 
   const value = {

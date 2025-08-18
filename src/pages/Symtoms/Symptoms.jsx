@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { SymptomForm } from "../../components/SymptomForm";
 import { SymptomCard } from "../../components/symptoms/SymptomCard";
 import { getSymptomsByUserRealtime, updateSymptom, deleteSymptom } from "../../services/symptomService";
-import { useAuth } from "../../hooks/useAuth";
+import { useAuth } from "../../contexts/AuthContext";
 import { Activity, TrendingUp, Plus, BarChart3 } from "lucide-react";
 
 export const Symptoms = () => {
