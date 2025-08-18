@@ -4,12 +4,12 @@ import { useState, useEffect } from "react";
 import { DoctorDashboard } from "./pages/Dashboard/DoctorDashboard";
 import { PatientDashboard } from "./pages/Dashboard/PatientDashboard";
 import { EditProfileWrapper, AppointmentsWrapper, AddAppointmentWrapper } from "./pages/WithNavigation";
-import { ListeDoctorsProfiles} from "./pages/Profile/Doctor/ListeDoctorsProfiles"
-import { ListePatientsProfiles} from "./pages/Profile/Patient/ListePatientsProfiles"
+import { ListeDoctorsProfiles} from "./pages/Profile/Doctor/ListeDoctorsProfiles";
+import { ListePatientsProfiles} from "./pages/Profile/Patient/ListePatientsProfiles";
 import { PatientProfile } from "./pages/Profile/PatientProfile";
 import { DoctorProfile } from "./pages/Profile/Doctor/DoctorProfile";
 import { Medications } from "./pages/medications/Medications";
-import { Medications_} from "./pages/medications/Medications_"
+import { Medications_} from "./pages/medications/Medications_";
 import { Symptoms } from "./pages/Symtoms/Symptoms";
 import { SymptomChart } from "./components/SymptomChart"; 
 import { Login } from "./pages/Login/Login";
@@ -29,41 +29,8 @@ import { RemindersPage } from "./pages/Reminders/RemindersPage";
 import { ErrorBoundary } from "./components/ui/ErrorBoundary";
 import { LoadingSpinner } from "./components/ui/LoadingSpinner";
 
-export const App = () => {
-  return (
-    <ErrorBoundary>
-      <AuthProvider>
-        <AppContent />
-      </AuthProvider>
-    </ErrorBoundary>
-  );
-};
-
-const AppContent = () => {
-  const { loading, user } = useAuth();
-
-  useEffect(() => {
-    const initializeNotifications = async () => {
-      try {
-        await requestForFCMToken();
-        if (messaging) {
-          onMessage(messaging, (payload) => {
-            console.log('Notification reçue:', payload);
-            toast(payload.notification.body);
-          });
-        }
-        if (user?.uid) {
-          listenForReminders(user.uid);
-        }
-      } catch (error) {
-        console.error('Erreur lors de l\'initialisation des notifications:', error);
-      }
-    };
-
-    if (user) {
-      initializeNotifications();
-    }
-  }, [user]);
+const App = () => {
+  const [loading, setLoading] = useState(false);
 
   if (loading) {
     return (
@@ -162,3 +129,5 @@ const PrivateLayout = () => {
     </div>
   );
 };
+
+export default App;
