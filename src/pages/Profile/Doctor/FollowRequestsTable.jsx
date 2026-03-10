@@ -3,8 +3,8 @@ import React, { Component } from "react";
 import { collection, query, where, onSnapshot } from "firebase/firestore";
 import { db } from "../../../providers/firebase";
 import { AuthContext } from "../../../contexts/AuthContext";
-import { getUserProfile } from "../../../services/profileService";
-import { handleFollowRequest } from "../../../services/followService";
+import { getUserProfile } from "../../../features/profile";
+import { handleFollowRequest } from "../../../features/profile";
 
 export class FollowRequestsTable extends Component {
   constructor(props) {

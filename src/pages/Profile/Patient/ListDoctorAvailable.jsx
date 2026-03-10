@@ -1,8 +1,7 @@
 import React, { Component } from "react";
-import { getAllDoctors } from "../../../services/doctorServices";
-import { getAuthorizedDoctors } from "../../../services/patientServices";
+import { getAllDoctors, getAuthorizedDoctors } from "../../../features/profile";
 
-import { requestFollow } from "../../../services/followService"; 
+import { requestFollow } from "../../../features/profile"; 
 import { AuthContext } from "../../../contexts/AuthContext";
 import PropTypes from "prop-types";
 

@@ -1,6 +1,6 @@
-import { AuthService } from '../../services/authService';
+import { AuthService } from '../../features/auth';
 import { auth, db } from '../../config/firebase';
-import { ValidationError, AuthError } from '../../utils/errorHandler';
+import { ValidationError, AuthError } from '../../shared/lib/errorHandler';
 
 // Mock Firebase
 jest.mock('../../config/firebase', () => ({

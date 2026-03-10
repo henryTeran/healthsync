@@ -1,7 +1,7 @@
 import { render } from '@testing-library/react';
 import { BrowserRouter } from 'react-router-dom';
 import { AuthProvider } from '../../hooks/useAuth.jsx';
-import { ErrorBoundary } from '../../components/ui/ErrorBoundary';
+import { ErrorBoundary } from '../../shared/ui/ErrorBoundary';
 
 // Wrapper personnalisé pour les tests
 const AllTheProviders = ({ children }) => {

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useContext } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { onSnapshot, collection, query, where } from "firebase/firestore";
 import { db } from "../../../providers/firebase";
-import { requestFollow } from "../../../services/followService";
+import { requestFollow } from "../../../features/profile";
 import { AuthContext } from "../../../contexts/AuthContext";
 
 export const ListeDoctorsProfiles = () => {

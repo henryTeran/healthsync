@@ -2,9 +2,9 @@ import React, { useState, useEffect, useContext } from "react";
 import { useParams } from "react-router-dom";
 import { AuthContext } from "../../../contexts/AuthContext";
 import { db } from "../../../providers/firebase";
-import { getUserProfile } from "../../../services/profileService";
-import { updateAppointment } from "../../../services/appointmentService";
-import { addNotification } from "../../../services/notificationService";
+import { getUserProfile } from "../../../features/profile";
+import { updateAppointment } from "../../../features/appointments";
+import { addNotification } from "../../../features/notifications";
 import { onSnapshot, collection, query, where, doc, getDoc } from "firebase/firestore";
 
 export const AppointmentRequestsTable = () => {
