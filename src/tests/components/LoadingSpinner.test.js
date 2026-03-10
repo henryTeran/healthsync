@@ -1,5 +1,5 @@
 import { render, screen } from '../utils/testUtils';
-import { LoadingSpinner } from '../../components/ui/LoadingSpinner';
+import { LoadingSpinner } from '../../shared/ui/LoadingSpinner';
 
 describe('LoadingSpinner', () => {
   it('should render with default props', () => {

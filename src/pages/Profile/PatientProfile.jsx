@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useContext } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { getUserProfile } from "../../services/profileService";
+import { getUserProfile } from "../../features/profile";
 import { AuthContext } from "../../contexts/AuthContext";
 import { onSnapshot, doc } from "firebase/firestore";
 import { db } from "../../providers/firebase";

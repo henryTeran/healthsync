@@ -12,7 +12,7 @@ import {
   getDoc
 } from 'firebase/firestore';
 import { db } from '../config/firebase';
-import { handleError } from '../utils/errorHandler';
+import { handleError } from '../shared/lib/errorHandler';
 
 // Hook pour les requêtes Firestore avec pagination
 export const useFirestoreQuery = (collectionName, constraints = [], options = {}) => {

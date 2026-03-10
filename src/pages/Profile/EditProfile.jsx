@@ -1,6 +1,6 @@
 // src/pages/EditProfile.jsx
 import React, { Component } from "react";
-import { getUserProfile, saveUserProfile, uploadProfilePicture } from "../../services/profileService";
+import { getUserProfile, saveUserProfile, uploadProfilePicture } from "../../features/profile";
 import { AuthContext } from "../../contexts/AuthContext";
 import PropTypes from "prop-types";
 

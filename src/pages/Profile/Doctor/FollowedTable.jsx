@@ -3,7 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { AuthContext } from "../../../contexts/AuthContext";
 import { collection, query, where, onSnapshot } from "firebase/firestore";
 import { db }  from "../../../providers/firebase";
-import { getUserProfile } from "../../../services/profileService";
+import { getUserProfile } from "../../../features/profile";
 
 
 export const FollowedTable = () => {

@@ -1,9 +1,8 @@
 import { useNavigate } from "react-router-dom";
-import { Appointments} from "../pages/Appointment/Appointments";
-import { AddAppointment}  from "../pages/Appointment/AddAppointment";
+import { Appointments } from "../features/appointments/ui/Appointments";
+import { AddAppointment } from "../features/appointments/ui/AddAppointment";
 import { EditProfile} from "../pages/Profile/EditProfile";
 import { Profile} from "../pages/Profile/Profile";
-import { DoctorProfile } from "./Profile/Doctor/DoctorProfile";
 
 
 export const AppointmentsWrapper = (props) => {
@@ -25,10 +24,5 @@ export const EditProfileWrapper = () => {
 
 export const ProfileWrapper = (props) => {
   const navigate = useNavigate();
-  console.log("ProfileWrapper props", props);
   return <Profile {...props} navigate={navigate} />;
-};
-export const DoctorProfileWrapper = (props) => {
-  const navigate = useNavigate();
-  return <DoctorProfile {...props} navigate={navigate} />;
 };
