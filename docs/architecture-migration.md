@@ -78,8 +78,21 @@ src/
 - Feature `profile` créée en couches:
   - `src/features/profile/application/profileUseCases.js`
   - `src/features/profile/application/doctorPatientUseCases.js`
+  - `src/features/profile/infrastructure/doctorPatientRepository.firebase.js`
   - `src/features/profile/infrastructure/profileRepository.firebase.js`
   - `src/features/profile/index.js`
+
+- Feature `dashboard` complétée en couches:
+  - `src/features/dashboard/application/dashboardUseCases.js`
+  - `src/features/dashboard/infrastructure/dashboardRepository.firebase.js`
+  - `src/features/dashboard/index.js`
+
+- Domain model unifié:
+  - `src/shared/domain/User.js`
+  - `src/features/chat/domain/ChatMessage.js`
+  - `src/features/appointments/domain/Appointment.js`
+  - `src/features/reminders/domain/Reminder.js`
+  - `src/features/symptoms/domain/Symptom.js`
 
 - Services transverses déplacés vers `shared`:
   - `src/shared/services/documedisService.js`
@@ -135,6 +148,33 @@ src/
 
 - UI `profile` déplacée vers feature:
   - `src/features/profile/ui/ProfileCard.jsx`
+  - `src/features/profile/ui/ProfilePage.jsx`
+  - `src/features/profile/ui/EditProfile.jsx`
+  - `src/features/profile/ui/PatientProfile.jsx`
+  - `src/features/profile/ui/doctor/AppointmentsRequestTabe.jsx`
+  - `src/features/profile/ui/doctor/DoctorProfile.jsx`
+  - `src/features/profile/ui/doctor/FollowedTable.jsx`
+  - `src/features/profile/ui/doctor/FollowRequestsTable.jsx`
+  - `src/features/profile/ui/doctor/ListeDoctorsProfiles.jsx`
+  - `src/features/profile/ui/patient/ListDoctorAvailable.jsx`
+  - `src/features/profile/ui/patient/ListePatientsProfiles.jsx`
+
+- Firebase unifié:
+  - point d'entree unique dans `src/providers/firebase.js`
+  - `src/config/firebase.js` supprime
+
+- UI decouplee de Firebase sur les vues critiques:
+  - `src/app/layouts/Header.jsx`
+  - `src/features/profile/ui/PatientProfile.jsx`
+  - `src/features/profile/ui/doctor/FollowRequestsTable.jsx`
+  - `src/features/profile/ui/doctor/FollowedTable.jsx`
+  - `src/features/profile/ui/doctor/ListeDoctorsProfiles.jsx`
+  - `src/features/profile/ui/doctor/AppointmentsRequestTabe.jsx`
+  - `src/features/profile/ui/patient/ListePatientsProfiles.jsx`
+
+- Fichiers lourds commences a etre decoupes:
+  - `src/features/auth/ui/RegisterPage.jsx`
+  - `src/features/auth/ui/RegisterSections.jsx`
 
 ## Purge effectuée
 - Supprimé: `src/services/medicationService_.js` (legacy non référencé)
@@ -199,6 +239,10 @@ src/
 - Supprimé: `src/services/documedisService.js` (déplacé vers `src/shared/services/documedisService.js`)
 - Supprimé: `src/services/emailService.js` (déplacé vers `src/shared/services/emailService.js`)
 - Supprimé: `src/services/storageService.js` (déplacé vers `src/shared/services/storageService.js`)
+- Supprimé: `src/pages/Profile/**` (migré vers `src/features/profile/ui/**`)
+- Supprimé: `src/pages/WithNavigation.jsx` (remplacé par `src/app/router/WithNavigation.jsx`)
+- Supprimé: `src/models/` (modèles déplacés vers `features/*/domain` et `src/shared/domain`)
+- Supprimé: `src/config/firebase.js` (fusionné dans `src/providers/firebase.js`)
 
 ## Normalisation legacy (naming/routes)
 - Renommé: `src/pages/Symtoms/Symptoms.jsx` -> `src/features/symptoms/ui/SymptomsPage.jsx`
@@ -209,8 +253,9 @@ src/
 - Navigation interne mise à jour vers les routes canoniques (`Sidebar`, `QuickActions`, `NotificationWidget`)
 
 ## Prochaines étapes recommandées
-1. Migrer progressivement les modèles `src/models/*` vers les `domain` de chaque feature (ou `src/shared/domain` s'ils sont réellement transverses)
-2. Ajouter des tests ciblés sur les use-cases `application/*` critiques (auth, reminders, notifications)
+1. Continuer le decoupage des tres gros ecrans restants, en priorite `src/features/appointments/ui/Appointments.jsx` et `src/features/appointments/ui/AddAppointment.jsx`
+2. Ajouter des tests cibles sur les use cases critiques (`auth`, `appointments`, `notifications`, `profile`)
+3. Introduire du code splitting sur les gros chunks Vite pour reduire le bundle principal
 
 ## Convention de nommage
 - Dossiers: `kebab-case`

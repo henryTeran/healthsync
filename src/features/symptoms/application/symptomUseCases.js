@@ -1,4 +1,4 @@
-import { Symptom } from "../../../models/Symptom";
+import { Symptom } from "../domain/Symptom";
 import {
   createSymptomRecord,
   deleteSymptomRecord,

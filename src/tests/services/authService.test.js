@@ -1,9 +1,9 @@
 import { AuthService } from '../../features/auth';
-import { auth, db } from '../../config/firebase';
+import { auth, db } from '../../providers/firebase';
 import { ValidationError, AuthError } from '../../shared/lib/errorHandler';
 
 // Mock Firebase
-jest.mock('../../config/firebase', () => ({
+jest.mock('../../providers/firebase', () => ({
   auth: {
     currentUser: null
   },

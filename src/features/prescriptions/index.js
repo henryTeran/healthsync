@@ -1,6 +1,7 @@
 export {
   acceptPrescriptionUseCase,
   getPrescriptionByIdUseCase,
+  getReceivedPrescriptionsByPatientUseCase,
   getPrescriptionsByPatientUseCase,
   getPrescriptionsByUserUseCase,
   savePrescriptionUseCase,
@@ -12,6 +13,7 @@ export {
 export {
   acceptPrescriptionUseCase as acceptPrescription,
   getPrescriptionByIdUseCase as getPrescriptionById,
+  getReceivedPrescriptionsByPatientUseCase as getReceivedPrescriptionsByPatient,
   getPrescriptionsByPatientUseCase as getPrescriptionsByPatient,
   getPrescriptionsByUserUseCase as getPrescriptionsByUser,
   savePrescriptionUseCase as savePrescription,

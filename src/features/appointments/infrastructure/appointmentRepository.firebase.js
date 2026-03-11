@@ -9,6 +9,7 @@ import {
   updateDoc,
   where,
 } from "firebase/firestore";
+import { auth } from "../../../providers/firebase";
 import { db } from "../../../providers/firebase";
 
 const appointmentsCollection = collection(db, "appointments");
@@ -53,4 +54,8 @@ export const updateAvailabilityRecord = async (availabilityId, payload) => {
 
 export const deleteAvailabilityRecord = async (availabilityId) => {
   return deleteDoc(doc(db, "availabilities", availabilityId));
+};
+
+export const getCurrentAuthenticatedUserId = () => {
+  return auth.currentUser?.uid ?? null;
 };

@@ -1,11 +1,7 @@
 import React, { useState, useEffect, useContext } from "react";
 import { useParams } from "react-router-dom";
-import { AuthContext } from "../../../contexts/AuthContext";
-import { db } from "../../../providers/firebase";
-import { getUserProfile } from "../../../features/profile";
-import { updateAppointment } from "../../../features/appointments";
-import { addNotification } from "../../../features/notifications";
-import { onSnapshot, collection, query, where, doc, getDoc } from "firebase/firestore";
+import { AuthContext } from "../../../../contexts/AuthContext";
+import { getAppointmentsByUser, sendAppointmentConfirmation, updateAppointment } from "../../../appointments";
 
 export const AppointmentRequestsTable = () => {
   const { user } = useContext(AuthContext);
@@ -24,27 +20,18 @@ export const AppointmentRequestsTable = () => {
       return;
     }
 
-    const fetchAppointments = () => {
-      const q = query(collection(db, "appointments"), where("doctorId", "==", doctorId));
-      return onSnapshot(q, async (snapshot) => {
-        const appointmentDocs = await Promise.all(
-          snapshot.docs.map(async (docSnap) => {
-            const data = docSnap.data();
-            const patient = await getUserProfile(data.patientId);
-            return {
-              id: docSnap.id,
-              ...data,
-              patientName: patient ? `${patient.firstName} ${patient.lastName}` : "Inconnu",
-            };
-          })
-        );
+    const fetchAppointments = async () => {
+      try {
+        const appointmentDocs = await getAppointmentsByUser(doctorId, "doctor");
         setAppointments(appointmentDocs);
         setIsLoading(false);
-      });
+      } catch (fetchError) {
+        setError(fetchError.message);
+        setIsLoading(false);
+      }
     };
 
-    const unsubscribe = fetchAppointments();
-    return () => unsubscribe();
+    fetchAppointments();
   }, [doctorId]);
 
   const handleAccept = async (appointmentId, patientId, date, time) => {
@@ -53,9 +40,11 @@ export const AppointmentRequestsTable = () => {
       
       // Envoyer la confirmation avec rappels automatiques
       await sendAppointmentConfirmation(appointmentId, "accepté", user.uid, patientId);
-      
-      const doctorData = await getUserProfile(user.uid);
-      
+
+      setAppointments((previous) => previous.map((appointment) => (
+        appointment.id === appointmentId ? { ...appointment, status: "accepté" } : appointment
+      )));
+
       alert("Rendez-vous accepté ! Le patient a été notifié et des rappels ont été programmés.");
     } catch (error) {
       console.error("Erreur lors de l'acceptation:", error);
@@ -69,9 +58,11 @@ export const AppointmentRequestsTable = () => {
       
       // Envoyer la notification de refus
       await sendAppointmentConfirmation(appointmentId, "refusé", user.uid, patientId);
-      
-      const doctorData = await getUserProfile(user.uid);
-      
+
+      setAppointments((previous) => previous.map((appointment) => (
+        appointment.id === appointmentId ? { ...appointment, status: "refusé" } : appointment
+      )));
+
       alert("Rendez-vous refusé. Le patient a été notifié.");
     } catch (error) {
       console.error("Erreur lors du refus:", error);

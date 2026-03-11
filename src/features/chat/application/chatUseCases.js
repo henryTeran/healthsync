@@ -1,4 +1,4 @@
-import { ChatMessage } from "../../../models/ChatMessage";
+import { ChatMessage } from "../domain/ChatMessage";
 import {
   createMessage,
   findConversationBetween,
@@ -7,6 +7,7 @@ import {
   findUnreadMessagesByUser,
   markMessageAsReceivedById,
   markMessagesAsReadByParticipants,
+  subscribeUnreadMessagesByUser,
   subscribeMessages,
 } from "../infrastructure/chatRepository.firebase";
 
@@ -57,4 +58,8 @@ export const getUnreadMessagesByUserUseCase = async (userId) => {
 
 export const markMessageAsReceivedUseCase = async (messageId) => {
   await markMessageAsReceivedById(messageId);
+};
+
+export const listenUnreadMessagesByUserUseCase = (userId, callback) => {
+  return subscribeUnreadMessagesByUser(userId, callback);
 };

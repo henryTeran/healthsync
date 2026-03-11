@@ -11,7 +11,7 @@ import {
   doc,
   getDoc
 } from 'firebase/firestore';
-import { db } from '../config/firebase';
+import { db } from '../providers/firebase';
 import { handleError } from '../shared/lib/errorHandler';
 
 // Hook pour les requêtes Firestore avec pagination

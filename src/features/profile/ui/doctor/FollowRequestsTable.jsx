@@ -1,10 +1,7 @@
 // src/pages/DoctorProfile.jsx
-import React, { Component } from "react";
-import { collection, query, where, onSnapshot } from "firebase/firestore";
-import { db } from "../../../providers/firebase";
-import { AuthContext } from "../../../contexts/AuthContext";
-import { getUserProfile } from "../../../features/profile";
-import { handleFollowRequest } from "../../../features/profile";
+import { Component } from "react";
+import { AuthContext } from "../../../../contexts/AuthContext";
+import { getFollowRequests, handleFollowRequest } from "../..";
 
 export class FollowRequestsTable extends Component {
   constructor(props) {
@@ -22,67 +19,29 @@ export class FollowRequestsTable extends Component {
   componentDidMount() {
     const { user } = this.context;
     if (user && user.userType === "doctor") {
-      const q = query(
-        collection(db, "doctor_patient_links"),
-        where("doctorId", "==", user.uid),
-        where("authorized", "==", false)
-      );
-
-      this.unsubscribe = onSnapshot(
-        q,
-        (snapshot) => {
-          // ⚠️ onSnapshot ne peut pas être async directement → on encapsule
-          (async () => {
-            const requests = snapshot.docs.map((doc) => ({
-              id: doc.id,
-              ...doc.data(),
-            }));
-
-            const requestsWithPatientData = await Promise.all(
-              requests.map(async (request) => {
-                try {
-                  const patientProfile = await getUserProfile(request.patientId);
-                  return {
-                    ...request,
-                    firstName: patientProfile?.firstName || "Inconnu",
-                    lastName: patientProfile?.lastName || "Inconnu",
-                  };
-                } catch (error) {
-                  console.error(
-                    `Erreur lors de la récupération du profil du patient ${request.patientId} :`,
-                    error
-                  );
-                  return {
-                    ...request,
-                    firstName: "Erreur",
-                    lastName: "Erreur",
-                  };
-                }
-              })
-            );
-
-            this.setState({ followRequests: requestsWithPatientData, isLoading: false });
-          })();
-        },
-        (error) => {
-          console.error("Erreur lors de l'écoute des demandes :", error);
-          this.setState({ error: error.message, isLoading: false });
-        }
-      );
+      this.fetchFollowRequests();
     }
   }
 
   componentWillUnmount() {
-    if (this.unsubscribe) {
-      this.unsubscribe();
+    this.unsubscribe = null;
+  }
+
+  fetchFollowRequests = async () => {
+    try {
+      const requests = await getFollowRequests(this.context.user.uid);
+      this.setState({ followRequests: requests, isLoading: false, error: "" });
+    } catch (error) {
+      console.error("Erreur lors du chargement des demandes :", error);
+      this.setState({ error: error.message, isLoading: false });
     }
   }
 
   handleAcceptRequest = async (patientId) => {
     try {
       await handleFollowRequest(patientId, this.context.user.uid, true);
+      await this.fetchFollowRequests();
       alert("Demande acceptée !");
-      //this.fetchFollowRequests();
     } catch (error) {
       alert(error.message);
     }
@@ -91,8 +50,8 @@ export class FollowRequestsTable extends Component {
   handleRejectRequest = async (patientId) => {
     try {
       await handleFollowRequest(patientId, this.context.user.uid, false);
+      await this.fetchFollowRequests();
       alert("Demande refusée !");
-      //this.fetchFollowRequests();
     } catch (error) {
       alert(error.message);
     }
@@ -117,7 +76,7 @@ export class FollowRequestsTable extends Component {
         month: "long",
         day: "numeric",
       });
-    } catch (e) {
+    } catch {
       return "Date invalide";
     }
   }

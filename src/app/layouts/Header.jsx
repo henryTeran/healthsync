@@ -3,9 +3,8 @@ import { Menu, Search, Settings, LogOut, CircleHelp, MessageCircleMore, UserCirc
 import { Link, useNavigate } from "react-router-dom";
 import PropTypes from "prop-types";
 import { AuthService } from "../../features/auth";
-import { getAuth } from "firebase/auth";
-import { collection, onSnapshot, query, where, updateDoc, getDocs } from "firebase/firestore";
-import { db } from "../../providers/firebase";
+import { useAuth } from "../../contexts/AuthContext";
+import { listenUnreadMessagesByUser, markMessagesAsReadUseCase } from "../../features/chat";
 import { NotificationWidget } from "../../features/notifications/ui/NotificationWidget";
 import PhotoProfil from "../../assets/default-profile.jpg";
 import { getUserProfile } from "../../features/profile";
@@ -13,6 +12,7 @@ import { getUserProfile } from "../../features/profile";
 
 export const Header = ({ toggleSidebar, isCollapsed }) => {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [showDropdown, setShowDropdown] = useState(false);
   const [showChatPopup, setShowChatPopup] = useState(false);
   const [unreadChatCount, setUnreadChatCount] = useState(0); 
@@ -32,15 +32,13 @@ export const Header = ({ toggleSidebar, isCollapsed }) => {
   // 🔹 Récupérer les informations de l'utilisateur connecté
   useEffect(() => {
     const fetchCurrentUser = async () => {
-      const auth = getAuth();
-      const user = auth.currentUser;
       if (user) {
         const userProfile = await getUserProfile(user.uid);
         setCurrentUser(userProfile);
       }
     };
     fetchCurrentUser();
-  }, []);
+  }, [user]);
 
   // 🔹 Déterminer le placeholder de la barre de recherche
   const getSearchPlaceholder = () => {
@@ -53,53 +51,20 @@ export const Header = ({ toggleSidebar, isCollapsed }) => {
     }
   };
   // 🔹 Fonction pour écouter les messages non lus en temps réel
-  const fetchUnreadChatCountRealtime = (userId) => {
-    const q = query(collection(db, "messages"), where("receiverId", "==", userId), where("status", "!=", "read"));
-
-    return onSnapshot(q, (snapshot) => {
-      const unreadMessagesData = {};
-      let totalUnread = 0;
-
-      snapshot.docs.forEach((doc) => {
-        const data = doc.data();
-        if (!unreadMessagesData[data.senderId]) {
-          unreadMessagesData[data.senderId] = { count: 0, lastMessage: {} };
-        }
-        unreadMessagesData[data.senderId].count += 1;
-        unreadMessagesData[data.senderId].lastMessage = data;
-        totalUnread++;
-      });
-
-      setUnreadMessages(unreadMessagesData);
-      setUnreadChatCount(totalUnread); 
-    });
-  };
-
   useEffect(() => {
-    const auth = getAuth();
-    const user = auth.currentUser;
     if (!user) return;
 
-    const unsubscribeChat = fetchUnreadChatCountRealtime(user.uid);
+    const unsubscribeChat = listenUnreadMessagesByUser(user.uid, ({ unreadMessages, totalUnread }) => {
+      setUnreadMessages(unreadMessages);
+      setUnreadChatCount(totalUnread);
+    });
     return () => unsubscribeChat(); // Stopper l'écoute en quittant la page
-  }, []);
+  }, [user]);
 
   //  Marquer les messages d'un contact comme lus
-  const markMessagesAsRead = async (senderId) => {
-    const auth = getAuth();
-    const user = auth.currentUser;
+  const handleMarkMessagesAsRead = async (senderId) => {
     if (!user) return;
-
-    const q = query(
-      collection(db, "messages"),
-      where("receiverId", "==", user.uid),
-      where("senderId", "==", senderId),
-      where("status", "!=", "read")
-    );
-
-    const snapshot = await getDocs(q);
-    const updatePromises = snapshot.docs.map((doc) => updateDoc(doc.ref, { status: "read" }));
-    await Promise.all(updatePromises);
+    await markMessagesAsReadUseCase(user.uid, senderId);
 
     //  Mise à jour du badge de notifications après la lecture
     setUnreadMessages((prev) => {
@@ -134,8 +99,6 @@ export const Header = ({ toggleSidebar, isCollapsed }) => {
   }, []);
 
   const getProfilFoto = async () => { 
-    const auth = getAuth();
-    const user = auth.currentUser;
     if (!user) return;
     const dataProfile = await getUserProfile(user.uid);
     if (dataProfile.photoURL) {
@@ -145,8 +108,7 @@ export const Header = ({ toggleSidebar, isCollapsed }) => {
 
   useEffect(() => {
     getProfilFoto();
-    }, []);
-;
+  }, [user]);
 
   return (
     <header className={`glass-medical backdrop-blur-xl border-b border-medical-100/30 p-4 flex items-center justify-between w-full transition-all duration-300 ${!isCollapsed ? "pl-10" : "pl-8"}`}>
@@ -184,7 +146,7 @@ export const Header = ({ toggleSidebar, isCollapsed }) => {
             <ul className="max-h-64 overflow-y-auto scrollbar-thin">
               {Object.keys(unreadMessages).length > 0 ? (
                 Object.entries(unreadMessages).map(([senderId, { count, lastMessage }]) => (
-                  <li key={senderId} className="px-6 py-4 flex items-center cursor-pointer hover:bg-medical-50 border-b border-medical-50 transition-colors duration-200" onClick={() => markMessagesAsRead(senderId)}>
+                  <li key={senderId} className="px-6 py-4 flex items-center cursor-pointer hover:bg-medical-50 border-b border-medical-50 transition-colors duration-200" onClick={() => handleMarkMessagesAsRead(senderId)}>
                     <div className="w-10 h-10 bg-gradient-to-br from-medical-400 to-medical-500 rounded-full flex items-center justify-center mr-3">
                       <UserCircle className="h-6 w-6 text-white" />
                     </div>

@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useContext } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { getUserProfile } from "../../features/profile";
-import { AuthContext } from "../../contexts/AuthContext";
-import { ListDoctorAvailable } from "./Patient/ListDoctorAvailable";
+import { getUserProfile } from "..";
+import { AuthContext } from "../../../contexts/AuthContext";
+import { ListDoctorAvailable } from "./patient/ListDoctorAvailable";
 
 export const Profile = (Profil) => {
   const { user } = useContext(AuthContext);

@@ -1,11 +1,8 @@
 // src/features/dashboard/ui/DoctorDashboard.jsx
 import React, { useState, useEffect, useContext } from "react";
-import { FollowRequestsTable } from "../../../pages/Profile/Doctor/FollowRequestsTable";
+import { FollowRequestsTable } from "../../profile/ui/doctor/FollowRequestsTable";
 import { AuthContext } from "../../../contexts/AuthContext";
-import { getAppointmentsByUser } from "../../../features/appointments";
-import { getAuthorizedPatients } from "../../../features/profile";
-import { getPrescriptionsByUser } from "../../../features/prescriptions";
-import { getUserProfile } from "../../../features/profile";
+import { getDoctorDashboardDataUseCase } from "..";
 import { ProfileCard } from "../../profile/ui/ProfileCard";
 import { QuickActions } from "./QuickActions";
 import { RecentActivity } from "./RecentActivity";
@@ -39,37 +36,9 @@ export const DoctorDashboard = () => {
   const fetchDashboardData = async () => {
     try {
       setLoading(true);
-      
-      // Récupérer le profil
-      const profileData = await getUserProfile(user.uid);
-      setProfile(profileData);
-      
-      // Récupérer les statistiques en parallèle
-      const [patients, appointments, prescriptions] = await Promise.all([
-        getAuthorizedPatients(user.uid),
-        getAppointmentsByUser(user.uid, "doctor"),
-        getPrescriptionsByUser(user.uid)
-      ]);
-      
-      // Calculer les statistiques
-      const today = new Date().toISOString().split('T')[0];
-      const todayAppointments = appointments.filter(apt => apt.date === today).length;
-      const pendingPrescriptions = prescriptions.filter(presc => presc.status === 'send').length;
-      
-      // Calculer les consultations de la semaine
-      const weekStart = new Date();
-      weekStart.setDate(weekStart.getDate() - weekStart.getDay());
-      const weeklyConsultations = appointments.filter(apt => {
-        const aptDate = new Date(apt.date);
-        return aptDate >= weekStart && apt.status === 'accepté';
-      }).length;
-      
-      setStats({
-        totalPatients: patients.length,
-        todayAppointments,
-        pendingPrescriptions,
-        weeklyConsultations
-      });
+      const dashboardData = await getDoctorDashboardDataUseCase(user.uid);
+      setProfile(dashboardData.profile);
+      setStats(dashboardData.stats);
       
     } catch (error) {
       console.error("Erreur lors de la récupération des données du dashboard :", error);

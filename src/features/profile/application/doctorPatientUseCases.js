@@ -1,39 +1,29 @@
-import { db } from '../../../providers/firebase';
-import {
-  collection,
-  doc,
-  getDoc,
-  getDocs,
-  query,
-  setDoc,
-  updateDoc,
-  where,
-} from 'firebase/firestore';
-import { getAuth } from 'firebase/auth';
 import { addNotification } from '../../notifications';
 import { getUserProfileUseCase } from './profileUseCases';
-
-const auth = getAuth();
+import {
+  createAuthorizedFollowLink,
+  createFollowRequest,
+  createMedicalHistory,
+  findAuthorizedDoctorLinks,
+  findAuthorizedPatientLinks,
+  findFollowRequestsByDoctor,
+  findMedicalHistoryByUser,
+  findUserById,
+  findUsersByType,
+  updateFollowRequestStatus,
+} from '../infrastructure/doctorPatientRepository.firebase';
 
 export const getAuthorizedPatientsUseCase = async (doctorId) => {
-  const q = query(
-    collection(db, 'doctor_patient_links'),
-    where('doctorId', '==', doctorId),
-    where('authorized', '==', true)
-  );
-
-  const querySnapshot = await getDocs(q);
+  const querySnapshot = await findAuthorizedPatientLinks(doctorId);
   const patients = [];
 
   for (const document of querySnapshot.docs) {
     const linkData = document.data();
-    const patientRef = doc(db, 'users', linkData.patientId);
-    const patientSnapshot = await getDoc(patientRef);
-
-    if (patientSnapshot.exists()) {
+    const patient = await findUserById(linkData.patientId);
+    if (patient) {
       patients.push({
         id: linkData.patientId,
-        ...patientSnapshot.data(),
+        ...patient,
       });
     }
   }
@@ -42,22 +32,14 @@ export const getAuthorizedPatientsUseCase = async (doctorId) => {
 };
 
 export const getAuthorizedDoctorsUseCase = async (patientId) => {
-  const q = query(
-    collection(db, 'doctor_patient_links'),
-    where('patientId', '==', patientId),
-    where('authorized', '==', true)
-  );
-
-  const querySnapshot = await getDocs(q);
+  const querySnapshot = await findAuthorizedDoctorLinks(patientId);
   const doctors = [];
 
   for (const document of querySnapshot.docs) {
     const doctorId = document.data().doctorId;
-    const doctorRef = doc(db, 'users', doctorId);
-    const doctorSnapshot = await getDoc(doctorRef);
-
-    if (doctorSnapshot.exists()) {
-      doctors.push({ id: doctorId, ...doctorSnapshot.data() });
+    const doctor = await findUserById(doctorId);
+    if (doctor) {
+      doctors.push({ id: doctorId, ...doctor });
     }
   }
 
@@ -65,50 +47,15 @@ export const getAuthorizedDoctorsUseCase = async (patientId) => {
 };
 
 export const getAllDoctorsUseCase = async () => {
-  const doctorsSnapshot = await getDocs(collection(db, 'users'));
-  const doctorsList = [];
-
-  for (const item of doctorsSnapshot.docs) {
-    const doctorData = item.data();
-    if (doctorData.type === 'doctor') {
-      doctorsList.push({
-        id: item.id,
-        ...doctorData,
-        signupDate: auth.currentUser?.metadata?.creationTime || 'N/A',
-      });
-    }
-  }
-
-  return doctorsList;
+  return findUsersByType('doctor');
 };
 
 export const getAllPatientsUseCase = async () => {
-  const patientsSnapshot = await getDocs(collection(db, 'users'));
-  const patientsList = [];
-
-  for (const item of patientsSnapshot.docs) {
-    const patientData = item.data();
-    if (patientData.type === 'patient') {
-      patientsList.push({
-        id: item.id,
-        ...patientData,
-        signupDate: auth.currentUser?.metadata?.creationTime || 'N/A',
-      });
-    }
-  }
-
-  return patientsList;
+  return findUsersByType('patient');
 };
 
 export const requestFollowUseCase = async (patientId, doctorId) => {
-  const linkRef = doc(db, 'doctor_patient_links', `${doctorId}_${patientId}`);
-  await setDoc(linkRef, {
-    patientId,
-    doctorId,
-    authorized: false,
-    refuse: true,
-    createdAt: new Date().toISOString(),
-  });
+  await createFollowRequest(patientId, doctorId);
 
   const patientProfile = await getUserProfileUseCase(patientId);
   const firstName = patientProfile?.firstName || 'Inconnu';
@@ -122,12 +69,22 @@ export const requestFollowUseCase = async (patientId, doctorId) => {
   });
 };
 
-export const handleFollowRequestUseCase = async (patientId, doctorId, isAuthorized) => {
-  const linkRef = doc(db, 'doctor_patient_links', `${doctorId}_${patientId}`);
-  await updateDoc(linkRef, {
-    authorized: isAuthorized,
-    refuse: !isAuthorized,
+export const followPatientAsDoctorUseCase = async (patientId, doctorProfile) => {
+  await createAuthorizedFollowLink(patientId, doctorProfile.uid);
+
+  const firstName = doctorProfile?.firstName || 'Inconnu';
+  const lastName = doctorProfile?.lastName || 'Inconnu';
+
+  await addNotification(patientId, {
+    type: 'follow_response',
+    message: `Le Dr. ${firstName} ${lastName} a accepte votre dossier.`,
+    patientId,
+    read: false,
   });
+};
+
+export const handleFollowRequestUseCase = async (patientId, doctorId, isAuthorized) => {
+  await updateFollowRequestStatus(patientId, doctorId, isAuthorized);
 
   const doctorProfile = await getUserProfileUseCase(doctorId);
   const firstName = doctorProfile?.firstName || 'Inconnu';
@@ -144,12 +101,7 @@ export const handleFollowRequestUseCase = async (patientId, doctorId, isAuthoriz
 };
 
 export const getFollowRequestsUseCase = async (doctorId) => {
-  const q = query(
-    collection(db, 'doctor_patient_links'),
-    where('doctorId', '==', doctorId),
-    where('authorized', '==', false)
-  );
-  const querySnapshot = await getDocs(q);
+  const querySnapshot = await findFollowRequestsByDoctor(doctorId);
 
   const requests = querySnapshot.docs.map((item) => ({
     id: item.id,
@@ -177,12 +129,9 @@ export const getFollowRequestsUseCase = async (doctorId) => {
 };
 
 export const addMedicalHistoryUseCase = async (patientId, historyData) => {
-  const docId = `${patientId}_history_${Date.now()}`;
-  await setDoc(doc(db, 'medicalHistory', docId), { ...historyData, patientId });
+  await createMedicalHistory(patientId, historyData);
 };
 
 export const getMedicalHistoryByUserUseCase = async (patientId) => {
-  const q = query(collection(db, 'medicalHistory'), where('userId', '==', patientId));
-  const querySnapshot = await getDocs(q);
-  return querySnapshot.docs.map((item) => ({ id: item.id, ...item.data() }));
+  return findMedicalHistoryByUser(patientId);
 };

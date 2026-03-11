@@ -1,8 +1,8 @@
 import { useState, useContext, useEffect } from "react";
 import { useParams } from "react-router-dom";
 
-import { AuthContext } from "../../../contexts/AuthContext";
-import { ProfileWrapper } from "../../WithNavigation";
+import { AuthContext } from "../../../../contexts/AuthContext";
+import { Profile } from "../ProfilePage";
 import { FollowedTable } from "./FollowedTable";
 import { AppointmentRequestsTable } from "./AppointmentsRequestTabe";
 
@@ -39,7 +39,7 @@ export const DoctorProfile = () => {
   return (
     <div className="p-6 bg-gray-100 min-h-screen">
       <h1 className="text-2xl font-semibold text-gray-800 mb-4">Profil Médecin</h1>
-      <ProfileWrapper id={doctorId} />
+      <Profile id={doctorId} />
       {isOwner && <FollowedTable />}
       {isOwner && <AppointmentRequestsTable />}
     </div>

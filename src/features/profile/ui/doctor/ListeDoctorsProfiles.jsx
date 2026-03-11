@@ -1,25 +1,24 @@
 import React, { useState, useEffect, useContext } from "react";
-import { useNavigate, useParams } from "react-router-dom";
-import { onSnapshot, collection, query, where } from "firebase/firestore";
-import { db } from "../../../providers/firebase";
-import { requestFollow } from "../../../features/profile";
-import { AuthContext } from "../../../contexts/AuthContext";
+import { useNavigate } from "react-router-dom";
+import { getAllDoctors, requestFollow } from "../..";
+import { AuthContext } from "../../../../contexts/AuthContext";
 
 export const ListeDoctorsProfiles = () => {
   const { user } = useContext(AuthContext);
-  const { userId} = useParams(); //  Récupération des IDs selon la page
   const navigate = useNavigate();
   const [doctors, setDoctors] = useState([]);
 
   useEffect(() => {
-    //  Écoute en temps réel des médecins
-    const q = query(collection(db, "users"), where("type", "==", "doctor"));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const doctorsData = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
-      setDoctors(doctorsData);
-    });
+    const fetchDoctors = async () => {
+      try {
+        const doctorsData = await getAllDoctors();
+        setDoctors(doctorsData);
+      } catch (error) {
+        console.error("Erreur lors du chargement des medecins :", error);
+      }
+    };
 
-    return () => unsubscribe();
+    fetchDoctors();
   }, []);
 
   const handleFollowRequest = async (doctorId) => {

@@ -2,9 +2,8 @@ import React, { useMemo, useState, useEffect, useContext } from "react";
 import PropTypes from "prop-types";
 import { useTable, usePagination, useSortBy } from "react-table";
 import { useNavigate } from "react-router-dom";
-import { addDoc, collection, onSnapshot, query, where } from "firebase/firestore";
-import { db } from "../../../providers/firebase";
-import { AuthContext } from "../../../contexts/AuthContext";
+import { AuthContext } from "../../../../contexts/AuthContext";
+import { followPatientAsDoctor, getAllPatients, getAuthorizedPatients } from "../..";
 
 export const ListePatientsProfiles = () => {
   const [patients, setPatients] = useState([]);
@@ -16,55 +15,45 @@ export const ListePatientsProfiles = () => {
 
   // 🔥 Écoute en temps réel les patients de la collection "users"
   useEffect(() => {
-    const q = query(collection(db, "users"), where("type", "==", "patient"));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const patientList = snapshot.docs.map((doc) => ({
-        id: doc.id, // ✅ Ajout de l'ID Firestore
-        ...doc.data(),
-        fullName: `${doc.data().firstName} ${doc.data().lastName}`,
-      }));
-      console.log("👀 Mise à jour en temps réel des patients :", patientList);
-      setPatients(patientList);
-    });
+    const fetchPatients = async () => {
+      try {
+        const patientList = await getAllPatients();
+        setPatients(
+          patientList.map((patient) => ({
+            ...patient,
+            fullName: `${patient.firstName} ${patient.lastName}`,
+          }))
+        );
+      } catch (error) {
+        console.error("Erreur lors du chargement des patients :", error);
+      }
+    };
 
-    return () => unsubscribe(); // Arrêter l'écoute en quittant la page
+    fetchPatients();
   }, []);
 
   // 🔥 Écoute en temps réel les patients suivis par le médecin
   useEffect(() => {
     if (!user || !isDoctor) return;
 
-    const q = query(collection(db, "doctor_patient_links"), where("doctorId", "==", user.uid));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const followedIds = snapshot.docs.map((doc) => doc.data().patientId);
-      console.log("👀 Patients suivis mis à jour :", followedIds);
-      setFollowedPatients(followedIds);
-    });
+    const fetchFollowedPatients = async () => {
+      try {
+        const followed = await getAuthorizedPatients(user.uid);
+        setFollowedPatients(followed.map((patient) => patient.id));
+      } catch (error) {
+        console.error("Erreur lors du chargement des patients suivis :", error);
+      }
+    };
 
-    return () => unsubscribe();
+    fetchFollowedPatients();
   }, [user, isDoctor]);
 
   const handleFollowPatient = async (patientId) => {
     if (!user || !isDoctor) return;
 
     try {
-      await addDoc(collection(db, "doctor_patient_links"), {
-        doctorId: user.uid,
-        patientId: patientId,
-        authorized: true,
-        createdAt: new Date(),
-      });
-
-      await addDoc(collection(db, "notifications"), {
-        userId: patientId,
-        type: "follow_response",
-        message: `Le Dr. ${user.firstName} ${user.lastName} a accepté votre dossier.`,
-        read: false,
-        patientId: patientId,
-        createdAt: new Date(),
-      });
-
-      console.log("✅ Patient suivi !");
+      await followPatientAsDoctor(patientId, user);
+      setFollowedPatients((previous) => [...new Set([...previous, patientId])]);
     } catch (error) {
       console.error("❌ Erreur :", error);
       alert("❌ Impossible de suivre le patient.");

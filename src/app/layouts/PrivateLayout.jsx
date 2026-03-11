@@ -13,15 +13,15 @@ import { SymptomChart } from "../../features/symptoms/ui/SymptomChartPage";
 import { SymptomsPage } from "../../features/symptoms/ui/SymptomsPage";
 import { DoctorDashboard } from "../../features/dashboard/ui/DoctorDashboard";
 import { PatientDashboard } from "../../features/dashboard/ui/PatientDashboard";
-import { DoctorProfile } from "../../pages/Profile/Doctor/DoctorProfile";
-import { ListeDoctorsProfiles } from "../../pages/Profile/Doctor/ListeDoctorsProfiles";
-import { ListePatientsProfiles } from "../../pages/Profile/Patient/ListePatientsProfiles";
-import { PatientProfile } from "../../pages/Profile/PatientProfile";
+import { DoctorProfile } from "../../features/profile/ui/doctor/DoctorProfile";
+import { ListeDoctorsProfiles } from "../../features/profile/ui/doctor/ListeDoctorsProfiles";
+import { ListePatientsProfiles } from "../../features/profile/ui/patient/ListePatientsProfiles";
+import { PatientProfile } from "../../features/profile/ui/PatientProfile";
 import {
   AddAppointmentWrapper,
   AppointmentsWrapper,
   EditProfileWrapper,
-} from "../../pages/WithNavigation";
+} from "../router/WithNavigation";
 
 export const PrivateLayout = () => {
   const { user } = useAuth();

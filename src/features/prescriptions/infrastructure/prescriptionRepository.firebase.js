@@ -27,6 +27,17 @@ export const findByPatientId = async (patientId) => {
   return snapshot.docs.map((item) => ({ id: item.id, ...item.data() }));
 };
 
+export const findReceivedByPatientId = async (patientId) => {
+  const prescriptionsQuery = query(
+    prescriptionsCollection,
+    where("patientId", "==", patientId),
+    where("status", "==", "received")
+  );
+
+  const snapshot = await getDocs(prescriptionsQuery);
+  return snapshot.docs.map((item) => ({ id: item.id, ...item.data() }));
+};
+
 export const findByCreatorId = async (createdBy) => {
   const prescriptionsQuery = query(
     prescriptionsCollection,

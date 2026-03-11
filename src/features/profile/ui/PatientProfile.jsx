@@ -1,11 +1,9 @@
 import React, { useState, useEffect, useContext } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { getUserProfile } from "../../features/profile";
-import { AuthContext } from "../../contexts/AuthContext";
-import { onSnapshot, doc } from "firebase/firestore";
-import { db } from "../../providers/firebase";
+import { getUserProfile } from "..";
+import { AuthContext } from "../../../contexts/AuthContext";
 import PropTypes from "prop-types";
-import { ListDoctorAvailable } from "./Patient/ListDoctorAvailable";
+import { ListDoctorAvailable } from "./patient/ListDoctorAvailable";
 
 export const PatientProfile = () => {
   const { user } = useContext(AuthContext);
@@ -32,18 +30,23 @@ export const PatientProfile = () => {
       return;
     }
 
-    // Récupération en temps réel du profil patient ou utilisateur connecté
-    const unsubscribe = onSnapshot(doc(db, "users", userId), (docSnap) => {
-      if (docSnap.exists()) {
-        setPatientProfile({ id: docSnap.id, ...docSnap.data() });
-        setError("");
-      } else {
-        setError("Profil du patient introuvable.");
+    const fetchPatientProfile = async () => {
+      try {
+        const profile = await getUserProfile(userId);
+        if (profile) {
+          setPatientProfile({ id: userId, ...profile });
+          setError("");
+        } else {
+          setError("Profil du patient introuvable.");
+        }
+      } catch (profileError) {
+        setError(profileError.message);
+      } finally {
+        setIsLoading(false);
       }
-      setIsLoading(false);
-    });
+    };
 
-    return () => unsubscribe();
+    fetchPatientProfile();
   }, [userId]);
 
   if (isLoading) return <p className="text-center text-gray-600">Chargement...</p>;

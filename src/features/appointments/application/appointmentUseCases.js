@@ -1,4 +1,3 @@
-import { getAuth } from "firebase/auth";
 import moment from "moment";
 import { getUserProfile } from "../../profile";
 import { addNotification } from "../../notifications";
@@ -9,6 +8,7 @@ import {
   deleteAvailabilityRecord,
   findAppointmentsByField,
   findAvailabilitiesByDoctor,
+  getCurrentAuthenticatedUserId,
   getAppointmentByIdRecord,
   updateAppointmentRecord,
   updateAvailabilityRecord,
@@ -175,8 +175,8 @@ export const scheduleAppointmentReminderUseCase = async (
 
 export const createAppointmentUseCase = async (appointmentData) => {
   try {
-    const auth = getAuth();
-    if (!auth.currentUser) {
+    const currentUserId = getCurrentAuthenticatedUserId();
+    if (!currentUserId) {
       throw new Error("Utilisateur non authentifié.");
     }
 

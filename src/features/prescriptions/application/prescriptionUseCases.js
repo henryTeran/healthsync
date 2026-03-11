@@ -3,6 +3,7 @@ import {
   findByCreatorId,
   findById,
   findByPatientId,
+  findReceivedByPatientId,
   updateById,
 } from "../infrastructure/prescriptionRepository.firebase";
 import { listPrescriptionMedications } from "../../medications";
@@ -48,4 +49,8 @@ export const updatePrescriptionUseCase = async (prescriptionId, updatedData) => 
 
 export const getPrescriptionsByUserUseCase = async (userId) => {
   return findByCreatorId(userId);
+};
+
+export const getReceivedPrescriptionsByPatientUseCase = async (patientId) => {
+  return findReceivedByPatientId(patientId);
 };

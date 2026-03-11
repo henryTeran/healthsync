@@ -4,14 +4,10 @@ import { AuthContext } from "../../../contexts/AuthContext";
 import { MedicationCard } from "../../medications/ui/MedicationCard";
 import { ProfileCard } from "../../profile/ui/ProfileCard";
 import { SymptomCard } from "../../symptoms/ui/SymptomCard";
-import { getAppointmentsByUser } from "../../../features/appointments";
-import { getPrescriptionsByPatient } from "../../../features/prescriptions";
-import { getUserProfile } from "../../../features/profile";
+import { getPatientDashboardDataUseCase } from "..";
 import { QuickActions } from "./QuickActions";
 import { RecentActivity } from "./RecentActivity";
 import { StatsCard } from "./StatsCard";
-import { collection, query, where, orderBy, limit, getDocs } from "firebase/firestore";
-import { db } from "../../../config/firebase";
 import { 
   Calendar, 
   FileText, 
@@ -44,69 +40,11 @@ export const PatientDashboard = () => {
   const fetchDashboardData = async () => {
     try {
       setLoading(true);
-      
-      // Récupérer le profil
-      const profileData = await getUserProfile(user.uid);
-      setProfile(profileData);
-      
-      // Récupérer les données en parallèle
-      const [appointments, prescriptions] = await Promise.all([
-        getAppointmentsByUser(user.uid, "patient"),
-        getPrescriptionsByPatient(user.uid)
-      ]);
-      
-      // Récupérer les symptômes récents
-      const symptomsQuery = query(
-        collection(db, "symptoms"),
-        where("userId", "==", user.uid),
-        orderBy("date", "desc"),
-        limit(3)
-      );
-      const symptomsSnapshot = await getDocs(symptomsQuery);
-      const symptoms = symptomsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setRecentSymptoms(symptoms);
-      
-      // Récupérer les médicaments actifs
-      const medicationsQuery = query(
-        collection(db, "userMedications"),
-        where("userId", "==", user.uid),
-        where("status", "==", "active"),
-        limit(3)
-      );
-      const medicationsSnapshot = await getDocs(medicationsQuery);
-      const medications = medicationsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setRecentMedications(medications);
-      
-      // Calculer les statistiques
-      const now = new Date();
-      const today = now.toISOString().split('T')[0];
-      const weekStart = new Date(now.setDate(now.getDate() - now.getDay()));
-      
-      const upcomingAppointments = appointments.filter(apt => 
-        new Date(apt.date) >= new Date(today) && apt.status === 'accepté'
-      ).length;
-      
-      const activePrescriptions = prescriptions.filter(presc => 
-        presc.status === 'received' || presc.status === 'validated'
-      ).length;
-      
-      const symptomsThisWeek = symptoms.filter(symptom => 
-        new Date(symptom.date) >= weekStart
-      ).length;
-      
-      const medicationsToday = medications.filter(med => {
-        if (!med.times || !med.startDate || !med.endDate) return false;
-        const start = new Date(med.startDate);
-        const end = new Date(med.endDate);
-        return now >= start && now <= end;
-      }).length;
-      
-      setStats({
-        upcomingAppointments,
-        activePrescriptions,
-        symptomsThisWeek,
-        medicationsToday
-      });
+      const dashboardData = await getPatientDashboardDataUseCase(user.uid);
+      setProfile(dashboardData.profile);
+      setRecentSymptoms(dashboardData.recentSymptoms);
+      setRecentMedications(dashboardData.recentMedications);
+      setStats(dashboardData.stats);
       
     } catch (error) {
       console.error("Erreur lors de la récupération des données du dashboard :", error);

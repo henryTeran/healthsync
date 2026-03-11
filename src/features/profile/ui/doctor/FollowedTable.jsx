@@ -1,9 +1,7 @@
 import { useContext, useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { AuthContext } from "../../../contexts/AuthContext";
-import { collection, query, where, onSnapshot } from "firebase/firestore";
-import { db }  from "../../../providers/firebase";
-import { getUserProfile } from "../../../features/profile";
+import { AuthContext } from "../../../../contexts/AuthContext";
+import { getAuthorizedPatients } from "../..";
 
 
 export const FollowedTable = () => {
@@ -15,33 +13,27 @@ export const FollowedTable = () => {
   const isOwner = doctorId === user?.uid;
 
   const [authorizedPatients, setAuthorizedPatients] = useState([]);
+  const [error, setError] = useState("");
 
   useEffect(() => {
-    const fetchAuthorizedPatients = () => {
-      const patientsQuery = query(
-        collection(db, "doctor_patient_links"),
-        where("doctorId", "==", doctorId)
-      );
+    const fetchAuthorizedPatients = async () => {
+      if (!doctorId) return;
 
-      return onSnapshot(patientsQuery, async (snapshot) => {
-        const patientIds = snapshot.docs.map((doc) => doc.data().patientId);
-        if (patientIds.length > 0) {
-          const patientsData = await Promise.all(
-            patientIds.map(async (id) => {
-              const patientDoc = await getUserProfile(id);
-              return patientDoc ? { id, ...patientDoc } : null;
-            })
-          );
-          setAuthorizedPatients(patientsData.filter(Boolean));
-        } else {
-          setAuthorizedPatients([]);
-        }
-      });
+      try {
+        const patients = await getAuthorizedPatients(doctorId);
+        setAuthorizedPatients(patients);
+        setError("");
+      } catch (fetchError) {
+        setError(fetchError.message);
+      }
     };
 
-    const unsubscribe = fetchAuthorizedPatients();
-    return () => unsubscribe();
+    fetchAuthorizedPatients();
   }, [doctorId]);
+
+  if (error) {
+    return <p>{error}</p>;
+  }
 
   return (
     <>

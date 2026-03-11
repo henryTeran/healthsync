@@ -1,4 +1,4 @@
-import { User } from '../../../models/User';
+import { User } from '../../../shared/domain/User';
 
 export class RegistrationService {
   static register(data, confirmPassword) {

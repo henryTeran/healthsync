@@ -7,9 +7,8 @@ import {
   getMedicationsByPrescription,
   updateMedication,
 } from "../../../features/medications";
+import { getReceivedPrescriptionsByPatient } from "../../../features/prescriptions";
 import { getUserProfile } from "../../../features/profile";
-import { db } from "../../../providers/firebase";
-import { collection, query, where, getDocs } from "firebase/firestore";
 import { 
   Pill, 
   User, 
@@ -35,9 +34,7 @@ export const MedicationsPrescriptionPage = () => {
   const fetchUserMedications = async () => {
     if (!user) return;
 
-    const q = query(collection(db, "prescriptions"), where("patientId", "==", user.uid), where("status", "==", "received"));
-    const snapshot = await getDocs(q);
-    let allPrescriptions = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+    const allPrescriptions = await getReceivedPrescriptionsByPatient(user.uid);
 
     let groupedMedications = {};
     let doctors = {};

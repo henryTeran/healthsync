@@ -1,8 +1,8 @@
 import React, { Component } from "react";
-import { getAllDoctors, getAuthorizedDoctors } from "../../../features/profile";
+import { getAllDoctors, getAuthorizedDoctors } from "../..";
 
-import { requestFollow } from "../../../features/profile"; 
-import { AuthContext } from "../../../contexts/AuthContext";
+import { requestFollow } from "../.."; 
+import { AuthContext } from "../../../../contexts/AuthContext";
 import PropTypes from "prop-types";
 
 export class ListDoctorAvailable extends Component {

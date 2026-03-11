@@ -115,6 +115,31 @@ export const findUnreadMessagesByUser = async (userId) => {
   return unreadMessages;
 };
 
+export const subscribeUnreadMessagesByUser = (userId, callback) => {
+  const messagesQuery = query(
+    messagesCollection,
+    where("receiverId", "==", userId),
+    where("status", "!=", "read")
+  );
+
+  return onSnapshot(messagesQuery, (snapshot) => {
+    const unreadMessages = {};
+    let totalUnread = 0;
+
+    snapshot.docs.forEach((item) => {
+      const message = item.data();
+      if (!unreadMessages[message.senderId]) {
+        unreadMessages[message.senderId] = { count: 0, lastMessage: {} };
+      }
+      unreadMessages[message.senderId].count += 1;
+      unreadMessages[message.senderId].lastMessage = message;
+      totalUnread += 1;
+    });
+
+    callback({ unreadMessages, totalUnread });
+  });
+};
+
 export const markMessageAsReceivedById = async (messageId) => {
   await updateDoc(doc(db, "messages", messageId), { status: "received" });
 };

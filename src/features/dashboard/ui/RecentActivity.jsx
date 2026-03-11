@@ -2,8 +2,7 @@ import React, { useState, useEffect } from "react";
 import PropTypes from "prop-types";
 import { Clock, User, FileText, Calendar, MessageSquare, Activity } from "lucide-react";
 import { useAuth } from "../../../contexts/AuthContext";
-import { collection, query, where, orderBy, limit, onSnapshot } from "firebase/firestore";
-import { db } from "../../../config/firebase";
+import { listenRecentActivityUseCase } from "..";
 
 export const RecentActivity = ({ userType }) => {
   const { user } = useAuth();
@@ -13,19 +12,7 @@ export const RecentActivity = ({ userType }) => {
   useEffect(() => {
     if (!user) return;
 
-    // Écouter les activités récentes en temps réel
-    const q = query(
-      collection(db, "activities"),
-      where("userId", "==", user.uid),
-      orderBy("createdAt", "desc"),
-      limit(5)
-    );
-
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const activitiesData = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
+    const unsubscribe = listenRecentActivityUseCase(user.uid, (activitiesData) => {
       setActivities(activitiesData);
       setLoading(false);
     });

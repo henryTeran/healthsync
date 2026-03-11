@@ -14,6 +14,7 @@ export {
 
 export {
   addMedicalHistoryUseCase as addMedicalHistory,
+  followPatientAsDoctorUseCase as followPatientAsDoctor,
   getAllDoctorsUseCase as getAllDoctors,
   getAllPatientsUseCase as getAllPatients,
   getAuthorizedDoctorsUseCase as getAuthorizedDoctors,
