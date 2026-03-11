@@ -20,9 +20,9 @@ import {
 } from "lucide-react";
 
 const cardClass = "rounded-2xl border border-medical-100 bg-white/70 backdrop-blur-md p-5 shadow-soft";
-const inputBaseClass = "peer h-14 w-full rounded-xl border bg-white px-4 pl-12 text-sm text-neutral-800 placeholder-transparent outline-none transition-all duration-300 focus:ring-4";
+const inputBaseClass = "peer h-14 w-full rounded-xl border bg-white px-4 pl-12 text-sm text-neutral-800 placeholder:text-transparent outline-none transition-all duration-300 focus:ring-4";
 
-const FloatingInput = ({
+export const FloatingInput = ({
   id,
   name,
   label,
@@ -31,11 +31,19 @@ const FloatingInput = ({
   error,
   required,
   type = "text",
+  icon,
   Icon,
-}) => (
-  <div className="space-y-1">
-    <div className="relative group">
-      <Icon className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-medical-400 transition-colors duration-300 group-focus-within:text-medical-600" />
+}) => {
+  const IconComponent = icon || Icon;
+
+  return (
+    <div className="space-y-1">
+      <div className="relative group">
+        {IconComponent && (
+          <span className="absolute left-4 top-1/2 -translate-y-1/2 text-medical-400 transition-colors duration-300 group-focus-within:text-medical-600">
+            <IconComponent className="h-5 w-5" aria-hidden="true" />
+          </span>
+        )}
       <input
         id={id}
         name={name}
@@ -43,7 +51,10 @@ const FloatingInput = ({
         value={value ?? ""}
         onChange={onChange}
         required={required}
-        placeholder={label}
+        placeholder=" "
+        aria-invalid={Boolean(error)}
+        aria-describedby={error ? `${id}-error` : undefined}
+        autoComplete={name}
         className={`${inputBaseClass} ${
           error
             ? "border-red-300 focus:border-red-400 focus:ring-red-100"
@@ -52,14 +63,19 @@ const FloatingInput = ({
       />
       <label
         htmlFor={id}
-        className="pointer-events-none absolute left-12 top-1/2 -translate-y-1/2 bg-white px-1 text-sm text-neutral-500 transition-all duration-300 peer-placeholder-shown:top-1/2 peer-focus:top-0 peer-focus:text-xs peer-[:not(:placeholder-shown)]:top-0 peer-[:not(:placeholder-shown)]:text-xs"
+        className="pointer-events-none absolute left-12 top-1/2 -translate-y-1/2 bg-white px-1 text-sm text-neutral-500 transition-all duration-200 ease-out peer-focus:top-0 peer-focus:text-xs peer-focus:font-medium peer-focus:text-medical-700 peer-valid:top-0 peer-valid:text-xs peer-valid:font-medium peer-valid:text-neutral-700 peer-placeholder-shown:top-1/2 peer-placeholder-shown:text-sm"
       >
         {label}
       </label>
     </div>
-    {error && <p className="text-xs text-red-500 ml-1">{error}</p>}
-  </div>
-);
+    {error && (
+      <p id={`${id}-error`} className="text-xs text-red-500 ml-1">
+        {error}
+      </p>
+    )}
+    </div>
+  );
+};
 
 const SelectInput = ({ id, name, label, value, onChange, error, required, Icon, options }) => (
   <div className="space-y-1">
@@ -132,7 +148,7 @@ export const ConnectionSection = ({ error, formData, onChange, fieldErrors }) =>
         error={fieldErrors?.email}
         required
         type="email"
-        Icon={Mail}
+        icon={Mail}
       />
 
       <FloatingInput
@@ -144,7 +160,7 @@ export const ConnectionSection = ({ error, formData, onChange, fieldErrors }) =>
         error={fieldErrors?.password}
         required
         type="password"
-        Icon={Lock}
+        icon={Lock}
       />
 
       <FloatingInput
@@ -156,7 +172,7 @@ export const ConnectionSection = ({ error, formData, onChange, fieldErrors }) =>
         error={fieldErrors?.confirmPassword}
         required
         type="password"
-        Icon={KeyRound}
+        icon={KeyRound}
       />
 
       <div className="rounded-xl bg-medical-50 border border-medical-100 p-3 text-xs text-medical-700 flex items-start gap-2">
@@ -212,7 +228,7 @@ export const PersonalSection = ({ formData, onChange, fieldErrors }) => (
           onChange={onChange}
           error={fieldErrors?.firstName}
           required
-          Icon={UserRound}
+          icon={UserRound}
         />
 
         <FloatingInput
@@ -223,7 +239,7 @@ export const PersonalSection = ({ formData, onChange, fieldErrors }) => (
           onChange={onChange}
           error={fieldErrors?.lastName}
           required
-          Icon={User}
+          icon={User}
         />
       </div>
 
@@ -236,7 +252,7 @@ export const PersonalSection = ({ formData, onChange, fieldErrors }) => (
           onChange={onChange}
           error={fieldErrors?.age}
           type="number"
-          Icon={IdCard}
+          icon={IdCard}
         />
 
         <FloatingInput
@@ -247,7 +263,7 @@ export const PersonalSection = ({ formData, onChange, fieldErrors }) => (
           onChange={onChange}
           error={fieldErrors?.dateOfBirth}
           type="date"
-          Icon={Calendar}
+          icon={Calendar}
         />
       </div>
     </div>
@@ -274,7 +290,7 @@ export const AdditionalSection = ({
           value={formData.mobileNumber}
           onChange={onChange}
           error={fieldErrors?.mobileNumber}
-          Icon={Phone}
+          icon={Phone}
         />
 
         <FloatingInput
@@ -284,7 +300,7 @@ export const AdditionalSection = ({
           value={formData.postalCode}
           onChange={onChange}
           error={fieldErrors?.postalCode}
-          Icon={MapPin}
+          icon={MapPin}
         />
       </div>
 
@@ -295,7 +311,7 @@ export const AdditionalSection = ({
         value={formData.address}
         onChange={onChange}
         error={fieldErrors?.address}
-        Icon={MapPin}
+        icon={MapPin}
       />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -306,7 +322,7 @@ export const AdditionalSection = ({
           value={formData.state}
           onChange={onChange}
           error={fieldErrors?.state}
-          Icon={Globe}
+          icon={Globe}
         />
 
         <FloatingInput
@@ -317,7 +333,7 @@ export const AdditionalSection = ({
           onChange={onChange}
           error={fieldErrors?.country}
           required
-          Icon={Globe}
+          icon={Globe}
         />
       </div>
 
@@ -371,7 +387,7 @@ export const AdditionalSection = ({
             value={formData.medicalLicense}
             onChange={onChange}
             error={fieldErrors?.medicalLicense}
-            Icon={BriefcaseMedical}
+            icon={BriefcaseMedical}
             required
           />
 
@@ -383,7 +399,7 @@ export const AdditionalSection = ({
               value={formData.education}
               onChange={onChange}
               error={fieldErrors?.education}
-              Icon={GraduationCap}
+              icon={GraduationCap}
             />
 
             <FloatingInput
@@ -393,7 +409,7 @@ export const AdditionalSection = ({
               value={formData.department}
               onChange={onChange}
               error={fieldErrors?.department}
-              Icon={BriefcaseMedical}
+              icon={BriefcaseMedical}
             />
           </div>
 
@@ -404,7 +420,7 @@ export const AdditionalSection = ({
             value={formData.designation}
             onChange={onChange}
             error={fieldErrors?.designation}
-            Icon={IdCard}
+            icon={IdCard}
           />
 
           <TextAreaInput

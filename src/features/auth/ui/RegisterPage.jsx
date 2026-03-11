@@ -50,6 +50,7 @@ export function Register() {
   const [step, setStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
+  const [toast, setToast] = useState({ type: "", message: "" });
   const navigate = useNavigate();
   const inputPhotoRef = useRef(null);
   const { register } = useContext(AuthContext);
@@ -63,10 +64,17 @@ export function Register() {
     { id: 3, title: "Médical", subtitle: "Infos complémentaires" },
   ];
 
-  const validateCurrentStep = () => {
+  const showToast = (type, message) => {
+    setToast({ type, message });
+    setTimeout(() => {
+      setToast({ type: "", message: "" });
+    }, 3500);
+  };
+
+  const validateStep = (targetStep) => {
     const errors = {};
 
-    if (step === 1) {
+    if (targetStep === 1) {
       if (!formData.email?.trim()) errors.email = "Adresse e-mail requise";
       if (!formData.password?.trim()) errors.password = "Mot de passe requis";
       if (!formData.confirmPassword?.trim()) {
@@ -84,14 +92,14 @@ export function Register() {
       }
     }
 
-    if (step === 2) {
+    if (targetStep === 2) {
       if (!formData.role?.trim()) errors.role = "Rôle requis";
       if (!formData.gender?.trim()) errors.gender = "Genre requis";
       if (!formData.firstName?.trim()) errors.firstName = "Prénom requis";
       if (!formData.lastName?.trim()) errors.lastName = "Nom requis";
     }
 
-    if (step === 3) {
+    if (targetStep === 3) {
       if (!formData.country?.trim()) errors.country = "Pays requis";
       if (!formData.status?.trim()) errors.status = "Statut requis";
       if (formData.role === "doctor" && !formData.medicalLicense?.trim()) {
@@ -99,13 +107,32 @@ export function Register() {
       }
     }
 
-    setFieldErrors(errors);
-    return Object.keys(errors).length === 0;
+    return errors;
+  };
+
+  const validateCurrentStep = () => {
+    const currentStepErrors = validateStep(step);
+    setFieldErrors(currentStepErrors);
+    return Object.keys(currentStepErrors).length === 0;
+  };
+
+  const validateAllSteps = () => {
+    const allErrors = {
+      ...validateStep(1),
+      ...validateStep(2),
+      ...validateStep(3),
+    };
+    setFieldErrors(allErrors);
+    return Object.keys(allErrors).length === 0;
   };
 
   const handleNextStep = () => {
     setError("");
-    if (!validateCurrentStep()) return;
+    const isStepValid = validateCurrentStep();
+    if (!isStepValid) {
+      showToast("error", "Veuillez corriger les champs requis avant de continuer.");
+      return;
+    }
     setStep((previous) => Math.min(previous + 1, totalSteps));
   };
 
@@ -117,7 +144,10 @@ export function Register() {
   const handleRegister = async (event) => {
     event.preventDefault();
 
-    if (!validateCurrentStep()) return;
+    if (!validateAllSteps()) {
+      showToast("error", "Le formulaire contient des erreurs. Vérifiez les champs et réessayez.");
+      return;
+    }
 
     setIsSubmitting(true);
     setError("");
@@ -132,6 +162,7 @@ export function Register() {
       const validate = RegistrationService.register(updatedFormData, updatedFormData.confirmPassword);
       if (!validate.success) {
         setError(validate.errors.join("\n"));
+        showToast("error", "Impossible de créer le compte. Vérifiez les informations saisies.");
         return;
       }
 
@@ -149,15 +180,38 @@ export function Register() {
       });
 
       setIsSuccess(true);
+      showToast("success", "Compte créé avec succès. Redirection en cours...");
       setTimeout(() => {
-        navigate("/login");
+        navigate("/dashboard");
       }, 1300);
     } catch (registrationError) {
       console.error("Erreur d'inscription :", registrationError);
-      setError(registrationError.message);
+      const errorMessage = registrationError?.message || "Erreur inattendue lors de l'inscription.";
+      setError(errorMessage);
+      showToast("error", errorMessage);
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const handleFormKeyDown = (event) => {
+    if (event.key !== "Enter" || event.shiftKey || isSubmitting) {
+      return;
+    }
+
+    const tagName = event.target.tagName?.toLowerCase();
+    if (tagName === "textarea") {
+      return;
+    }
+
+    event.preventDefault();
+
+    if (step < totalSteps) {
+      handleNextStep();
+      return;
+    }
+
+    handleRegister(event);
   };
 
   const handleChange = (event) => {
@@ -218,6 +272,20 @@ export function Register() {
 
   return (
     <div className="min-h-screen bg-mesh flex flex-col lg:flex-row">
+      {toast.message && (
+        <div
+          role="alert"
+          aria-live="assertive"
+          className={`fixed top-4 right-4 z-50 max-w-sm rounded-xl border px-4 py-3 shadow-xl transition-all duration-300 ${
+            toast.type === "success"
+              ? "border-health-200 bg-health-50 text-health-800"
+              : "border-red-200 bg-red-50 text-red-700"
+          }`}
+        >
+          <p className="text-sm font-medium">{toast.message}</p>
+        </div>
+      )}
+
       <section className="relative lg:w-3/5 h-[360px] lg:h-auto overflow-hidden bg-gradient-to-br from-blue-600 via-cyan-500 to-violet-500 p-8 lg:p-12 text-white">
         <div className="absolute inset-0 bg-black/10" />
         <div className="relative z-10 h-full flex flex-col justify-between">
@@ -321,11 +389,13 @@ export function Register() {
             <div className="rounded-2xl border border-health-200 bg-health-50 p-8 text-center animate-[pulse_1.8s_ease-in-out_infinite]">
               <CheckCircle2 className="h-12 w-12 text-health-600 mx-auto mb-3" />
               <h3 className="text-lg font-semibold text-health-700">Compte créé avec succès</h3>
-              <p className="text-sm text-health-700/80 mt-1">Redirection vers la connexion sécurisée...</p>
+              <p className="text-sm text-health-700/80 mt-1">Redirection vers votre tableau de bord...</p>
             </div>
           ) : (
-            <form onSubmit={handleRegister} className="space-y-6">
-              <div className="transition-all duration-300">{renderCurrentStep()}</div>
+            <form onSubmit={handleRegister} onKeyDown={handleFormKeyDown} className="space-y-6">
+              <div key={step} className="animate-[pulse_0.35s_ease-out_1]">
+                {renderCurrentStep()}
+              </div>
 
               <div className="flex items-center gap-3">
                 <button
@@ -342,6 +412,7 @@ export function Register() {
                   <button
                     type="button"
                     onClick={handleNextStep}
+                    disabled={isSubmitting}
                     className="btn-primary flex-1 group"
                   >
                     Suivant
