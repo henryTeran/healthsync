@@ -1,4 +1,5 @@
 import { onSchedule } from "firebase-functions/v2/scheduler";
+import * as logger from "firebase-functions/logger";
 import { initializeApp, applicationDefault } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
 import { getMessaging } from "firebase-admin/messaging";
@@ -13,6 +14,7 @@ const messaging = getMessaging();
 export const scheduleNotifications = onSchedule("every 1 hours", async () => {
   const now = new Date();
   now.setMinutes(0, 0, 0); // Arrondir à l'heure exacte
+  logger.info("scheduleNotifications started", { triggerTime: now.toISOString() });
 
   try {
     const remindersSnapshot = await firestore
@@ -20,6 +22,10 @@ export const scheduleNotifications = onSchedule("every 1 hours", async () => {
       .where("dateTime", "<=", now)
       .where("status", "==", "pending")
       .get();
+
+    logger.info("scheduleNotifications reminders fetched", {
+      remindersCount: remindersSnapshot.size,
+    });
 
     for (const doc of remindersSnapshot.docs) {
       const reminder = doc.data();
@@ -34,8 +40,15 @@ export const scheduleNotifications = onSchedule("every 1 hours", async () => {
         await doc.ref.update({ status: "completed" });
       }
     }
+
+    logger.info("scheduleNotifications completed", {
+      remindersCount: remindersSnapshot.size,
+    });
   } catch (error) {
-    console.error("❌ Erreur lors de la récupération des rappels :", error);
+    logger.error("Erreur lors de la récupération des rappels", {
+      error: error?.message,
+      stack: error?.stack,
+    });
   }
 });
 
@@ -46,8 +59,16 @@ const sendNotification = async (token, title, body) => {
       token,
       notification: { title, body },
     });
-    console.log(`✅ Notification envoyée à ${token} : ${title}`);
+    logger.info("Notification envoyée", {
+      title,
+      tokenSuffix: token?.slice(-6),
+    });
   } catch (error) {
-    console.error("❌ Erreur d'envoi de notification :", error);
+    logger.error("Erreur d'envoi de notification", {
+      error: error?.message,
+      stack: error?.stack,
+      tokenSuffix: token?.slice(-6),
+      title,
+    });
   }
 };

@@ -4,6 +4,7 @@ import { getFirestore, connectFirestoreEmulator } from "firebase/firestore";
 import { getStorage, connectStorageEmulator } from "firebase/storage";
 import { getMessaging, getToken } from "firebase/messaging";
 import { getFunctions, connectFunctionsEmulator } from "firebase/functions";
+import { logWarn, logError } from "../shared/lib/logger";
 
 const requiredEnvVars = [
   "VITE_FIREBASE_API_KEY",
@@ -40,18 +41,26 @@ if (typeof window !== "undefined") {
   try {
     messaging = getMessaging(app);
   } catch (error) {
-    console.warn("Firebase Messaging non disponible dans cet environnement.", error?.message);
+    logWarn("Firebase Messaging non disponible dans cet environnement.", {
+      feature: "firebase",
+      action: "getMessaging",
+      reason: error?.message,
+    });
   }
 }
 export { messaging };
 
-if (import.meta.env.VITE_NODE_ENV === "development") {
+if (import.meta.env.DEV) {
   try {
     connectFirestoreEmulator(db, "localhost", 8080);
     connectStorageEmulator(storage, "localhost", 9199);
     connectFunctionsEmulator(functions, "localhost", 5001);
   } catch (error) {
-    console.warn("Emulateurs Firebase non disponibles:", error.message);
+    logWarn("Emulateurs Firebase non disponibles", {
+      feature: "firebase",
+      action: "connectEmulators",
+      reason: error?.message,
+    });
   }
 }
 
@@ -66,11 +75,12 @@ export const requestForFCMToken = async () => {
           vapidKey: 
           "BFu9HBapS7r3a-b8uYrISGVYJ527629jSQbVlVZUfIddnzT9x7Z1DvfXRcbTBPtFQOYuG5vrS_QXvC_XV9TXzn4",
          });
-        console.log(token)
-
         return token;
     }
   } catch (error) {
-      console.error("Erreur de permission pour les notifications :", error);
+      logError("Erreur de permission pour les notifications", error, {
+        feature: "firebase",
+        action: "requestForFCMToken",
+      });
   }
 };

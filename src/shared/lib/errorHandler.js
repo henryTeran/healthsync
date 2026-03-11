@@ -1,4 +1,5 @@
 import toast from 'react-hot-toast';
+import { logError } from './logger';
 
 export class AppError extends Error {
   constructor(message, code = 'UNKNOWN_ERROR', statusCode = 500) {
@@ -37,19 +38,13 @@ export class NotFoundError extends AppError {
 
 // Gestionnaire global d'erreurs
 export const handleError = (error, context = '') => {
-  console.error(`[${context}] Erreur:`, error);
-
-  // Log pour le monitoring (à remplacer par un service de logging)
-  if (import.meta.env.VITE_NODE_ENV === 'production') {
-    // Envoyer à un service de monitoring comme Sentry
-    console.error('Production Error:', {
-      message: error.message,
-      code: error.code,
-      context,
-      timestamp: new Date().toISOString(),
-      stack: error.stack
-    });
-  }
+  logError('Unhandled application error', error, {
+    feature: 'global',
+    context,
+    code: error?.code,
+    statusCode: error?.statusCode,
+    timestamp: new Date().toISOString(),
+  });
 
   // Affichage utilisateur
   if (error instanceof ValidationError) {

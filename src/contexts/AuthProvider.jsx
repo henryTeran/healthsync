@@ -7,6 +7,8 @@ import PropTypes from "prop-types";
 import { getUserProfile } from "../features/profile";
 import { AuthContext } from "../contexts/AuthContext";
 import { AuthService } from "../features/auth";
+import { setMonitoringUser } from "../app/monitoring/sentry";
+import { logError } from "../shared/lib/logger";
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
@@ -20,13 +22,21 @@ export const AuthProvider = ({ children }) => {
       if (currentUser) {
         try {
           const userProfile = await getUserProfile(currentUser.uid); // Récupérer le profil depuis Firestore
-          setUser({ ...currentUser, userType: userProfile?.type ||null }); // Mettre à jour l'état local
+          const nextUser = { ...currentUser, userType: userProfile?.type || null };
+          setUser(nextUser); // Mettre à jour l'état local
+          setMonitoringUser(nextUser);
         } catch (error) {
-          console.error("Erreur lors de la récupération du profil utilisateur :", error.message);
+          logError("Erreur lors de la récupération du profil utilisateur", error, {
+            feature: "auth",
+            action: "onAuthStateChanged",
+            userId: currentUser?.uid,
+          });
           setUser(null); // En cas d'erreur, réinitialiser l'utilisateur
+          setMonitoringUser(null);
         }
       } else {
         setUser(null); // Aucun utilisateur connecté
+        setMonitoringUser(null);
       }
       setAuthReady(true); // Marquer Firebase comme prêt
       setLoading(false); // Fin du chargement initial

@@ -12,6 +12,7 @@ import {
   where,
 } from "firebase/firestore";
 import { db } from "../../../providers/firebase";
+import { logError } from "../../../shared/lib/logger";
 
 const notificationsCollection = collection(db, "notifications");
 
@@ -53,14 +54,24 @@ export const subscribeNotificationsByUser = (userId, callback) => {
     where("userId", "==", userId)
   );
 
-  return onSnapshot(notificationsQuery, (snapshot) => {
-    const notifications = snapshot.docs.map((item) => ({
-      id: item.id,
-      ...item.data(),
-    }));
+  return onSnapshot(
+    notificationsQuery,
+    (snapshot) => {
+      const notifications = snapshot.docs.map((item) => ({
+        id: item.id,
+        ...item.data(),
+      }));
 
-    callback(notifications);
-  });
+      callback(notifications);
+    },
+    (error) => {
+      logError("Erreur realtime notifications", error, {
+        feature: "notifications",
+        action: "subscribeNotificationsByUser",
+        userId,
+      });
+    }
+  );
 };
 
 export const saveUserToken = async (userId, token) => {

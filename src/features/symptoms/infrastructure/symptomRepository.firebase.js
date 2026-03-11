@@ -9,6 +9,7 @@ import {
   where,
 } from "firebase/firestore";
 import { db } from "../../../providers/firebase";
+import { logError } from "../../../shared/lib/logger";
 
 const symptomsCollection = collection(db, "symptoms");
 
@@ -19,10 +20,20 @@ export const createSymptomRecord = async (payload) => {
 export const subscribeSymptomsByUser = (userId, callback) => {
   const symptomsQuery = query(symptomsCollection, where("userId", "==", userId));
 
-  return onSnapshot(symptomsQuery, (snapshot) => {
-    const symptoms = snapshot.docs.map((item) => ({ id: item.id, ...item.data() }));
-    callback(symptoms);
-  });
+  return onSnapshot(
+    symptomsQuery,
+    (snapshot) => {
+      const symptoms = snapshot.docs.map((item) => ({ id: item.id, ...item.data() }));
+      callback(symptoms);
+    },
+    (error) => {
+      logError("Erreur realtime symptômes", error, {
+        feature: "symptoms",
+        action: "subscribeSymptomsByUser",
+        userId,
+      });
+    }
+  );
 };
 
 export const updateSymptomRecord = async (symptomId, payload) => {

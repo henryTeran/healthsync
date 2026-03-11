@@ -8,6 +8,7 @@ import {
   where,
 } from "firebase/firestore";
 import { db } from "../../../providers/firebase";
+import { logError } from "../../../shared/lib/logger";
 
 export const listenRecentActivitiesByUser = (userId, callback) => {
   const q = query(
@@ -17,13 +18,23 @@ export const listenRecentActivitiesByUser = (userId, callback) => {
     limit(5)
   );
 
-  return onSnapshot(q, (snapshot) => {
-    const activities = snapshot.docs.map((item) => ({
-      id: item.id,
-      ...item.data(),
-    }));
-    callback(activities);
-  });
+  return onSnapshot(
+    q,
+    (snapshot) => {
+      const activities = snapshot.docs.map((item) => ({
+        id: item.id,
+        ...item.data(),
+      }));
+      callback(activities);
+    },
+    (error) => {
+      logError("Erreur realtime activités dashboard", error, {
+        feature: "dashboard",
+        action: "listenRecentActivitiesByUser",
+        userId,
+      });
+    }
+  );
 };
 
 export const findRecentSymptomsByUser = async (userId, max = 3) => {

@@ -10,6 +10,7 @@ import {
   where,
 } from "firebase/firestore";
 import { db } from "../../../providers/firebase";
+import { logError } from "../../../shared/lib/logger";
 
 const remindersCollection = collection(db, "reminders");
 const medicationsCollection = collection(db, "medications");
@@ -22,10 +23,20 @@ export const createReminderRecord = async (payload) => {
 export const subscribeRemindersByUser = (userId, callback) => {
   const remindersQuery = query(remindersCollection, where("userId", "==", userId));
 
-  return onSnapshot(remindersQuery, (snapshot) => {
-    const reminders = snapshot.docs.map((item) => ({ id: item.id, ...item.data() }));
-    callback(reminders);
-  });
+  return onSnapshot(
+    remindersQuery,
+    (snapshot) => {
+      const reminders = snapshot.docs.map((item) => ({ id: item.id, ...item.data() }));
+      callback(reminders);
+    },
+    (error) => {
+      logError("Erreur realtime rappels", error, {
+        feature: "reminders",
+        action: "subscribeRemindersByUser",
+        userId,
+      });
+    }
+  );
 };
 
 export const updateReminderRecord = async (reminderId, payload) => {

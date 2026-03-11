@@ -10,6 +10,7 @@ import {
   where,
 } from "firebase/firestore";
 import { db } from "../../../providers/firebase";
+import { logError } from "../../../shared/lib/logger";
 
 const messagesCollection = collection(db, "messages");
 
@@ -87,9 +88,20 @@ export const subscribeMessages = (senderId, receiverId, callback) => {
     orderBy("timestamp", "asc")
   );
 
-  return onSnapshot(messagesQuery, (snapshot) => {
-    callback(mapMessages(snapshot));
-  });
+  return onSnapshot(
+    messagesQuery,
+    (snapshot) => {
+      callback(mapMessages(snapshot));
+    },
+    (error) => {
+      logError("Erreur realtime messages", error, {
+        feature: "chat",
+        action: "subscribeMessages",
+        senderId,
+        receiverId,
+      });
+    }
+  );
 };
 
 export const findUnreadMessagesByUser = async (userId) => {
@@ -122,22 +134,32 @@ export const subscribeUnreadMessagesByUser = (userId, callback) => {
     where("status", "!=", "read")
   );
 
-  return onSnapshot(messagesQuery, (snapshot) => {
-    const unreadMessages = {};
-    let totalUnread = 0;
+  return onSnapshot(
+    messagesQuery,
+    (snapshot) => {
+      const unreadMessages = {};
+      let totalUnread = 0;
 
-    snapshot.docs.forEach((item) => {
-      const message = item.data();
-      if (!unreadMessages[message.senderId]) {
-        unreadMessages[message.senderId] = { count: 0, lastMessage: {} };
-      }
-      unreadMessages[message.senderId].count += 1;
-      unreadMessages[message.senderId].lastMessage = message;
-      totalUnread += 1;
-    });
+      snapshot.docs.forEach((item) => {
+        const message = item.data();
+        if (!unreadMessages[message.senderId]) {
+          unreadMessages[message.senderId] = { count: 0, lastMessage: {} };
+        }
+        unreadMessages[message.senderId].count += 1;
+        unreadMessages[message.senderId].lastMessage = message;
+        totalUnread += 1;
+      });
 
-    callback({ unreadMessages, totalUnread });
-  });
+      callback({ unreadMessages, totalUnread });
+    },
+    (error) => {
+      logError("Erreur realtime unread messages", error, {
+        feature: "chat",
+        action: "subscribeUnreadMessagesByUser",
+        userId,
+      });
+    }
+  );
 };
 
 export const markMessageAsReceivedById = async (messageId) => {

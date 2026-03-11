@@ -78,6 +78,21 @@ npm run test:ci
 - ✅ Protection contre les injections XSS
 - ✅ Conformité RGPD
 
+## 📡 Monitoring & Observabilité
+
+- ✅ Error Boundary global React
+- ✅ Logger applicatif structuré (frontend)
+- ✅ Capture des erreurs frontend via Sentry (si `VITE_SENTRY_DSN` configuré)
+- ✅ Logs structurés Cloud Functions via `firebase-functions/logger`
+
+Configuration minimale:
+
+```bash
+VITE_SENTRY_DSN=...
+VITE_APP_ENV=production
+VITE_APP_RELEASE=healthsync@x.y.z
+```
+
 ## ♿ Accessibilité
 
 - ✅ Navigation au clavier
