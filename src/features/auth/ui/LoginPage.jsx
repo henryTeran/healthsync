@@ -13,6 +13,7 @@ import {
   UserCircle2,
 } from "lucide-react";
 import { AuthContext } from "../../../contexts/AuthContext";
+import { AuthService } from "../../../features/auth";
 
 export function Login() {
   const navigate = useNavigate();
@@ -20,6 +21,11 @@ export function Login() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [showResetForm, setShowResetForm] = useState(false);
+  const [resetEmail, setResetEmail] = useState("");
+  const [resetMessage, setResetMessage] = useState("");
+  const [resetError, setResetError] = useState("");
+  const [isResetLoading, setIsResetLoading] = useState(false);
   const { login } = useContext(AuthContext);
 
   const handleLogin = async (event) => {
@@ -44,6 +50,27 @@ export function Login() {
       }
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleResetPassword = async (event) => {
+    event.preventDefault();
+    setResetMessage("");
+    setResetError("");
+
+    if (!resetEmail?.trim()) {
+      setResetError("Veuillez renseigner votre adresse e-mail.");
+      return;
+    }
+
+    try {
+      setIsResetLoading(true);
+      await AuthService.resetPassword(resetEmail.trim());
+      setResetMessage("Un e-mail de réinitialisation a été envoyé. Vérifiez votre boîte de réception.");
+    } catch (resetErr) {
+      setResetError(resetErr.message || "Impossible d'envoyer l'e-mail de réinitialisation.");
+    } finally {
+      setIsResetLoading(false);
     }
   };
 
@@ -199,11 +226,63 @@ export function Login() {
               </button>
             </form>
 
+            {showResetForm && (
+              <div className="mt-6 p-4 rounded-xl border border-medical-100 bg-medical-50/60">
+                <h3 className="text-sm font-semibold text-neutral-800 mb-2">Réinitialiser votre mot de passe</h3>
+                <p className="text-xs text-neutral-600 mb-3">
+                  Entrez votre e-mail pour recevoir un lien de réinitialisation sécurisé.
+                </p>
+
+                <form className="space-y-3" onSubmit={handleResetPassword}>
+                  <div className="relative group">
+                    <Mail className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-medical-400 transition-colors duration-300 group-focus-within:text-medical-600" />
+                    <input
+                      type="email"
+                      value={resetEmail}
+                      onChange={(event) => setResetEmail(event.target.value)}
+                      placeholder="votre@email.com"
+                      className="input pl-12 h-11 border-medical-200 focus:ring-4 focus:ring-medical-100"
+                      aria-label="E-mail de réinitialisation"
+                    />
+                  </div>
+
+                  {resetMessage && (
+                    <p className="text-xs text-health-700 bg-health-50 border border-health-200 rounded-lg p-2">
+                      {resetMessage}
+                    </p>
+                  )}
+
+                  {resetError && (
+                    <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg p-2">
+                      {resetError}
+                    </p>
+                  )}
+
+                  <button
+                    type="submit"
+                    disabled={isResetLoading}
+                    className="w-full h-10 rounded-xl bg-white border border-medical-200 text-medical-700 font-medium hover:border-medical-300 hover:bg-medical-50 transition-all duration-300 disabled:opacity-60 disabled:cursor-not-allowed"
+                  >
+                    {isResetLoading ? "Envoi en cours..." : "Envoyer le lien de réinitialisation"}
+                  </button>
+                </form>
+              </div>
+            )}
+
             <div className="mt-6 text-center space-y-3">
-              <a href="#" className="text-medical-600 hover:text-medical-700 text-sm font-medium transition-colors inline-flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowResetForm((previous) => !previous);
+                  setResetEmail((previous) => previous || email);
+                  setResetMessage("");
+                  setResetError("");
+                }}
+                className="text-medical-600 hover:text-medical-700 text-sm font-medium transition-colors inline-flex items-center gap-1"
+              >
                 <Shield className="h-3.5 w-3.5" />
-                Mot de passe oublié ?
-              </a>
+                {showResetForm ? "Masquer la réinitialisation" : "Mot de passe oublié ?"}
+              </button>
               <div className="divider-medical"></div>
               <p className="text-neutral-600 text-sm">
                 Pas encore de compte ?{" "}
