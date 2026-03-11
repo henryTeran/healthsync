@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { AuthContext } from "../../../contexts/AuthContext";
 import { AuthService } from "../../../features/auth";
+import { logError } from "../../../shared/lib/logger";
 
 export function Login() {
   const navigate = useNavigate();
@@ -40,7 +41,10 @@ export function Login() {
         navigate("/dashboard");
       }, 1200);
     } catch (err) {
-      console.error("Erreur de connexion :", err);
+      logError("Erreur de connexion", err, {
+        feature: "auth",
+        action: "login",
+      });
 
       if (err.code === "auth/invalid-credential") {
         setError("Aucun compte trouvé avec cet email. Redirection vers l'inscription...");
@@ -68,6 +72,10 @@ export function Login() {
       await AuthService.resetPassword(resetEmail.trim());
       setResetMessage("Un e-mail de réinitialisation a été envoyé. Vérifiez votre boîte de réception.");
     } catch (resetErr) {
+      logError("Erreur reset password", resetErr, {
+        feature: "auth",
+        action: "resetPassword",
+      });
       setResetError(resetErr.message || "Impossible d'envoyer l'e-mail de réinitialisation.");
     } finally {
       setIsResetLoading(false);

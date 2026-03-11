@@ -1,4 +1,5 @@
 import { withErrorHandling } from '../../../shared/lib/errorHandler';
+import { logError } from '../../../shared/lib/logger';
 import {
   changePasswordUseCase,
   loginUseCase,
@@ -28,7 +29,10 @@ class AuthService {
     try {
       await logoutUseCase();
     } catch (error) {
-      console.error('Erreur de déconnexion :', error.message);
+      logError('Erreur de déconnexion', error, {
+        feature: 'auth',
+        action: 'logout',
+      });
       throw error;
     }
   }

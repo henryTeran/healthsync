@@ -13,6 +13,7 @@ import {
   updateAppointmentRecord,
   updateAvailabilityRecord,
 } from "../infrastructure/appointmentRepository.firebase";
+import { logDebug, logError, logInfo } from "../../../shared/lib/logger";
 
 export const getAppointmentsByUserUseCase = async (userId, userType) => {
   try {
@@ -42,7 +43,11 @@ export const getAppointmentsByUserUseCase = async (userId, userType) => {
               : "Médecin inconnu";
           }
         } catch (error) {
-          console.error("Erreur lors de la récupération des profils:", error);
+          logError("Erreur lors de la récupération des profils", error, {
+            feature: "appointments",
+            action: "getAppointmentsByUserUseCase.mapProfiles",
+            appointmentId: item.id,
+          });
         }
 
         return appointmentData;
@@ -51,7 +56,12 @@ export const getAppointmentsByUserUseCase = async (userId, userType) => {
 
     return appointments;
   } catch (error) {
-    console.error(" Erreur lors de la récupération des rendez-vous :", error);
+    logError("Erreur lors de la récupération des rendez-vous", error, {
+      feature: "appointments",
+      action: "getAppointmentsByUserUseCase",
+      userId,
+      userType,
+    });
     throw new Error(error.message);
   }
 };
@@ -96,7 +106,11 @@ export const updateAppointmentUseCase = async (appointmentId, updatedData) => {
       );
     }
   } catch (error) {
-    console.error("Erreur lors de la mise à jour du rendez-vous:", error);
+    logError("Erreur lors de la mise à jour du rendez-vous", error, {
+      feature: "appointments",
+      action: "updateAppointmentUseCase",
+      appointmentId,
+    });
     throw new Error(error.message);
   }
 };
@@ -130,7 +144,11 @@ export const deleteAppointmentUseCase = async (appointmentId) => {
 
     await deleteAppointmentRecord(appointmentId);
   } catch (error) {
-    console.error("Erreur lors de la suppression du rendez-vous:", error);
+    logError("Erreur lors de la suppression du rendez-vous", error, {
+      feature: "appointments",
+      action: "deleteAppointmentUseCase",
+      appointmentId,
+    });
     throw new Error(error.message);
   }
 };
@@ -167,9 +185,19 @@ export const scheduleAppointmentReminderUseCase = async (
       read: false,
     });
 
-    console.log(`✅ Rappels programmés pour ${reminderDate.toLocaleString()}`);
+    logInfo("Rappels programmés", {
+      feature: "appointments",
+      action: "scheduleAppointmentReminderUseCase",
+      appointmentId: id,
+      scheduledFor: reminderDate.toISOString(),
+      reminderHours,
+    });
   } catch (error) {
-    console.error("Erreur lors de la programmation des rappels:", error);
+    logError("Erreur lors de la programmation des rappels", error, {
+      feature: "appointments",
+      action: "scheduleAppointmentReminderUseCase",
+      appointmentId: id,
+    });
   }
 };
 
@@ -183,7 +211,13 @@ export const createAppointmentUseCase = async (appointmentData) => {
     appointmentData.status = "en attente";
     const appointmentRef = await createAppointmentRecord(appointmentData);
 
-    console.log("RDV ajouté avec succès :", appointmentRef.id);
+    logInfo("Rendez-vous créé", {
+      feature: "appointments",
+      action: "createAppointmentUseCase",
+      appointmentId: appointmentRef.id,
+      patientId: appointmentData.patientId,
+      doctorId: appointmentData.doctorId,
+    });
 
     const patientProfile = await getUserProfile(appointmentData.patientId);
     await addNotification(appointmentData.doctorId, {
@@ -205,6 +239,12 @@ export const createAppointmentUseCase = async (appointmentData) => {
 
     return appointmentRef.id;
   } catch (error) {
+    logError("Erreur création rendez-vous", error, {
+      feature: "appointments",
+      action: "createAppointmentUseCase",
+      patientId: appointmentData?.patientId,
+      doctorId: appointmentData?.doctorId,
+    });
     throw new Error(error.message);
   }
 };
@@ -218,7 +258,11 @@ const getAppointmentByIdUseCase = async (appointmentId) => {
     }
     throw new Error("Rendez-vous introuvable");
   } catch (error) {
-    console.error("Erreur lors de la récupération du rendez-vous:", error);
+    logError("Erreur lors de la récupération du rendez-vous", error, {
+      feature: "appointments",
+      action: "getAppointmentByIdUseCase",
+      appointmentId,
+    });
     throw error;
   }
 };
@@ -256,22 +300,42 @@ export const sendAppointmentConfirmationUseCase = async (
       });
     }
   } catch (error) {
-    console.error("Erreur lors de l'envoi de la confirmation:", error);
+    logError("Erreur lors de l'envoi de la confirmation", error, {
+      feature: "appointments",
+      action: "sendAppointmentConfirmationUseCase",
+      appointmentId,
+      status,
+      doctorId,
+      patientId,
+    });
   }
 };
 
 export const getUnavailabilitiesByDoctorUseCase = async (doctorId) => {
   try {
-    console.log("🔍 Recherche des indisponibilités pour le docteur:", doctorId);
+    logDebug("Recherche des indisponibilités", {
+      feature: "appointments",
+      action: "getUnavailabilitiesByDoctorUseCase",
+      doctorId,
+    });
     const snapshot = await findAvailabilitiesByDoctor(doctorId);
     const unavailabilities = snapshot.docs.map((item) => ({
       id: item.id,
       ...item.data(),
     }));
-    console.log("📊 Indisponibilités trouvées:", unavailabilities);
+    logDebug("Indisponibilités trouvées", {
+      feature: "appointments",
+      action: "getUnavailabilitiesByDoctorUseCase",
+      doctorId,
+      count: unavailabilities.length,
+    });
     return unavailabilities;
   } catch (error) {
-    console.error("Erreur lors de la récupération des disponibilités :", error);
+    logError("Erreur lors de la récupération des disponibilités", error, {
+      feature: "appointments",
+      action: "getUnavailabilitiesByDoctorUseCase",
+      doctorId,
+    });
     throw new Error("Impossible de récupérer les disponibilités.");
   }
 };
@@ -296,7 +360,11 @@ export const addDoctorAvailabilityUseCase = async (
     const docRef = await createAvailabilityRecord(newAvailability);
     return docRef.id;
   } catch (error) {
-    console.error("Erreur lors de l'ajout de disponibilité :", error);
+    logError("Erreur lors de l'ajout de disponibilité", error, {
+      feature: "appointments",
+      action: "addDoctorAvailabilityUseCase",
+      doctorId,
+    });
     throw new Error("Impossible d'ajouter la disponibilité.");
   }
 };
@@ -305,7 +373,11 @@ export const deleteUnavailabilityUseCase = async (availabilityId) => {
   try {
     await deleteAvailabilityRecord(availabilityId);
   } catch (error) {
-    console.error("Erreur lors de la suppression de la disponibilité :", error);
+    logError("Erreur lors de la suppression de la disponibilité", error, {
+      feature: "appointments",
+      action: "deleteUnavailabilityUseCase",
+      availabilityId,
+    });
     throw new Error("Impossible de supprimer la disponibilité.");
   }
 };
@@ -317,7 +389,11 @@ export const updateUnavailabilityUseCase = async (availabilityId, updatedData) =
       updatedAt: new Date().toISOString(),
     });
   } catch (error) {
-    console.error("Erreur lors de la mise à jour de la disponibilité :", error);
+    logError("Erreur lors de la mise à jour de la disponibilité", error, {
+      feature: "appointments",
+      action: "updateUnavailabilityUseCase",
+      availabilityId,
+    });
     throw new Error("Impossible de mettre à jour la disponibilité.");
   }
 };

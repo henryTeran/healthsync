@@ -10,6 +10,7 @@ import { Calendar as BigCalendar, momentLocalizer } from 'react-big-calendar';
 import moment from 'moment';
 import 'moment/locale/fr';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
+import { logDebug, logError, logInfo } from "../../../shared/lib/logger";
 
 moment.locale('fr');
 const localizer = momentLocalizer(moment);
@@ -96,7 +97,11 @@ export const Appointments = ({ navigate }) => {
       const profileData = await getUserProfile(user.uid);
       setCurrentUser({ ...profileData, uid: user.uid });
     } catch (error) {
-      console.error("Erreur lors de la récupération du profil :", error);
+      logError("Erreur lors de la récupération du profil", error, {
+        feature: "appointments",
+        action: "fetchUserProfile",
+        userId: user?.uid,
+      });
       setError(error.message);
     }
   };
@@ -129,7 +134,12 @@ export const Appointments = ({ navigate }) => {
 
       setAppointments(appointmentsData);
     } catch (error) {
-      console.error("Erreur lors de la récupération des rendez-vous :", error);
+      logError("Erreur lors de la récupération des rendez-vous", error, {
+        feature: "appointments",
+        action: "fetchAppointments",
+        userId: user?.uid,
+        contactId: selectedContact?.id,
+      });
       setError(error.message);
     } finally {
       setIsLoading(false);
@@ -141,22 +151,44 @@ export const Appointments = ({ navigate }) => {
       let doctorId;
       if (selectedContact?.type === 'doctor') {
         doctorId = selectedContact.id;
-        console.log("🔍 Récupération des indisponibilités pour le médecin sélectionné:", doctorId);
+        logDebug("Récupération des indisponibilités pour médecin sélectionné", {
+          feature: "appointments",
+          action: "fetchUnavailabilities",
+          doctorId,
+        });
       } else if (currentUser?.type === 'doctor') {
         doctorId = user.uid;
-        console.log("🔍 Récupération des indisponibilités pour le médecin connecté:", doctorId);
+        logDebug("Récupération des indisponibilités pour médecin connecté", {
+          feature: "appointments",
+          action: "fetchUnavailabilities",
+          doctorId,
+        });
       } else {
         // Patient regardant son propre calendrier - pas d'indisponibilités à afficher
-        console.log("👤 Patient - pas d'indisponibilités à afficher");
+        logDebug("Patient sans indisponibilités affichables", {
+          feature: "appointments",
+          action: "fetchUnavailabilities",
+          userId: user?.uid,
+        });
         setUnavailabilities([]);
         return;
       }
       
       const unavailabilitiesData = await getUnavailabilitiesByDoctor(doctorId);
-      console.log("📅 Indisponibilités récupérées:", unavailabilitiesData);
+      logDebug("Indisponibilités récupérées", {
+        feature: "appointments",
+        action: "fetchUnavailabilities",
+        doctorId,
+        count: unavailabilitiesData.length,
+      });
       setUnavailabilities(unavailabilitiesData);
     } catch (error) {
-      console.error("Erreur lors de la récupération des indisponibilités :", error);
+      logError("Erreur lors de la récupération des indisponibilités", error, {
+        feature: "appointments",
+        action: "fetchUnavailabilities",
+        userId: user?.uid,
+        contactId: selectedContact?.id,
+      });
     }
   };
 
@@ -178,7 +210,11 @@ export const Appointments = ({ navigate }) => {
       }
       setAuthorizedContacts(contacts);
     } catch (error) {
-      console.error("Erreur lors de la récupération des contacts :", error);
+      logError("Erreur lors de la récupération des contacts", error, {
+        feature: "appointments",
+        action: "fetchAuthorizedContacts",
+        userId: user?.uid,
+      });
     }
   };
 
@@ -244,10 +280,18 @@ export const Appointments = ({ navigate }) => {
         };
         
         await updateUnavailability(event.id, updatedUnavailability);
-        console.log('Indisponibilité déplacée avec succès');
+        logInfo("Indisponibilité déplacée", {
+          feature: "appointments",
+          action: "handleEventDrop",
+          unavailabilityId: event.id,
+        });
         fetchUnavailabilities();
       } catch (error) {
-        console.error('Erreur lors du déplacement :', error);
+        logError("Erreur lors du déplacement d'une indisponibilité", error, {
+          feature: "appointments",
+          action: "handleEventDrop",
+          unavailabilityId: event?.id,
+        });
       }
     }
   };
@@ -262,10 +306,18 @@ export const Appointments = ({ navigate }) => {
         };
         
         await updateUnavailability(event.id, updatedUnavailability);
-        console.log('Indisponibilité redimensionnée avec succès');
+        logInfo("Indisponibilité redimensionnée", {
+          feature: "appointments",
+          action: "handleEventResize",
+          unavailabilityId: event.id,
+        });
         fetchUnavailabilities();
       } catch (error) {
-        console.error('Erreur lors du redimensionnement :', error);
+        logError("Erreur lors du redimensionnement d'une indisponibilité", error, {
+          feature: "appointments",
+          action: "handleEventResize",
+          unavailabilityId: event?.id,
+        });
       }
     }
   };
@@ -298,7 +350,11 @@ export const Appointments = ({ navigate }) => {
       setEditingUnavailability(null);
       fetchUnavailabilities();
     } catch (error) {
-      console.error("Erreur lors de la sauvegarde :", error);
+      logError("Erreur lors de la sauvegarde d'une indisponibilité", error, {
+        feature: "appointments",
+        action: "handleUnavailabilitySubmit",
+        userId: user?.uid,
+      });
       setError(error.message);
     } finally {
       setIsLoading(false);
@@ -314,7 +370,11 @@ export const Appointments = ({ navigate }) => {
       setEditingUnavailability(null);
       fetchUnavailabilities();
     } catch (error) {
-      console.error("Erreur lors de la suppression :", error);
+      logError("Erreur lors de la suppression d'une indisponibilité", error, {
+        feature: "appointments",
+        action: "handleDeleteUnavailability",
+        unavailabilityId: editingUnavailability?.id,
+      });
       setError(error.message);
     }
   };
@@ -350,7 +410,11 @@ export const Appointments = ({ navigate }) => {
         setShowModal(false);
         fetchAppointments();
       } catch (error) {
-        console.error("Erreur lors de la suppression :", error);
+        logError("Erreur lors de la suppression du rendez-vous", error, {
+          feature: "appointments",
+          action: "handleDeleteAppointment",
+          appointmentId: selectedEvent?.id,
+        });
         setError(error.message);
       }
     }
@@ -383,7 +447,11 @@ export const Appointments = ({ navigate }) => {
       setEditingAppointment(null);
       fetchAppointments();
     } catch (error) {
-      console.error("Erreur lors de la modification :", error);
+      logError("Erreur lors de la modification du rendez-vous", error, {
+        feature: "appointments",
+        action: "handleAppointmentSubmit",
+        appointmentId: editingAppointment?.id,
+      });
       setError(error.message);
     } finally {
       setIsLoading(false);
@@ -406,9 +474,12 @@ export const Appointments = ({ navigate }) => {
   };
 
   const getCalendarEvents = () => {
-    console.log("🗓️ Génération des événements du calendrier");
-    console.log("📋 Rendez-vous:", appointments);
-    console.log("🚫 Indisponibilités:", unavailabilities);
+    logDebug("Génération des événements calendrier", {
+      feature: "appointments",
+      action: "getCalendarEvents",
+      appointmentsCount: appointments.length,
+      unavailabilitiesCount: unavailabilities.length,
+    });
     
     const appointmentEvents = appointments.map(appointment => ({
       id: appointment.id,
@@ -455,12 +526,20 @@ export const Appointments = ({ navigate }) => {
        
        // Vérifier si les dates sont valides
        if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
-         console.error("❌ Dates invalides pour l'indisponibilité:", unavailability);
+         logError("Dates invalides pour l'indisponibilité", null, {
+           feature: "appointments",
+           action: "getCalendarEvents.validateDate",
+           unavailabilityId: unavailability?.id,
+         });
          return null;
        }
        
      } catch (error) {
-       console.error("❌ Erreur de conversion de date:", error, unavailability);
+       logError("Erreur de conversion de date indisponibilité", error, {
+         feature: "appointments",
+         action: "getCalendarEvents.convertDate",
+         unavailabilityId: unavailability?.id,
+       });
        return null;
      }
 
@@ -488,7 +567,11 @@ export const Appointments = ({ navigate }) => {
    }).filter(event => event !== null); // Filtrer les événements invalides
 
     const allEvents = [...appointmentEvents, ...unavailabilityEvents];
-    console.log("🎯 Événements finaux pour le calendrier:", allEvents);
+    logDebug("Événements calendrier générés", {
+      feature: "appointments",
+      action: "getCalendarEvents",
+      count: allEvents.length,
+    });
     return allEvents;
   };
 

@@ -14,6 +14,7 @@ import {
 } from "..";
 import { ChatInterface } from "./ChatInterface";
 import { ContactList } from "./ContactList";
+import { logError } from "../../../shared/lib/logger";
 
 export const Chat = ({ setUnreadChatCount }) => {
   const { user } = useContext(AuthContext);
@@ -60,7 +61,11 @@ export const Chat = ({ setUnreadChatCount }) => {
         }
       }
     } catch (error) {
-      console.error("❌ Erreur lors de la récupération des conversations :", error);
+      logError("Erreur lors de la récupération des conversations", error, {
+        feature: "chat",
+        action: "fetchConversations",
+        userId: user?.uid,
+      });
     }
   };
 
@@ -71,7 +76,11 @@ export const Chat = ({ setUnreadChatCount }) => {
       const unreadMessagesData = await getUnreadMessagesByUserUseCase(user.uid);
       setUnreadMessages(unreadMessagesData);
     } catch (error) {
-      console.error("❌ Erreur lors de la récupération des messages non lus :", error);
+      logError("Erreur lors de la récupération des messages non lus", error, {
+        feature: "chat",
+        action: "fetchUnreadChatCount",
+        userId: user?.uid,
+      });
     }
   };
 
@@ -107,7 +116,12 @@ export const Chat = ({ setUnreadChatCount }) => {
       setMessages(conversation);
       markAllMessagesAsRead(conversation);
     } catch (error) {
-      console.error("❌ Erreur lors du chargement des messages :", error);
+      logError("Erreur lors du chargement des messages", error, {
+        feature: "chat",
+        action: "handleStatusConversationReceived",
+        userId: user?.uid,
+        contactId: contact?.id,
+      });
     }
   };
 
@@ -124,7 +138,11 @@ export const Chat = ({ setUnreadChatCount }) => {
           })
         );
       } catch (error) {
-        console.error("❌ Erreur lors de la mise à jour du statut des messages :", error);
+        logError("Erreur lors de la mise à jour du statut des messages", error, {
+          feature: "chat",
+          action: "markAllMessagesAsRead",
+          userId: user?.uid,
+        });
       }
     }
   };
@@ -135,7 +153,12 @@ export const Chat = ({ setUnreadChatCount }) => {
     try {
       await sendMessageUseCase(user.uid, selectedContact.id, content);
     } catch (error) {
-      console.error("❌ Erreur lors de l'envoi du message :", error);
+      logError("Erreur lors de l'envoi du message", error, {
+        feature: "chat",
+        action: "handleSendMessage",
+        userId: user?.uid,
+        contactId: selectedContact?.id,
+      });
     }
   };
 

@@ -16,6 +16,7 @@ import { RegistrationService } from "../../../features/auth";
 import { saveUserProfile, uploadProfilePicture } from "../../../features/profile";
 import { AuthContext } from "../../../contexts/AuthContext";
 import { AdditionalSection, ConnectionSection, PersonalSection } from "./RegisterSections";
+import { logError } from "../../../shared/lib/logger";
 
 const initialFormData = {
   role: "patient",
@@ -185,7 +186,11 @@ export function Register() {
         navigate("/dashboard");
       }, 1300);
     } catch (registrationError) {
-      console.error("Erreur d'inscription :", registrationError);
+      logError("Erreur d'inscription", registrationError, {
+        feature: "auth",
+        action: "register",
+        step,
+      });
       const errorMessage = registrationError?.message || "Erreur inattendue lors de l'inscription.";
       setError(errorMessage);
       showToast("error", errorMessage);

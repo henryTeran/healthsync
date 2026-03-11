@@ -6,6 +6,7 @@ import { addNotification } from "../../../features/notifications";
 import { AuthContext } from "../../../contexts/AuthContext";
 import PropTypes from "prop-types";
 import { Calendar, Clock, User, FileText, Bell, Send, ArrowLeft } from "lucide-react";
+import { logError } from "../../../shared/lib/logger";
 
 export class AddAppointment extends Component {
   constructor(props) {
@@ -48,7 +49,11 @@ export class AddAppointment extends Component {
       const doctors = await getAuthorizedDoctors(user.uid);
       this.setState({ authorizedDoctors: doctors });
     } catch (error) {
-      console.error("Erreur lors de la récupération des médecins autorisés :", error);
+      logError("Erreur lors de la récupération des médecins autorisés", error, {
+        feature: "appointments",
+        action: "fetchAuthorizedDoctors",
+        userId: this.context?.user?.uid,
+      });
       this.setState({ error: error.message });
     }
   };
@@ -154,6 +159,12 @@ export class AddAppointment extends Component {
       });
 
     } catch (error) {
+      logError("Erreur lors de la création de rendez-vous", error, {
+        feature: "appointments",
+        action: "handleSubmit",
+        userId: this.context?.user?.uid,
+        doctorId: this.state.formData?.doctorId,
+      });
       this.setState({ error: error.message, isLoading: false });
     }
   };
