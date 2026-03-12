@@ -52,6 +52,8 @@ if (typeof window !== "undefined") {
 }
 export { messaging };
 
+const vapidKey = import.meta.env.VITE_FIREBASE_VAPID_KEY;
+
 const emulatorFlag = String(import.meta.env.VITE_USE_FIREBASE_EMULATORS || "")
   .trim()
   .toLowerCase();
@@ -86,14 +88,19 @@ if (useFirebaseEmulators) {
 
 export const requestForFCMToken = async () => {
   if (!messaging) return null;
+  if (!vapidKey) {
+    logWarn("VAPID key absente, FCM désactivé", {
+      feature: "firebase",
+      action: "requestForFCMToken",
+      reason: "VITE_FIREBASE_VAPID_KEY manquante",
+    });
+    return null;
+  }
 
   try {
     const permission = await Notification.requestPermission();
     if (permission === "granted") {
-        const token = await getToken(messaging, { 
-          vapidKey: 
-          "BFu9HBapS7r3a-b8uYrISGVYJ527629jSQbVlVZUfIddnzT9x7Z1DvfXRcbTBPtFQOYuG5vrS_QXvC_XV9TXzn4",
-         });
+        const token = await getToken(messaging, { vapidKey });
         return token;
     }
   } catch (error) {

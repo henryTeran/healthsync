@@ -1,6 +1,7 @@
 import { getToken, onMessage } from "firebase/messaging";
 import { httpsCallable } from "firebase/functions";
 import { functions, messaging } from "../../../providers/firebase";
+import { logWarn } from "../../../shared/lib/logger";
 import {
   createNotification,
   createPrescriptionNotificationRecord,
@@ -14,8 +15,7 @@ import {
   subscribeNotificationsByUser,
 } from "../infrastructure/notificationRepository.firebase";
 
-const DEFAULT_VAPID_KEY =
-  "BFu9HBapS7r3a-b8uYrISGVYJ527629jSQbVlVZUfIddnzT9x7Z1DvfXRcbTBPtFQOYuG5vrS_QXvC_XV9TXzn4";
+const VAPID_KEY = import.meta.env.VITE_FIREBASE_VAPID_KEY;
 
 const resolveTargetToken = async (tokenOrUserId) => {
   if (!tokenOrUserId) return null;
@@ -60,9 +60,17 @@ export const testCloudFunctionUseCase = async () => {
 
 export const saveUserFCMTokenUseCase = async (userId) => {
   if (!messaging) return null;
+  if (!VAPID_KEY) {
+    logWarn("Impossible de générer le token FCM: VAPID key absente", {
+      feature: "notifications",
+      action: "saveUserFCMTokenUseCase",
+      userId,
+    });
+    return null;
+  }
 
   const token = await getToken(messaging, {
-    vapidKey: DEFAULT_VAPID_KEY,
+    vapidKey: VAPID_KEY,
   });
 
   if (!token) return null;
