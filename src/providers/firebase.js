@@ -52,8 +52,12 @@ if (typeof window !== "undefined") {
 }
 export { messaging };
 
-const useFirebaseEmulators =
-  import.meta.env.DEV && import.meta.env.VITE_USE_FIREBASE_EMULATORS === "true";
+const emulatorFlag = String(import.meta.env.VITE_USE_FIREBASE_EMULATORS || "")
+  .trim()
+  .toLowerCase();
+const isLocalBrowser =
+  typeof window !== "undefined" && ["localhost", "127.0.0.1"].includes(window.location.hostname);
+const useFirebaseEmulators = import.meta.env.DEV && emulatorFlag === "true" && isLocalBrowser;
 
 if (useFirebaseEmulators) {
   try {
@@ -72,7 +76,10 @@ if (useFirebaseEmulators) {
   logWarn("Emulateurs Firebase désactivés (mode cloud)", {
     feature: "firebase",
     action: "connectEmulators",
-    reason: "VITE_USE_FIREBASE_EMULATORS !== true",
+    reason:
+      emulatorFlag !== "true"
+        ? "VITE_USE_FIREBASE_EMULATORS !== true"
+        : "hostname non local, émulateurs bloqués",
   });
 }
 
