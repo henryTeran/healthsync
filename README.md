@@ -93,6 +93,14 @@ VITE_APP_ENV=production
 VITE_APP_RELEASE=healthsync@x.y.z
 ```
 
+Configuration émulateurs Firebase (optionnelle, développement local):
+
+```bash
+VITE_USE_FIREBASE_EMULATORS=true
+```
+
+Par défaut, l'application utilise les services Firebase cloud en local si cette variable n'est pas activée.
+
 ## ♿ Accessibilité
 
 - ✅ Navigation au clavier

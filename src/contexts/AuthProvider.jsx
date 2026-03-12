@@ -1,6 +1,6 @@
 //src/context/AuthProvider.jsx
 
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { auth } from "../providers/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import PropTypes from "prop-types";
@@ -33,8 +33,9 @@ export const AuthProvider = ({ children }) => {
             action: "onAuthStateChanged",
             userId: currentUser?.uid,
           });
-          setUser(null); // En cas d'erreur, réinitialiser l'utilisateur
-          setMonitoringUser(null);
+          const fallbackUser = { ...currentUser, userType: null };
+          setUser(fallbackUser); // Conserver la session Auth même si Firestore est momentanément indisponible
+          setMonitoringUser(fallbackUser);
         }
       } else {
         setUser(null); // Aucun utilisateur connecté
@@ -64,8 +65,8 @@ export const AuthProvider = ({ children }) => {
     loading,
     authReady,
     isAuthenticated: !!user,
-    isDoctor: user?.type === 'doctor',
-    isPatient: user?.type === 'patient',
+    isDoctor: user?.userType === 'doctor',
+    isPatient: user?.userType === 'patient',
     login,
     register,
     logout

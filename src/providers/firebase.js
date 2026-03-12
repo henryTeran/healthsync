@@ -52,7 +52,10 @@ if (typeof window !== "undefined") {
 }
 export { messaging };
 
-if (import.meta.env.DEV) {
+const useFirebaseEmulators =
+  import.meta.env.DEV && import.meta.env.VITE_USE_FIREBASE_EMULATORS === "true";
+
+if (useFirebaseEmulators) {
   try {
     connectFirestoreEmulator(db, "localhost", 8080);
     connectStorageEmulator(storage, "localhost", 9199);
@@ -65,6 +68,12 @@ if (import.meta.env.DEV) {
       reason: error?.message,
     });
   }
+} else if (import.meta.env.DEV) {
+  logWarn("Emulateurs Firebase désactivés (mode cloud)", {
+    feature: "firebase",
+    action: "connectEmulators",
+    reason: "VITE_USE_FIREBASE_EMULATORS !== true",
+  });
 }
 
 
