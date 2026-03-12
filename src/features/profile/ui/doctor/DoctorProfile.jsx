@@ -1,12 +1,15 @@
-import { useState, useContext, useEffect } from "react";
+import { lazy, Suspense, useState, useContext, useEffect } from "react";
 import { useParams } from "react-router-dom";
 
 import { AuthContext } from "../../../../contexts/AuthContext";
 import { Profile } from "../ProfilePage";
-import { FollowedTable } from "./FollowedTable";
-import { AppointmentRequestsTable } from "./AppointmentsRequestTabe";
 import { logDebug, logWarn } from "../../../../shared/lib/logger";
 import { ERROR_CODES } from "../../../../shared/lib/errorCodes";
+
+const FollowedTable = lazy(() => import("./FollowedTable").then((module) => ({ default: module.FollowedTable })));
+const AppointmentRequestsTable = lazy(() =>
+  import("./AppointmentsRequestTabe").then((module) => ({ default: module.AppointmentRequestsTable }))
+);
 
 export const DoctorProfile = () => {
   const { user } = useContext(AuthContext);
@@ -85,12 +88,16 @@ export const DoctorProfile = () => {
         <div className="space-y-6">
           <div className="bg-white rounded-xl border border-gray-100 p-4">
             <h2 className="text-lg font-semibold text-gray-800 mb-4">Patients suivis</h2>
-            <FollowedTable />
+            <Suspense fallback={<p className="text-sm text-gray-500">Chargement des patients suivis...</p>}>
+              <FollowedTable />
+            </Suspense>
           </div>
 
           <div className="bg-white rounded-xl border border-gray-100 p-4">
             <h2 className="text-lg font-semibold text-gray-800 mb-4">Demandes de suivi</h2>
-            <AppointmentRequestsTable />
+            <Suspense fallback={<p className="text-sm text-gray-500">Chargement des demandes...</p>}>
+              <AppointmentRequestsTable />
+            </Suspense>
           </div>
         </div>
       )}

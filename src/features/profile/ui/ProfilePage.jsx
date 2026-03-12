@@ -33,6 +33,7 @@ export const Profile = ({ id }) => {
 
     const fetchUserProfile = async () => {
       try {
+        const start = performance.now();
         const loadedProfile = await getUserProfile(profileId);
 
         if (!loadedProfile) {
@@ -57,7 +58,18 @@ export const Profile = ({ id }) => {
           action: "Profile.load",
           profileId,
           userType: normalizedUserType,
+          durationMs: Math.round(performance.now() - start),
         });
+
+        const durationMs = performance.now() - start;
+        if (durationMs > 2000) {
+          logWarn("Chargement profil lent", {
+            feature: "profile",
+            action: "Profile.load",
+            profileId,
+            durationMs: Math.round(durationMs),
+          });
+        }
       } catch (profileError) {
         setError(profileError.message || "Erreur de chargement du profil.");
         logError("Échec du chargement du profil", profileError, {

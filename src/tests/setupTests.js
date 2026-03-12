@@ -1,8 +1,15 @@
 import '@testing-library/jest-dom';
-import { createMockIntersectionObserver } from './utils/testUtils';
+import { TextEncoder, TextDecoder } from 'util';
+
+global.TextEncoder = TextEncoder;
+global.TextDecoder = TextDecoder;
 
 // Mock IntersectionObserver
-createMockIntersectionObserver();
+global.IntersectionObserver = class IntersectionObserver {
+  observe() {}
+  disconnect() {}
+  unobserve() {}
+};
 
 // Mock window.matchMedia
 Object.defineProperty(window, 'matchMedia', {

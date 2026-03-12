@@ -1,354 +1,473 @@
-// src/pages/EditProfile.jsx
-import React, { Component } from "react";
+import { Component } from "react";
+import PropTypes from "prop-types";
 import { getUserProfile, saveUserProfile, uploadProfilePicture } from "..";
 import { AuthContext } from "../../../contexts/AuthContext";
-import PropTypes from "prop-types";
+import { ERROR_CODES } from "../../../shared/lib/errorCodes";
+import { logError, logInfo, logWarn } from "../../../shared/lib/logger";
+import { validateProfileForm } from "./profileFormValidation";
 
-
+const initialFormValues = {
+  lastName: "",
+  firstName: "",
+  age: "",
+  gender: "",
+  email: "",
+  type: "",
+  allergies: "",
+  photoURL: null,
+  mobileNumber: "",
+  address: "",
+  postalCode: "",
+  state: "",
+  country: "",
+  status: "",
+  medicalLicense: "",
+  education: "",
+  department: "",
+  designation: "",
+  about: "",
+};
 
 export class EditProfile extends Component {
-    
+  static contextType = AuthContext;
+
   constructor(props) {
     super(props);
     this.state = {
       user: null,
-      formValues: {
-        lastName: "",
-        firstName: "",
-        age: "",
-        gender: "",
-        email: "",
-        type: "",
-        allergies: "", // Spécifique aux patients
-        photoURL: null,
-        mobileNumber: "", // Numéro de téléphone
-        address: "", // Adresse
-        postalCode: "", // Code postal
-        state: "", // Ville
-        country: "", // Pays
-        status: "", // Statut (Actif/Non actif)
-        medicalLicense: "", // Spécifique aux médecins
-        education: "", // Spécifique aux médecins
-        department: "", // Spécifique aux médecins
-        designation: "", // Spécifique aux médecins
-        about: "", // Spécifique aux médecins
-      },
+      formValues: initialFormValues,
+      formErrors: {},
       isLoading: true,
+      isSaving: false,
       error: "",
+      successMessage: "",
     };
     this.inputPhoto = null;
   }
-
-  static contextType = AuthContext;
-  
 
   componentDidMount() {
     this.fetchUserProfile();
   }
 
   fetchUserProfile = async () => {
+    const start = performance.now();
     try {
       const { user } = this.context;
-      if (!user) {
+      if (!user?.uid) {
         this.setState({ error: "Utilisateur non connecté.", isLoading: false });
+        logWarn("EditProfile: utilisateur absent", {
+          code: ERROR_CODES.PROFILE.LOAD_FAILED,
+          feature: "profile",
+          action: "EditProfile.fetchUserProfile",
+        });
         return;
       }
+
       const profileData = await getUserProfile(user.uid);
+      const userType = profileData?.userType || profileData?.type || user.userType || "patient";
 
       this.setState({
         isLoading: false,
-        user: user,
+        user,
         formValues: {
-          lastName: profileData.lastName || "",
-          firstName: profileData.firstName || "",
-          age: profileData.age || "",
-          gender: profileData.gender || "",
-          email: profileData.email || "",
-          type: profileData.type || "",
-          allergies: profileData.allergies || "",
-          photoURL: profileData.photoURL || null,
-          mobileNumber: profileData.mobileNumber || "",
-          address: profileData.address || "",
-          postalCode: profileData.postalCode || "",
-          state: profileData.state || "",
-          country: profileData.country || "",
-          status: profileData.status || "",
-          medicalLicense: profileData.medicalLicense || "",
-          education: profileData.education || "",
-          department: profileData.department || "",
-          designation: profileData.designation || "",
-          about: profileData.about || "",
+          ...initialFormValues,
+          ...profileData,
+          email: profileData?.email || user.email || "",
+          type: profileData?.type || userType,
+          userType,
         },
+        error: "",
+      });
+
+      logInfo("EditProfile chargé", {
+        feature: "profile",
+        action: "EditProfile.fetchUserProfile",
+        userId: user.uid,
+        durationMs: Math.round(performance.now() - start),
       });
     } catch (error) {
-      this.setState({ error: error.message, isLoading: false });
+      this.setState({ error: error.message || "Erreur lors du chargement du profil.", isLoading: false });
+      logError("Échec chargement EditProfile", error, {
+        code: ERROR_CODES.PROFILE.LOAD_FAILED,
+        feature: "profile",
+        action: "EditProfile.fetchUserProfile",
+      });
     }
   };
 
-  handleInputChange = (e) => {
-    const { name, value } = e.target;
-    this.setState((prevState) => ({
-      formValues: { ...prevState.formValues, [name]: value },
+  handleInputChange = (event) => {
+    const { name, value } = event.target;
+
+    this.setState((previousState) => ({
+      formValues: { ...previousState.formValues, [name]: value },
+      formErrors: { ...previousState.formErrors, [name]: "" },
+      successMessage: "",
     }));
   };
 
-  handlePhotoUpload = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        this.setState((prevState) => ({
-          formValues: { ...prevState.formValues, photoURL: reader.result },
-        }));
-      };
-      reader.readAsDataURL(file);
+  handlePhotoUpload = (event) => {
+    const file = event.target.files?.[0];
+    if (!file) {
+      return;
     }
+
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      this.setState((previousState) => ({
+        formValues: { ...previousState.formValues, photoURL: reader.result },
+        successMessage: "",
+      }));
+    };
+    reader.readAsDataURL(file);
   };
 
   handleSave = async () => {
     const { user, formValues } = this.state;
-    
-    if (!user) return;
+    if (!user?.uid) {
+      return;
+    }
 
+    const validation = validateProfileForm(formValues);
+    if (!validation.isValid) {
+      this.setState({ formErrors: validation.errors, successMessage: "" });
+      logWarn("Validation profile échouée", {
+        code: ERROR_CODES.APP.VALIDATION,
+        feature: "profile",
+        action: "EditProfile.handleSave",
+        userId: user.uid,
+        invalidFields: Object.keys(validation.errors),
+      });
+      return;
+    }
+
+    const start = performance.now();
     try {
-      this.setState({ isLoading: true });
+      this.setState({ isSaving: true, error: "", formErrors: {} });
 
-      // Upload de la nouvelle photo de profil
       let updatedPhotoURL = formValues.photoURL;
-      if (this.inputPhoto && this.inputPhoto.files[0]) {
+      if (this.inputPhoto?.files?.[0]) {
         updatedPhotoURL = await uploadProfilePicture(user.uid, this.inputPhoto.files[0]);
       }
 
-      // Sauvegarde du profil mis à jour
       await saveUserProfile(user.uid, {
-        lastName: formValues.lastName,
-        firstName: formValues.firstName,
-        age: formValues.age,
-        gender: formValues.gender,
-        email: formValues.email,
-        type: formValues.type,
-        allergies: formValues.allergies,
+        ...formValues,
         photoURL: updatedPhotoURL,
-        mobileNumber: formValues.mobileNumber,
-        address: formValues.address,
-        postalCode: formValues.postalCode,
-        state: formValues.state,
-        country: formValues.country,
-        status: formValues.status,
-        medicalLicense: formValues.medicalLicense,
-        education: formValues.education,
-        department: formValues.department,
-        designation: formValues.designation,
-        about: formValues.about,
       });
 
-      alert("Profil mis à jour !");
-      this.props.navigate("/EditProfile");
+      this.setState({
+        successMessage: "Profil mis à jour avec succès.",
+      });
+
+      logInfo("Profil mis à jour", {
+        feature: "profile",
+        action: "EditProfile.handleSave",
+        userId: user.uid,
+        durationMs: Math.round(performance.now() - start),
+      });
     } catch (error) {
-      this.setState({ error: error.message });
+      this.setState({ error: error.message || "Échec de mise à jour du profil." });
+      logError("Échec mise à jour EditProfile", error, {
+        code: ERROR_CODES.PROFILE.SAVE_FAILED,
+        feature: "profile",
+        action: "EditProfile.handleSave",
+        userId: user.uid,
+      });
     } finally {
-      this.setState({ isLoading: false });
+      this.setState({ isSaving: false });
     }
   };
 
-  render() {
-    const { isLoading, error, formValues } = this.state;
+  renderFieldError = (fieldName) => {
+    const message = this.state.formErrors[fieldName];
+    if (!message) {
+      return null;
+    }
 
-    if (isLoading) return <p>Chargement...</p>;
-    if (error) return <p>{error}</p>;
+    return <p className="mt-1 text-xs text-red-600">{message}</p>;
+  };
+
+  render() {
+    const { isLoading, isSaving, error, successMessage, formValues } = this.state;
+
+    if (isLoading) {
+      return (
+        <div className="p-6">
+          <div className="bg-white rounded-xl border border-gray-100 p-6 animate-pulse">
+            <div className="h-6 w-56 bg-gray-200 rounded mb-6" />
+            <div className="h-4 w-full bg-gray-100 rounded mb-3" />
+            <div className="h-4 w-5/6 bg-gray-100 rounded mb-3" />
+            <div className="h-4 w-2/3 bg-gray-100 rounded" />
+          </div>
+        </div>
+      );
+    }
+
+    const userType = formValues.userType || formValues.type || "patient";
 
     return (
-      <div className="bg-white p-8 rounded-lg shadow-lg max-w-md mx-auto">
-        <h2 className="text-2xl font-bold mb-6 text-center">Modifier le profil</h2>
-
-        {/* Photo de profil */}
-        <div className="mb-4">
-          <label htmlFor="photo" className="block text-sm font-medium text-gray-700">
-            Photo de profil*
-          </label>
-          <input
-            type="file"
-            id="photo"
-            accept="image/*"
-            onChange={this.handlePhotoUpload}
-            ref={(input) => (this.inputPhoto = input)}
-            className="w-full p-2 border border-gray-300 rounded focus:outline-none focus:border-blue-500"
-          />
-          {formValues.photoURL && (
-            <img
-              src={formValues.photoURL}
-              alt={`${formValues.firstName} ${formValues.lastName}`}
-              className="mt-2 w-24 h-24 object-cover rounded"
-            />
-          )}
+      <div className="p-6 max-w-5xl mx-auto space-y-6">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+          <h2 className="text-2xl font-bold text-gray-900">Modifier le profil</h2>
+          <p className="text-sm text-gray-500 mt-1">Mettez à jour vos informations {userType === "doctor" ? "professionnelles" : "personnelles"}.</p>
         </div>
 
-        {/* Informations personnelles */}
-        <div className="space-y-4">
-          {/* Prénom */}
+        {error && (
+          <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg p-4">
+            {error}
+          </div>
+        )}
+
+        {successMessage && (
+          <div className="bg-green-50 border border-green-200 text-green-700 rounded-lg p-4">
+            {successMessage}
+          </div>
+        )}
+
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 space-y-6">
           <div>
-            <label htmlFor="firstName" className="block text-sm font-medium text-gray-700">
-              Prénom*
+            <label htmlFor="photo" className="block text-sm font-medium text-gray-700 mb-2">
+              Photo de profil
             </label>
             <input
-              type="text"
-              id="firstName"
-              name="firstName"
-              value={formValues.firstName}
-              onChange={this.handleInputChange}
-              required
-              className="w-full p-2 border border-gray-300 rounded focus:outline-none focus:border-blue-500"
+              type="file"
+              id="photo"
+              accept="image/*"
+              onChange={this.handlePhotoUpload}
+              ref={(input) => {
+                this.inputPhoto = input;
+              }}
+              className="w-full rounded-md border border-gray-300 px-3 py-2"
             />
+            {formValues.photoURL && (
+              <img
+                src={formValues.photoURL}
+                alt="Aperçu du profil"
+                className="mt-3 w-24 h-24 object-cover rounded-full border border-gray-200"
+              />
+            )}
           </div>
 
-          {/* Nom */}
-          <div>
-            <label htmlFor="lastName" className="block text-sm font-medium text-gray-700">
-              Nom*
-            </label>
-            <input
-              type="text"
-              id="lastName"
-              name="lastName"
-              value={formValues.lastName}
-              onChange={this.handleInputChange}
-              required
-              className="w-full p-2 border border-gray-300 rounded focus:outline-none focus:border-blue-500"
-            />
-          </div>
-
-          {/* Âge */}
-          <div>
-            <label htmlFor="age" className="block text-sm font-medium text-gray-700">
-              Âge
-            </label>
-            <input
-              type="number"
-              id="age"
-              name="age"
-              value={formValues.age || ""}
-              onChange={this.handleInputChange}
-              className="w-full p-2 border border-gray-300 rounded focus:outline-none focus:border-blue-500"
-            />
-          </div>
-
-          {/* Genre */}
-          <div>
-            <label htmlFor="gender" className="block text-sm font-medium text-gray-700">
-              Genre*
-            </label>
-            <select
-              id="gender"
-              name="gender"
-              value={formValues.gender}
-              onChange={this.handleInputChange}
-              required
-              className="w-full p-2 border border-gray-300 rounded focus:outline-none focus:border-blue-500"
-            >
-              <option value="Male">Masculin</option>
-              <option value="Female">Féminin</option>
-            </select>
-          </div>
-
-          {/* Champs spécifiques au rôle */}
-          {formValues.type === "patient" && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label htmlFor="allergies" className="block text-sm font-medium text-gray-700">
-                Allergies
-              </label>
+              <label htmlFor="firstName" className="block text-sm font-medium text-gray-700">Prénom*</label>
+              <input
+                type="text"
+                id="firstName"
+                name="firstName"
+                value={formValues.firstName}
+                onChange={this.handleInputChange}
+                className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2"
+              />
+              {this.renderFieldError("firstName")}
+            </div>
+
+            <div>
+              <label htmlFor="lastName" className="block text-sm font-medium text-gray-700">Nom*</label>
+              <input
+                type="text"
+                id="lastName"
+                name="lastName"
+                value={formValues.lastName}
+                onChange={this.handleInputChange}
+                className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2"
+              />
+              {this.renderFieldError("lastName")}
+            </div>
+
+            <div>
+              <label htmlFor="email" className="block text-sm font-medium text-gray-700">Email*</label>
+              <input
+                type="email"
+                id="email"
+                name="email"
+                value={formValues.email}
+                onChange={this.handleInputChange}
+                className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2"
+              />
+              {this.renderFieldError("email")}
+            </div>
+
+            <div>
+              <label htmlFor="mobileNumber" className="block text-sm font-medium text-gray-700">Téléphone</label>
+              <input
+                type="text"
+                id="mobileNumber"
+                name="mobileNumber"
+                value={formValues.mobileNumber}
+                onChange={this.handleInputChange}
+                className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2"
+              />
+              {this.renderFieldError("mobileNumber")}
+            </div>
+
+            <div>
+              <label htmlFor="age" className="block text-sm font-medium text-gray-700">Âge</label>
+              <input
+                type="number"
+                id="age"
+                name="age"
+                min="0"
+                value={formValues.age || ""}
+                onChange={this.handleInputChange}
+                className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2"
+              />
+              {this.renderFieldError("age")}
+            </div>
+
+            <div>
+              <label htmlFor="gender" className="block text-sm font-medium text-gray-700">Genre*</label>
+              <select
+                id="gender"
+                name="gender"
+                value={formValues.gender}
+                onChange={this.handleInputChange}
+                className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2"
+              >
+                <option value="">Sélectionner</option>
+                <option value="male">Masculin</option>
+                <option value="female">Féminin</option>
+              </select>
+              {this.renderFieldError("gender")}
+            </div>
+
+            <div>
+              <label htmlFor="address" className="block text-sm font-medium text-gray-700">Adresse</label>
+              <input
+                type="text"
+                id="address"
+                name="address"
+                value={formValues.address}
+                onChange={this.handleInputChange}
+                className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2"
+              />
+            </div>
+
+            <div>
+              <label htmlFor="state" className="block text-sm font-medium text-gray-700">Ville</label>
+              <input
+                type="text"
+                id="state"
+                name="state"
+                value={formValues.state}
+                onChange={this.handleInputChange}
+                className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2"
+              />
+            </div>
+
+            <div>
+              <label htmlFor="postalCode" className="block text-sm font-medium text-gray-700">Code postal</label>
+              <input
+                type="text"
+                id="postalCode"
+                name="postalCode"
+                value={formValues.postalCode}
+                onChange={this.handleInputChange}
+                className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2"
+              />
+            </div>
+
+            <div>
+              <label htmlFor="country" className="block text-sm font-medium text-gray-700">Pays</label>
+              <input
+                type="text"
+                id="country"
+                name="country"
+                value={formValues.country}
+                onChange={this.handleInputChange}
+                className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2"
+              />
+            </div>
+          </div>
+
+          {userType === "patient" && (
+            <div>
+              <label htmlFor="allergies" className="block text-sm font-medium text-gray-700">Allergies</label>
               <textarea
                 id="allergies"
                 name="allergies"
+                rows="3"
                 value={formValues.allergies}
                 onChange={this.handleInputChange}
-                rows="3"
-                className="w-full p-2 border border-gray-300 rounded focus:outline-none focus:border-blue-500"
+                className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2"
               />
             </div>
           )}
 
-          {formValues.type === "doctor" && (
-            <>
+          {userType === "doctor" && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label htmlFor="medicalLicense" className="block text-sm font-medium text-gray-700">
-                  Licence médicale
-                </label>
+                <label htmlFor="medicalLicense" className="block text-sm font-medium text-gray-700">Licence médicale</label>
                 <input
                   type="text"
                   id="medicalLicense"
                   name="medicalLicense"
                   value={formValues.medicalLicense}
                   onChange={this.handleInputChange}
-                  className="w-full p-2 border border-gray-300 rounded focus:outline-none focus:border-blue-500"
+                  className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2"
                 />
+                {this.renderFieldError("medicalLicense")}
               </div>
 
               <div>
-                <label htmlFor="education" className="block text-sm font-medium text-gray-700">
-                  Éducation
-                </label>
-                <input
-                  type="text"
-                  id="education"
-                  name="education"
-                  value={formValues.education}
-                  onChange={this.handleInputChange}
-                  className="w-full p-2 border border-gray-300 rounded focus:outline-none focus:border-blue-500"
-                />
-              </div>
-
-              <div>
-                <label htmlFor="department" className="block text-sm font-medium text-gray-700">
-                  Département
-                </label>
+                <label htmlFor="department" className="block text-sm font-medium text-gray-700">Département</label>
                 <input
                   type="text"
                   id="department"
                   name="department"
                   value={formValues.department}
                   onChange={this.handleInputChange}
-                  className="w-full p-2 border border-gray-300 rounded focus:outline-none focus:border-blue-500"
+                  className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2"
                 />
               </div>
 
               <div>
-                <label htmlFor="designation" className="block text-sm font-medium text-gray-700">
-                  Fonction
-                </label>
+                <label htmlFor="education" className="block text-sm font-medium text-gray-700">Éducation</label>
+                <input
+                  type="text"
+                  id="education"
+                  name="education"
+                  value={formValues.education}
+                  onChange={this.handleInputChange}
+                  className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2"
+                />
+              </div>
+
+              <div>
+                <label htmlFor="designation" className="block text-sm font-medium text-gray-700">Fonction</label>
                 <input
                   type="text"
                   id="designation"
                   name="designation"
                   value={formValues.designation}
                   onChange={this.handleInputChange}
-                  className="w-full p-2 border border-gray-300 rounded focus:outline-none focus:border-blue-500"
+                  className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2"
                 />
               </div>
 
-              <div>
-                <label htmlFor="about" className="block text-sm font-medium text-gray-700">
-                  À propos
-                </label>
+              <div className="md:col-span-2">
+                <label htmlFor="about" className="block text-sm font-medium text-gray-700">À propos</label>
                 <textarea
                   id="about"
                   name="about"
+                  rows="4"
                   value={formValues.about}
                   onChange={this.handleInputChange}
-                  rows="3"
-                  className="w-full p-2 border border-gray-300 rounded focus:outline-none focus:border-blue-500"
+                  className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2"
                 />
               </div>
-            </>
+            </div>
           )}
 
-          {/* Bouton Sauvegarder */}
-          <button
-            type="submit"
-            onClick={this.handleSave}
-            className="w-full bg-green-500 text-white p-2 rounded hover:bg-green-600 mt-6"
-          >
-            Sauvegarder
-          </button>
+          <div className="flex justify-end">
+            <button
+              type="button"
+              onClick={this.handleSave}
+              disabled={isSaving}
+              className="px-5 py-2.5 rounded-md bg-health-600 text-white hover:bg-health-700 disabled:opacity-60"
+            >
+              {isSaving ? "Sauvegarde..." : "Sauvegarder"}
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -358,4 +477,3 @@ export class EditProfile extends Component {
 EditProfile.propTypes = {
   navigate: PropTypes.func.isRequired,
 };
-
