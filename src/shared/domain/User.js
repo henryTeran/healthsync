@@ -1,6 +1,22 @@
 // src/models/User.js
 import { Timestamp } from "firebase/firestore";
 
+const toSafeDate = (value) => {
+  if (!value) return null;
+
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? null : value;
+  }
+
+  if (typeof value?.toDate === "function") {
+    const converted = value.toDate();
+    return Number.isNaN(converted?.getTime?.()) ? null : converted;
+  }
+
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+};
+
 export class User {
   constructor(data = {}) {
     //comun 
@@ -44,12 +60,14 @@ export class User {
   }
 
   toFirestore() {
+    const safeDateOfBirth = toSafeDate(this.dateOfBirth);
+
     return {
       // Champs communs
       firstName: this.firstName || "", // Prénom
       lastName: this.lastName || "", // Nom
       age: this.age || null, // Âge (optionnel)
-      dateOfBirth: this.dateOfBirth ? Timestamp.fromDate(new Date(this.dateOfBirth)) : null, // Converti en Timestamp
+      dateOfBirth: safeDateOfBirth ? Timestamp.fromDate(safeDateOfBirth) : null,
       gender: this.gender || "male", // Genre par défaut "male"
       email: this.email || "", // Adresse e-mail
       mobileNumber: this.mobileNumber || "", // Numéro de téléphone

@@ -8,7 +8,7 @@ import {
   where,
 } from "firebase/firestore";
 import { db } from "../../../providers/firebase";
-import { logError } from "../../../shared/lib/logger";
+import { logError, logWarn } from "../../../shared/lib/logger";
 
 export const listenRecentActivitiesByUser = (userId, callback) => {
   const q = query(
@@ -28,11 +28,24 @@ export const listenRecentActivitiesByUser = (userId, callback) => {
       callback(activities);
     },
     (error) => {
+      if (error?.code === "permission-denied") {
+        logWarn("Accès refusé aux activités dashboard, fallback sur liste vide", {
+          feature: "dashboard",
+          action: "listenRecentActivitiesByUser",
+          userId,
+          code: error.code,
+        });
+        callback([]);
+        return;
+      }
+
       logError("Erreur realtime activités dashboard", error, {
         feature: "dashboard",
         action: "listenRecentActivitiesByUser",
         userId,
+        code: error?.code,
       });
+      callback([]);
     }
   );
 };
