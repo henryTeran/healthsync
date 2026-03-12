@@ -1,5 +1,6 @@
 import { withErrorHandling } from '../../../shared/lib/errorHandler';
 import { logError } from '../../../shared/lib/logger';
+import { ERROR_CODES } from '../../../shared/lib/errorCodes';
 import {
   changePasswordUseCase,
   loginUseCase,
@@ -30,6 +31,7 @@ class AuthService {
       await logoutUseCase();
     } catch (error) {
       logError('Erreur de déconnexion', error, {
+        code: ERROR_CODES.AUTH.LOGOUT_FAILED,
         feature: 'auth',
         action: 'logout',
       });

@@ -5,6 +5,7 @@ import { getStorage, connectStorageEmulator } from "firebase/storage";
 import { getMessaging, getToken } from "firebase/messaging";
 import { getFunctions, connectFunctionsEmulator } from "firebase/functions";
 import { logWarn, logError } from "../shared/lib/logger";
+import { ERROR_CODES } from "../shared/lib/errorCodes";
 
 const requiredEnvVars = [
   "VITE_FIREBASE_API_KEY",
@@ -42,6 +43,7 @@ if (typeof window !== "undefined") {
     messaging = getMessaging(app);
   } catch (error) {
     logWarn("Firebase Messaging non disponible dans cet environnement.", {
+      code: ERROR_CODES.FIREBASE.MESSAGING_INIT_FAILED,
       feature: "firebase",
       action: "getMessaging",
       reason: error?.message,
@@ -57,6 +59,7 @@ if (import.meta.env.DEV) {
     connectFunctionsEmulator(functions, "localhost", 5001);
   } catch (error) {
     logWarn("Emulateurs Firebase non disponibles", {
+      code: ERROR_CODES.FIREBASE.EMULATOR_CONNECT_FAILED,
       feature: "firebase",
       action: "connectEmulators",
       reason: error?.message,
@@ -79,6 +82,7 @@ export const requestForFCMToken = async () => {
     }
   } catch (error) {
       logError("Erreur de permission pour les notifications", error, {
+        code: ERROR_CODES.FIREBASE.FCM_TOKEN_FAILED,
         feature: "firebase",
         action: "requestForFCMToken",
       });

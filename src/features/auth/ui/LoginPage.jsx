@@ -15,6 +15,7 @@ import {
 import { AuthContext } from "../../../contexts/AuthContext";
 import { AuthService } from "../../../features/auth";
 import { logError } from "../../../shared/lib/logger";
+import { ERROR_CODES } from "../../../shared/lib/errorCodes";
 
 export function Login() {
   const navigate = useNavigate();
@@ -42,6 +43,7 @@ export function Login() {
       }, 1200);
     } catch (err) {
       logError("Erreur de connexion", err, {
+        code: ERROR_CODES.AUTH.LOGIN_FAILED,
         feature: "auth",
         action: "login",
       });
@@ -73,6 +75,7 @@ export function Login() {
       setResetMessage("Un e-mail de réinitialisation a été envoyé. Vérifiez votre boîte de réception.");
     } catch (resetErr) {
       logError("Erreur reset password", resetErr, {
+        code: ERROR_CODES.AUTH.RESET_PASSWORD_FAILED,
         feature: "auth",
         action: "resetPassword",
       });

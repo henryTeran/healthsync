@@ -1,4 +1,5 @@
 import * as Sentry from "@sentry/react";
+import { buildErrorCode, ERROR_CODES } from "./errorCodes";
 
 const isProduction = import.meta.env.PROD;
 
@@ -57,7 +58,14 @@ const captureInSentry = (level, message, context) => {
       tags: {
         source: "frontend",
         feature: safeContext?.feature || "unknown",
+        action: safeContext?.action || "unknown",
+        code: safeContext?.code || ERROR_CODES.APP.UNKNOWN,
       },
+      fingerprint: [
+        safeContext?.code || ERROR_CODES.APP.UNKNOWN,
+        safeContext?.feature || "unknown",
+        safeContext?.action || "unknown",
+      ],
       extra: {
         ...safeContext,
         error: serializable,
@@ -88,7 +96,21 @@ export const logWarn = (message, context) => {
 };
 
 export const logError = (message, error, context = {}) => {
-  const payload = { ...context, error: toSerializableError(error) };
+  const code =
+    context?.code ||
+    error?.code ||
+    buildErrorCode({
+      feature: context?.feature,
+      action: context?.action,
+      fallback: ERROR_CODES.APP.UNKNOWN,
+    });
+
+  const payload = {
+    ...context,
+    code,
+    error: toSerializableError(error),
+  };
+
   writeConsole("error", message, payload);
-  captureInSentry("error", message, { ...context, error });
+  captureInSentry("error", message, { ...context, code, error });
 };

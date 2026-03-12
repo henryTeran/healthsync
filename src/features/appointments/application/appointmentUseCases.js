@@ -14,6 +14,7 @@ import {
   updateAvailabilityRecord,
 } from "../infrastructure/appointmentRepository.firebase";
 import { logDebug, logError, logInfo } from "../../../shared/lib/logger";
+import { ERROR_CODES } from "../../../shared/lib/errorCodes";
 
 export const getAppointmentsByUserUseCase = async (userId, userType) => {
   try {
@@ -57,6 +58,7 @@ export const getAppointmentsByUserUseCase = async (userId, userType) => {
     return appointments;
   } catch (error) {
     logError("Erreur lors de la récupération des rendez-vous", error, {
+      code: ERROR_CODES.APPOINTMENTS.FETCH_FAILED,
       feature: "appointments",
       action: "getAppointmentsByUserUseCase",
       userId,
@@ -107,6 +109,7 @@ export const updateAppointmentUseCase = async (appointmentId, updatedData) => {
     }
   } catch (error) {
     logError("Erreur lors de la mise à jour du rendez-vous", error, {
+      code: ERROR_CODES.APPOINTMENTS.UPDATE_FAILED,
       feature: "appointments",
       action: "updateAppointmentUseCase",
       appointmentId,
@@ -145,6 +148,7 @@ export const deleteAppointmentUseCase = async (appointmentId) => {
     await deleteAppointmentRecord(appointmentId);
   } catch (error) {
     logError("Erreur lors de la suppression du rendez-vous", error, {
+      code: ERROR_CODES.APPOINTMENTS.DELETE_FAILED,
       feature: "appointments",
       action: "deleteAppointmentUseCase",
       appointmentId,
@@ -332,6 +336,7 @@ export const getUnavailabilitiesByDoctorUseCase = async (doctorId) => {
     return unavailabilities;
   } catch (error) {
     logError("Erreur lors de la récupération des disponibilités", error, {
+      code: ERROR_CODES.APPOINTMENTS.AVAILABILITY_FETCH_FAILED,
       feature: "appointments",
       action: "getUnavailabilitiesByDoctorUseCase",
       doctorId,

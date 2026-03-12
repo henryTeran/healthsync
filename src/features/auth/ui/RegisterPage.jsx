@@ -17,6 +17,7 @@ import { saveUserProfile, uploadProfilePicture } from "../../../features/profile
 import { AuthContext } from "../../../contexts/AuthContext";
 import { AdditionalSection, ConnectionSection, PersonalSection } from "./RegisterSections";
 import { logError } from "../../../shared/lib/logger";
+import { ERROR_CODES } from "../../../shared/lib/errorCodes";
 
 const initialFormData = {
   role: "patient",
@@ -187,6 +188,7 @@ export function Register() {
       }, 1300);
     } catch (registrationError) {
       logError("Erreur d'inscription", registrationError, {
+        code: ERROR_CODES.AUTH.REGISTER_FAILED,
         feature: "auth",
         action: "register",
         step,

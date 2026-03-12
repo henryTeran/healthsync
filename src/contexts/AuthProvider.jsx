@@ -9,6 +9,7 @@ import { AuthContext } from "../contexts/AuthContext";
 import { AuthService } from "../features/auth";
 import { setMonitoringUser } from "../app/monitoring/sentry";
 import { logError } from "../shared/lib/logger";
+import { ERROR_CODES } from "../shared/lib/errorCodes";
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
@@ -27,6 +28,7 @@ export const AuthProvider = ({ children }) => {
           setMonitoringUser(nextUser);
         } catch (error) {
           logError("Erreur lors de la récupération du profil utilisateur", error, {
+            code: ERROR_CODES.AUTH.PROFILE_LOAD_FAILED,
             feature: "auth",
             action: "onAuthStateChanged",
             userId: currentUser?.uid,

@@ -1,5 +1,6 @@
 import toast from 'react-hot-toast';
 import { logError } from './logger';
+import { ERROR_CODES } from './errorCodes';
 
 export class AppError extends Error {
   constructor(message, code = 'UNKNOWN_ERROR', statusCode = 500) {
@@ -39,9 +40,10 @@ export class NotFoundError extends AppError {
 // Gestionnaire global d'erreurs
 export const handleError = (error, context = '') => {
   logError('Unhandled application error', error, {
+    code: ERROR_CODES.APP.RUNTIME,
     feature: 'global',
     context,
-    code: error?.code,
+    originalCode: error?.code,
     statusCode: error?.statusCode,
     timestamp: new Date().toISOString(),
   });
