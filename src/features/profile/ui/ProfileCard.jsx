@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import PropTypes from "prop-types";
 import { useNavigate } from "react-router-dom";
 import { 
@@ -50,7 +50,7 @@ export const ProfileCard = ({ profile, isOwner = false, userType }) => {
         <div className="relative group">
           <div className="w-32 h-32 rounded-2xl overflow-hidden shadow-medical border-4 border-white">
             <img
-              src={!imageError && profile?.photoURL ? profile.photoURL : "/src/assets/default-profile.jpg"}
+              src={!imageError && profile?.photoURL ? profile.photoURL : "/default-avatar.png"}
               alt={`${profile?.firstName} ${profile?.lastName}`}
               className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
               onError={() => setImageError(true)}

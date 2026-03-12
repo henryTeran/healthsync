@@ -5,6 +5,8 @@ import {
   uploadUserProfilePicture,
   waitForAuthenticatedUser,
 } from "../infrastructure/profileRepository.firebase";
+import { logError, logInfo } from "../../../shared/lib/logger";
+import { ERROR_CODES } from "../../../shared/lib/errorCodes";
 
 const toUid = (userId) => (typeof userId === "string" ? userId : userId?.uid);
 
@@ -19,36 +21,78 @@ const validateProfileData = (data) => {
 };
 
 export const saveUserProfileUseCase = async (userId, profileData) => {
-  const signedIn = await waitForAuthenticatedUser();
-  const uid = toUid(userId);
+  try {
+    const signedIn = await waitForAuthenticatedUser();
+    const uid = toUid(userId);
 
-  if (!uid) throw new Error("userId invalide");
-  if (uid !== signedIn.uid) {
-    throw new Error("Accès refusé: vous ne pouvez écrire que votre propre profil.");
+    if (!uid) throw new Error("userId invalide");
+    if (uid !== signedIn.uid) {
+      throw new Error("Accès refusé: vous ne pouvez écrire que votre propre profil.");
+    }
+
+    validateProfileData(profileData);
+    const user = new User(profileData);
+    await saveUserById(uid, user.toFirestore());
+
+    logInfo("Profil enregistré avec succès", {
+      feature: "profile",
+      action: "saveUserProfileUseCase",
+      userId: uid,
+    });
+  } catch (error) {
+    logError("Échec de sauvegarde du profil", error, {
+      code: ERROR_CODES.PROFILE.SAVE_FAILED,
+      feature: "profile",
+      action: "saveUserProfileUseCase",
+      userId: toUid(userId),
+    });
+    throw error;
   }
-
-  validateProfileData(profileData);
-  const user = new User(profileData);
-  await saveUserById(uid, user.toFirestore());
 };
 
 export const getUserProfileUseCase = async (userId) => {
-  const uid = toUid(userId);
-  if (!uid) throw new Error("userId invalide");
+  try {
+    const uid = toUid(userId);
+    if (!uid) throw new Error("userId invalide");
 
-  return getUserById(uid);
+    return getUserById(uid);
+  } catch (error) {
+    logError("Échec de chargement du profil utilisateur", error, {
+      code: ERROR_CODES.PROFILE.LOAD_FAILED,
+      feature: "profile",
+      action: "getUserProfileUseCase",
+      userId: toUid(userId),
+    });
+    throw error;
+  }
 };
 
 export const uploadProfilePictureUseCase = async (userId, file) => {
-  const signedIn = await waitForAuthenticatedUser();
-  const uid = toUid(userId);
+  try {
+    const signedIn = await waitForAuthenticatedUser();
+    const uid = toUid(userId);
 
-  if (!uid) throw new Error("userId invalide");
-  if (uid !== signedIn.uid) {
-    throw new Error("Accès refusé: vous ne pouvez écrire que votre propre profil.");
+    if (!uid) throw new Error("userId invalide");
+    if (uid !== signedIn.uid) {
+      throw new Error("Accès refusé: vous ne pouvez écrire que votre propre profil.");
+    }
+
+    const photoUrl = await uploadUserProfilePicture(uid, file);
+    logInfo("Photo de profil téléversée", {
+      feature: "profile",
+      action: "uploadProfilePictureUseCase",
+      userId: uid,
+    });
+    return photoUrl;
+  } catch (error) {
+    logError("Échec upload photo de profil", error, {
+      code: ERROR_CODES.PROFILE.UPLOAD_PICTURE_FAILED,
+      feature: "profile",
+      action: "uploadProfilePictureUseCase",
+      userId: toUid(userId),
+    });
+    throw error;
   }
-
-  return uploadUserProfilePicture(uid, file);
 };
 
 export const getPatientPreferencesUseCase = async (userId) => {

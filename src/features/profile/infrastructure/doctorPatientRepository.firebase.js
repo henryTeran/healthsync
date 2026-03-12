@@ -10,6 +10,8 @@ import {
 } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
 import { db } from "../../../providers/firebase";
+import { logError } from "../../../shared/lib/logger";
+import { ERROR_CODES } from "../../../shared/lib/errorCodes";
 
 const auth = getAuth();
 
@@ -41,20 +43,43 @@ export const findFollowRequestsByDoctor = async (doctorId) => {
 };
 
 export const findUsersByType = async (type) => {
-  const snapshot = await getDocs(collection(db, "users"));
-  return snapshot.docs
-    .filter((item) => item.data().type === type)
-    .map((item) => ({
-      id: item.id,
-      ...item.data(),
-      signupDate: auth.currentUser?.metadata?.creationTime || "N/A",
-    }));
+  try {
+    const snapshot = await getDocs(collection(db, "users"));
+    return snapshot.docs
+      .filter((item) => item.data().type === type)
+      .map((item) => ({
+        id: item.id,
+        ...item.data(),
+        signupDate: auth.currentUser?.metadata?.creationTime || "N/A",
+      }));
+  } catch (error) {
+    logError("Échec récupération utilisateurs par type", error, {
+      code:
+        type === "doctor"
+          ? ERROR_CODES.PROFILE.FETCH_DOCTORS_FAILED
+          : ERROR_CODES.PROFILE.FETCH_PATIENTS_FAILED,
+      feature: "profile",
+      action: "findUsersByType",
+      userType: type,
+    });
+    throw error;
+  }
 };
 
 export const findUserById = async (userId) => {
-  const snapshot = await getDoc(doc(db, "users", userId));
-  if (!snapshot.exists()) return null;
-  return { id: snapshot.id, ...snapshot.data() };
+  try {
+    const snapshot = await getDoc(doc(db, "users", userId));
+    if (!snapshot.exists()) return null;
+    return { id: snapshot.id, ...snapshot.data() };
+  } catch (error) {
+    logError("Échec récupération utilisateur", error, {
+      code: ERROR_CODES.PROFILE.LOAD_FAILED,
+      feature: "profile",
+      action: "findUserById",
+      userId,
+    });
+    throw error;
+  }
 };
 
 export const createFollowRequest = async (patientId, doctorId) => {
