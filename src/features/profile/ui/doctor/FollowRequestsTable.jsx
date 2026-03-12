@@ -2,6 +2,7 @@
 import { Component } from "react";
 import { AuthContext } from "../../../../contexts/AuthContext";
 import { getFollowRequests, handleFollowRequest } from "../..";
+import { logError } from "../../../../shared/lib/logger";
 
 export class FollowRequestsTable extends Component {
   constructor(props) {
@@ -32,7 +33,11 @@ export class FollowRequestsTable extends Component {
       const requests = await getFollowRequests(this.context.user.uid);
       this.setState({ followRequests: requests, isLoading: false, error: "" });
     } catch (error) {
-      console.error("Erreur lors du chargement des demandes :", error);
+      logError("Erreur lors du chargement des demandes", error, {
+        feature: "profile",
+        action: "fetchFollowRequests",
+        userId: this.context?.user?.uid,
+      });
       this.setState({ error: error.message, isLoading: false });
     }
   }

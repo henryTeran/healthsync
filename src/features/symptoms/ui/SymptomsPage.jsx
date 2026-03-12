@@ -7,6 +7,7 @@ import {
 } from "../../../features/symptoms";
 import { SymptomForm } from "./SymptomForm";
 import { Activity, TrendingUp, Plus, BarChart3 } from "lucide-react";
+import { logError } from "../../../shared/lib/logger";
 
 export const SymptomsPage = () => {
   const { user } = useAuth();
@@ -47,7 +48,11 @@ export const SymptomsPage = () => {
       try {
         await deleteSymptom(symptom.id);
       } catch (error) {
-        console.error("Erreur lors de la suppression :", error);
+        logError("Erreur lors de la suppression du symptôme", error, {
+          feature: "symptoms",
+          action: "handleDeleteSymptom",
+          symptomId: symptom?.id,
+        });
       }
     }
   };

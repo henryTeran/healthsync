@@ -2,6 +2,7 @@ import React, { useState, useEffect, useContext } from "react";
 import { useParams } from "react-router-dom";
 import { AuthContext } from "../../../../contexts/AuthContext";
 import { getAppointmentsByUser, sendAppointmentConfirmation, updateAppointment } from "../../../appointments";
+import { logError } from "../../../../shared/lib/logger";
 
 export const AppointmentRequestsTable = () => {
   const { user } = useContext(AuthContext);
@@ -47,7 +48,12 @@ export const AppointmentRequestsTable = () => {
 
       alert("Rendez-vous accepté ! Le patient a été notifié et des rappels ont été programmés.");
     } catch (error) {
-      console.error("Erreur lors de l'acceptation:", error);
+      logError("Erreur lors de l'acceptation du rendez-vous", error, {
+        feature: "profile",
+        action: "handleAccept",
+        appointmentId,
+        patientId,
+      });
       alert(error.message);
     }
   };
@@ -65,7 +71,12 @@ export const AppointmentRequestsTable = () => {
 
       alert("Rendez-vous refusé. Le patient a été notifié.");
     } catch (error) {
-      console.error("Erreur lors du refus:", error);
+      logError("Erreur lors du refus du rendez-vous", error, {
+        feature: "profile",
+        action: "handleReject",
+        appointmentId,
+        patientId,
+      });
       alert(error.message);
     }
   };

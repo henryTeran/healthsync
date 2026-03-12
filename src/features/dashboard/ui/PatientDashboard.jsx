@@ -16,6 +16,7 @@ import {
   Clock,
   TrendingUp
 } from "lucide-react";
+import { logError } from "../../../shared/lib/logger";
 
 
 export const PatientDashboard = () => {
@@ -47,7 +48,11 @@ export const PatientDashboard = () => {
       setStats(dashboardData.stats);
       
     } catch (error) {
-      console.error("Erreur lors de la récupération des données du dashboard :", error);
+      logError("Erreur lors de la récupération des données du dashboard", error, {
+        feature: "dashboard",
+        action: "fetchPatientDashboardData",
+        userId: user?.uid,
+      });
     } finally {
       setLoading(false);
     }

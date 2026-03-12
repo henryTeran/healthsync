@@ -2,6 +2,7 @@ import React, { useState, useEffect, useContext } from "react";
 import { useNavigate } from "react-router-dom";
 import { getAllDoctors, requestFollow } from "../..";
 import { AuthContext } from "../../../../contexts/AuthContext";
+import { logError } from "../../../../shared/lib/logger";
 
 export const ListeDoctorsProfiles = () => {
   const { user } = useContext(AuthContext);
@@ -14,7 +15,11 @@ export const ListeDoctorsProfiles = () => {
         const doctorsData = await getAllDoctors();
         setDoctors(doctorsData);
       } catch (error) {
-        console.error("Erreur lors du chargement des medecins :", error);
+        logError("Erreur lors du chargement des médecins", error, {
+          feature: "profile",
+          action: "fetchDoctors",
+          userId: user?.uid,
+        });
       }
     };
 

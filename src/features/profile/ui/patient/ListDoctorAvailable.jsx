@@ -4,6 +4,7 @@ import { getAllDoctors, getAuthorizedDoctors } from "../..";
 import { requestFollow } from "../.."; 
 import { AuthContext } from "../../../../contexts/AuthContext";
 import PropTypes from "prop-types";
+import { logError } from "../../../../shared/lib/logger";
 
 export class ListDoctorAvailable extends Component {
   constructor() {
@@ -30,7 +31,11 @@ fetchDoctors = async () => {
      const doctors = await getAllDoctors();
      this.setState({ doctors });
    } catch (error) {
-     console.error("Erreur lors de la récupération des médecins :", error);
+     logError("Erreur lors de la récupération des médecins", error, {
+       feature: "profile",
+       action: "fetchDoctors",
+       userId: this.context?.user?.uid,
+     });
    }finally{
      this.setState({ isLoading: false });
    }
@@ -43,7 +48,11 @@ fetchDoctors = async () => {
      const authorizedDoctors = await getAuthorizedDoctors(user.uid);
      this.setState({ authorizedDoctors });
    } catch (error) {
-     console.error("Erreur lors de la récupération des médecins autorisés :", error);
+     logError("Erreur lors de la récupération des médecins autorisés", error, {
+       feature: "profile",
+       action: "fetchAuthorizedDoctors",
+       userId: this.context?.user?.uid,
+     });
    }finally{
      this.setState({ isLoading: false });
    }

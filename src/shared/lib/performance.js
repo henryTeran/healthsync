@@ -1,4 +1,5 @@
 // Utilitaires de performance
+import { logDebug, logError } from './logger';
 
 // Debounce pour limiter les appels de fonction
 export const debounce = (func, delay) => {
@@ -96,10 +97,15 @@ export const measurePerformance = (name, fn) => {
     const result = await fn(...args);
     const end = performance.now();
     
-    console.log(`${name} took ${end - start} milliseconds`);
+    logDebug('Performance measurement', {
+      feature: 'performance',
+      action: 'measurePerformance',
+      name,
+      durationMs: end - start,
+    });
     
     // En production, envoyer à un service de monitoring
-    if (import.meta.env.VITE_NODE_ENV === 'production') {
+    if (import.meta.env.PROD) {
       // Envoyer les métriques à un service comme DataDog, New Relic, etc.
     }
     
@@ -139,7 +145,10 @@ export const compressData = (data) => {
   try {
     return btoa(JSON.stringify(data));
   } catch (error) {
-    console.error('Erreur de compression:', error);
+    logError('Erreur de compression', error, {
+      feature: 'performance',
+      action: 'compressData',
+    });
     return data;
   }
 };
@@ -148,7 +157,10 @@ export const decompressData = (compressedData) => {
   try {
     return JSON.parse(atob(compressedData));
   } catch (error) {
-    console.error('Erreur de décompression:', error);
+    logError('Erreur de décompression', error, {
+      feature: 'performance',
+      action: 'decompressData',
+    });
     return compressedData;
   }
 };

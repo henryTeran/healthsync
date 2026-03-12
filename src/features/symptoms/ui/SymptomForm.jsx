@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { addSymptom, getSymptomsByUserRealtime, updateSymptom, deleteSymptom } from "../../../features/symptoms";
 import { useAuth } from "../../../contexts/AuthContext";
+import { logError } from "../../../shared/lib/logger";
 
 
 export const SymptomForm = () => {
@@ -24,7 +25,11 @@ export const SymptomForm = () => {
       const sortedSymptoms = sortSymptoms(userSymptoms);
       setSymptoms(sortedSymptoms);
     } catch (error) {
-      console.error("Erreur lors de la récupération des symptômes :", error);
+      logError("Erreur lors de la récupération des symptômes", error, {
+        feature: "symptoms",
+        action: "fetchSymptoms",
+        userId: user?.uid,
+      });
     }
   };
 
@@ -62,7 +67,12 @@ export const SymptomForm = () => {
       setFormData({ symptomName: "", intensity: "", causes: "", notes: "" });
       fetchSymptoms();
     } catch (error) {
-      console.error("Erreur lors de l'ajout/mise à jour du symptôme :", error);
+      logError("Erreur lors de l'ajout/mise à jour du symptôme", error, {
+        feature: "symptoms",
+        action: "handleSubmit",
+        userId: user?.uid,
+        symptomId: editingSymptomId,
+      });
     }
   };
 
@@ -81,7 +91,12 @@ export const SymptomForm = () => {
       await deleteSymptom(symptomId);
       fetchSymptoms();
     } catch (error) {
-      console.error("Erreur lors de la suppression du symptôme :", error);
+      logError("Erreur lors de la suppression du symptôme", error, {
+        feature: "symptoms",
+        action: "handleDelete",
+        userId: user?.uid,
+        symptomId,
+      });
     }
   };
 

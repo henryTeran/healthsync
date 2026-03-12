@@ -15,6 +15,7 @@ import {
   TrendingUp,
   Clock
 } from "lucide-react";
+import { logError } from "../../../shared/lib/logger";
 
 export const DoctorDashboard = () => {
   const { user } = useContext(AuthContext);
@@ -41,7 +42,11 @@ export const DoctorDashboard = () => {
       setStats(dashboardData.stats);
       
     } catch (error) {
-      console.error("Erreur lors de la récupération des données du dashboard :", error);
+      logError("Erreur lors de la récupération des données du dashboard", error, {
+        feature: "dashboard",
+        action: "fetchDoctorDashboardData",
+        userId: user?.uid,
+      });
     } finally {
       setLoading(false);
     }

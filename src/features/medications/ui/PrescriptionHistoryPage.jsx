@@ -3,6 +3,7 @@ import { getPrescriptionsByPatient } from "../../../features/prescriptions";
 import { getAuthorizedPatients } from "../../../features/profile";
 import { useAuth } from "../../../contexts/AuthContext";
 import { UserCircle } from "lucide-react";
+import { logError } from "../../../shared/lib/logger";
 
 export const PrescriptionHistoryPage = () => {
   const { user } = useAuth();
@@ -27,7 +28,11 @@ export const PrescriptionHistoryPage = () => {
       const prescriptionsData = await getPrescriptionsByPatient(patient.id);
       setPrescriptions(prescriptionsData);
     } catch (error) {
-      console.error("Erreur lors de la récupération des prescriptions :", error);
+      logError("Erreur lors de la récupération des prescriptions", error, {
+        feature: "medications",
+        action: "handleSelectPatient",
+        patientId: patient?.id,
+      });
     }
   };
 

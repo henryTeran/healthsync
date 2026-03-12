@@ -8,6 +8,7 @@ import { useAuth } from "../../../contexts/AuthContext";
 import { getAuthorizedPatients } from "../../../features/profile";
 import { UserCircle } from "lucide-react";
 import { PrescriptionForm } from "../../prescriptions/ui/PrescriptionForm";
+import { logDebug, logError } from "../../../shared/lib/logger";
 
 export const MedicationsPage = () => {
   const { user } = useAuth();
@@ -27,7 +28,11 @@ export const MedicationsPage = () => {
       const contactsData = await getAuthorizedPatients(user.uid);
       setContacts(contactsData);
     } catch (error) {
-      console.error("Erreur lors de la récupération des patients :", error);
+      logError("Erreur lors de la récupération des patients", error, {
+        feature: "medications",
+        action: "fetchPatients",
+        userId: user?.uid,
+      });
       throw error;
     }
   };
@@ -87,12 +92,20 @@ export const MedicationsPage = () => {
       if (idPrescription) {      
         // Étape 1 : Supprimer tous les médicaments liés à la prescription existante
         const medications = await getMedicationsByPrescription(idPrescription);
-        console.log("effacee", idPrescription ,medications);
+        logDebug("Suppression des médicaments existants avant mise à jour", {
+          feature: "medications",
+          action: "handleUpdatePrescription",
+          prescriptionId: idPrescription,
+          medicationsCount: medications.length,
+        });
 
         const deletePromises = medications.map((med) => { 
           deleteMedication(med.id)
-        
-          console.log("holaa",med.id);
+          logDebug("Suppression médicament", {
+            feature: "medications",
+            action: "handleUpdatePrescription.deleteMedication",
+            medicationId: med.id,
+          });
         });
         await Promise.all(deletePromises);
        

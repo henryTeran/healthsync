@@ -15,6 +15,7 @@ import {
   FileText,
   Search
 } from "lucide-react";
+import { logError, logInfo } from "../../../shared/lib/logger";
 
 export const MedicationsPrescriptionPage = () => {
   const { user } = useAuth();
@@ -86,9 +87,17 @@ export const MedicationsPrescriptionPage = () => {
     if (window.confirm('Êtes-vous sûr de vouloir supprimer ce médicament ?')) {
       try {
         // Logique de suppression à implémenter
-        console.log('Suppression du médicament:', medication.id);
+        logInfo("Suppression médicament demandée (non implémentée)", {
+          feature: "medications",
+          action: "handleDeleteMedication",
+          medicationId: medication?.id,
+        });
       } catch (error) {
-        console.error("Erreur lors de la suppression :", error);
+        logError("Erreur lors de la suppression du médicament", error, {
+          feature: "medications",
+          action: "handleDeleteMedication",
+          medicationId: medication?.id,
+        });
       }
     }
   };

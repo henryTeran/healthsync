@@ -1,4 +1,5 @@
 import emailjs from 'emailjs-com';
+import { logError } from '../lib/logger';
 
 export const sendPrescriptionByEmail = async (email, prescription) => {
   let emailto = email;
@@ -20,9 +21,11 @@ export const sendPrescriptionByEmail = async (email, prescription) => {
       'xZiaWwWG4X44LV4sB'
     );
   } catch (error) {
-    console.error("❌ Erreur lors de l'envoi de l'email :", error);
-    if (error?.text) {
-      console.error("Détail de l'erreur :", error.text);
-    }
+    logError("Erreur lors de l'envoi de l'email", error, {
+      feature: 'email',
+      action: 'sendPrescriptionByEmail',
+      hasErrorText: Boolean(error?.text),
+      errorText: error?.text,
+    });
   }
 };

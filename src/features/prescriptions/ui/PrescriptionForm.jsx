@@ -8,6 +8,7 @@ import { getUserProfile } from "../../../features/profile";
 import { jsPDF } from "jspdf"; 
 import html2canvas from "html2canvas";
 import { uploadPrescriptionPDF } from "../../../shared/services/storageService";
+import { logDebug, logError } from "../../../shared/lib/logger";
 
 
 export const PrescriptionForm = ({ prescriptionId }) => {
@@ -20,9 +21,12 @@ export const PrescriptionForm = ({ prescriptionId }) => {
   useEffect(() => {
     const fetchPrescription = async () => {
       try {
-        console.log("Données paramètre :", prescriptionId);
+        logDebug("Chargement prescription", {
+          feature: "prescriptions",
+          action: "fetchPrescription",
+          prescriptionId,
+        });
         const data = await getPrescriptionById(prescriptionId);
-        console.log("Données de la prescription :", data);
 
         // Récupération des profils du médecin et du patient
         const [profilPatient, profilDoctor] = await Promise.all([
@@ -37,7 +41,11 @@ export const PrescriptionForm = ({ prescriptionId }) => {
         const fullData = { ...data, profilDoctor, profilPatient };
         setPrescription(fullData);
       } catch (error) {
-        console.error("Erreur lors de la récupération de la prescription :", error);
+        logError("Erreur lors de la récupération de la prescription", error, {
+          feature: "prescriptions",
+          action: "fetchPrescription",
+          prescriptionId,
+        });
       }
     };
     fetchPrescription();
@@ -47,7 +55,11 @@ export const PrescriptionForm = ({ prescriptionId }) => {
 
   const handleSendEmail = async () => {
     if (prescription) {
-      console.log("Données de la prescription :", prescription);
+      logDebug("Envoi prescription par email", {
+        feature: "prescriptions",
+        action: "handleSendEmail",
+        prescriptionId: prescription?.id,
+      });
       await sendPrescriptionByEmail(prescription.profilPatient.email, prescription);
     }
   };
@@ -91,7 +103,11 @@ export const PrescriptionForm = ({ prescriptionId }) => {
   
       alert("Prescription enregistrée et téléchargé avec succès !");
     } catch (error) {
-      console.error("Erreur lors de l'enregistrement du PDF :", error);
+      logError("Erreur lors de l'enregistrement du PDF", error, {
+        feature: "prescriptions",
+        action: "handleDownLoadPdf",
+        prescriptionId: prescription?.id,
+      });
     }
     pdf.save("prescription.pdf");
   };

@@ -1,5 +1,6 @@
 // Utilitaires de chiffrement pour les données sensibles
 // Note: En production, utilisez une bibliothèque de chiffrement robuste
+import { logError } from '../lib/logger';
 
 class EncryptionService {
   constructor() {
@@ -43,7 +44,10 @@ class EncryptionService {
 
       return btoa(String.fromCharCode(...combined));
     } catch (error) {
-      console.error('Erreur de chiffrement:', error);
+      logError('Erreur de chiffrement', error, {
+        feature: 'security',
+        action: 'encrypt',
+      });
       throw new Error('Échec du chiffrement des données');
     }
   }
@@ -70,7 +74,10 @@ class EncryptionService {
       const decoder = new TextDecoder();
       return JSON.parse(decoder.decode(decryptedData));
     } catch (error) {
-      console.error('Erreur de déchiffrement:', error);
+      logError('Erreur de déchiffrement', error, {
+        feature: 'security',
+        action: 'decrypt',
+      });
       throw new Error('Échec du déchiffrement des données');
     }
   }
@@ -115,7 +122,10 @@ export const encryptMedicalData = async (data) => {
       key: keyString // À ne pas faire en production !
     };
   } catch (error) {
-    console.error('Erreur lors du chiffrement des données médicales:', error);
+    logError('Erreur lors du chiffrement des données médicales', error, {
+      feature: 'security',
+      action: 'encryptMedicalData',
+    });
     return data; // Fallback en cas d'erreur
   }
 };

@@ -7,6 +7,7 @@ import {
   getNotificationsByUser,
   markNotificationAsRead,
 } from "../../../features/notifications";
+import { logError } from "../../../shared/lib/logger";
 
 export const NotificationsPage = ({ title = "Notifications" }) => {
   const { user } = useContext(AuthContext);
@@ -21,7 +22,11 @@ export const NotificationsPage = ({ title = "Notifications" }) => {
       const notificationsData = await getNotificationsByUser(user.uid);
       setNotifications(notificationsData);
     } catch (error) {
-      console.error("Erreur lors de la récupération des notifications :", error);
+      logError("Erreur lors de la récupération des notifications", error, {
+        feature: "notifications",
+        action: "fetchNotifications",
+        userId: user?.uid,
+      });
     } finally {
       setIsLoading(false);
     }
@@ -36,7 +41,11 @@ export const NotificationsPage = ({ title = "Notifications" }) => {
       await markNotificationAsRead(notificationId);
       fetchNotifications();
     } catch (error) {
-      console.error("Erreur lors de la mise à jour de la notification :", error);
+      logError("Erreur lors de la mise à jour de la notification", error, {
+        feature: "notifications",
+        action: "handleMarkAsRead",
+        notificationId,
+      });
     }
   }, [fetchNotifications]);
 
@@ -45,7 +54,11 @@ export const NotificationsPage = ({ title = "Notifications" }) => {
       await deleteNotification(notificationId);
       fetchNotifications();
     } catch (error) {
-      console.error("Erreur lors de la suppression de la notification :", error);
+      logError("Erreur lors de la suppression de la notification", error, {
+        feature: "notifications",
+        action: "handleDeleteNotification",
+        notificationId,
+      });
     }
   }, [fetchNotifications]);
 

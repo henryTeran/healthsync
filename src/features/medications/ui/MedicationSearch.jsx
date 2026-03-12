@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { searchMedications } from "../../../shared/services/documedisService"; // 🔹 Importer la fonction qui appelle l'API
 import PropTypes from "prop-types";
+import { logDebug } from "../../../shared/lib/logger";
 
 export const MedicationSearch = ({ onAddMedication }) => {
   const [searchTerm, setSearchTerm] = useState("");
@@ -42,7 +43,11 @@ export const MedicationSearch = ({ onAddMedication }) => {
 
   // 🔹 Sélectionner un médicament et afficher ses détails
   const handleSelectMedication = (medication) => {
-    console.log("Médicament sélectionné :", medication);
+    logDebug("Médicament sélectionné", {
+      feature: "medications",
+      action: "handleSelectMedication",
+      medicationId: medication?.id,
+    });
     setSelectedMedication({ ...medication });
     setSearchTerm(medication.name);
     setFilteredMedications([]); // Fermer la liste des suggestions
@@ -59,7 +64,11 @@ export const MedicationSearch = ({ onAddMedication }) => {
   // 🔹 Ajouter le médicament à la prescription
   const handleAddToPrescription = () => {
     if (selectedMedication) {
-      console.log("Médicament ajouté à la prescription :", selectedMedication);
+      logDebug("Médicament ajouté à la prescription", {
+        feature: "medications",
+        action: "handleAddToPrescription",
+        medicationId: selectedMedication?.id,
+      });
       onAddMedication(selectedMedication);
       setSelectedMedication(null);
       setSearchTerm("");

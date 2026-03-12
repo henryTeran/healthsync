@@ -4,6 +4,7 @@ import { getUserProfile } from "..";
 import { AuthContext } from "../../../contexts/AuthContext";
 import PropTypes from "prop-types";
 import { ListDoctorAvailable } from "./patient/ListDoctorAvailable";
+import { logDebug } from "../../../shared/lib/logger";
 
 export const PatientProfile = () => {
   const { user } = useContext(AuthContext);
@@ -14,10 +15,15 @@ export const PatientProfile = () => {
   const isOwner = user?.uid === userId;
   const isDoctor = user?.userType === "doctor";
 
-  console.log("🛠️ DEBUG: userId =", userId, "| paramUserId =", paramUserId, "| user.uid =", user?.uid);
-  console.log("🛠️ DEBUG: isOwner =", isOwner);
-  console.log("🛠️ DEBUG: isDoctor =", isDoctor);
-  console.log("🛠️ DEBUG: user =", user);
+  logDebug("PatientProfile context", {
+    feature: "profile",
+    action: "PatientProfile.render",
+    userId,
+    paramUserId,
+    currentUserId: user?.uid,
+    isOwner,
+    isDoctor,
+  });
 
   const [patientProfile, setPatientProfile] = useState(null);
   const [isLoading, setIsLoading] = useState(true);

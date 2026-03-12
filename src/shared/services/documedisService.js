@@ -1,3 +1,5 @@
+import { logError } from '../lib/logger';
+
 const API_URL = import.meta.env.VITE_DOCUMEDIS_API_URL;
 const API_TOKEN = import.meta.env.VITE_DOCUMEDIS_TOKEN;
 
@@ -47,7 +49,11 @@ export const searchMedications = async (medName) => {
 
     return await response.json();
   } catch (error) {
-    console.error('Erreur API Documedis :', error);
+    logError('Erreur API Documedis', error, {
+      feature: 'documedis',
+      action: 'searchMedications',
+      medName,
+    });
     return null;
   }
 };

@@ -4,6 +4,7 @@ import { useTable, usePagination, useSortBy } from "react-table";
 import { useNavigate } from "react-router-dom";
 import { AuthContext } from "../../../../contexts/AuthContext";
 import { followPatientAsDoctor, getAllPatients, getAuthorizedPatients } from "../..";
+import { logError } from "../../../../shared/lib/logger";
 
 export const ListePatientsProfiles = () => {
   const [patients, setPatients] = useState([]);
@@ -25,7 +26,11 @@ export const ListePatientsProfiles = () => {
           }))
         );
       } catch (error) {
-        console.error("Erreur lors du chargement des patients :", error);
+        logError("Erreur lors du chargement des patients", error, {
+          feature: "profile",
+          action: "fetchPatients",
+          userId: user?.uid,
+        });
       }
     };
 
@@ -41,7 +46,11 @@ export const ListePatientsProfiles = () => {
         const followed = await getAuthorizedPatients(user.uid);
         setFollowedPatients(followed.map((patient) => patient.id));
       } catch (error) {
-        console.error("Erreur lors du chargement des patients suivis :", error);
+        logError("Erreur lors du chargement des patients suivis", error, {
+          feature: "profile",
+          action: "fetchFollowedPatients",
+          userId: user?.uid,
+        });
       }
     };
 
@@ -55,7 +64,12 @@ export const ListePatientsProfiles = () => {
       await followPatientAsDoctor(patientId, user);
       setFollowedPatients((previous) => [...new Set([...previous, patientId])]);
     } catch (error) {
-      console.error("❌ Erreur :", error);
+      logError("Erreur lors du suivi patient", error, {
+        feature: "profile",
+        action: "handleFollowPatient",
+        userId: user?.uid,
+        patientId,
+      });
       alert("❌ Impossible de suivre le patient.");
     }
   };
