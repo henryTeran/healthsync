@@ -307,7 +307,7 @@ export const EditProfile = ({ navigate }) => {
               <div className="space-y-3">
                 <div>
                   <h1 className="text-3xl md:text-4xl font-bold text-neutral-900">Modifier le profil {roleLabel}</h1>
-                  <p className="text-sm text-neutral-500">Mettez a jour vos informations dans une interface adaptee a un SaaS medical.</p>
+                  <p className="text-sm text-neutral-500">Mettez a jour vos informations.</p>
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <span className="rounded-full bg-health-100 px-3 py-1 text-xs font-semibold text-health-700">
