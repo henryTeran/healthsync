@@ -188,7 +188,7 @@ export const DoctorProfile = () => {
               <p className="text-2xl font-semibold text-neutral-900">{patientsCount}</p>
             </div>
             <div className="rounded-2xl border border-neutral-100 bg-white p-4 shadow-sm">
-              <p className="text-xs text-neutral-500">Rendez-vous aujourd'hui</p>
+              <p className="text-xs text-neutral-500">Rendez-vous aujourd&apos;hui</p>
               <p className="text-2xl font-semibold text-neutral-900">{appointmentsCountToday}</p>
             </div>
             <div className="rounded-2xl border border-neutral-100 bg-white p-4 shadow-sm">
@@ -274,7 +274,7 @@ export const DoctorProfile = () => {
 
       <section className="rounded-[20px] bg-white border border-neutral-100 shadow-sm p-4 md:p-5">
         <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-          <h2 className="text-lg md:text-xl font-semibold text-neutral-900">Données de consultation du profil</h2>
+          <h2 className="text-lg md:text-xl font-semibold text-neutral-900">Suivi lié au profil</h2>
           <div className="inline-flex rounded-xl bg-neutral-100 p-1">
             {tabs.map((tab) => (
               <button
@@ -321,7 +321,7 @@ export const DoctorProfile = () => {
           )}
 
           {activeTab === "history" && (
-            <Suspense fallback={<p className="text-sm text-neutral-500">Chargement de l'historique...</p>}>
+            <Suspense fallback={<p className="text-sm text-neutral-500">Chargement de l&apos;historique...</p>}>
               <AppointmentRequestsTable mode="history" />
             </Suspense>
           )}
