@@ -1,11 +1,7 @@
 import { lazy, Suspense, useContext, useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
-  Activity,
-  Bell,
   Building2,
-  CalendarDays,
-  Clock3,
   Mail,
   MessageSquare,
   Phone,
@@ -13,13 +9,11 @@ import {
   Sparkles,
   Stethoscope,
   UserCircle2,
-  Users,
 } from "lucide-react";
 
 import { AuthContext } from "../../../../contexts/AuthContext";
 import { getUserProfile, getAuthorizedPatients } from "../..";
 import { getAppointmentsByUser } from "../../../appointments";
-import { listenRecentActivityUseCase } from "../../../dashboard";
 import { logDebug, logError, logWarn } from "../../../../shared/lib/logger";
 import { ERROR_CODES } from "../../../../shared/lib/errorCodes";
 
@@ -41,18 +35,6 @@ const formatDate = (value) => {
   return date.toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric" });
 };
 
-const formatTime = (value) => {
-  if (!value) return "à l'instant";
-  const date = value?.toDate ? value.toDate() : new Date(value);
-  if (Number.isNaN(date.getTime())) return "à l'instant";
-
-  const diffInMinutes = Math.floor((Date.now() - date.getTime()) / (1000 * 60));
-  if (diffInMinutes < 1) return "à l'instant";
-  if (diffInMinutes < 60) return `il y a ${diffInMinutes} min`;
-  if (diffInMinutes < 1440) return `il y a ${Math.floor(diffInMinutes / 60)} h`;
-  return `il y a ${Math.floor(diffInMinutes / 1440)} j`;
-};
-
 export const DoctorProfile = () => {
   const { user } = useContext(AuthContext);
   const { doctorId: paramDoctorId } = useParams();
@@ -64,7 +46,6 @@ export const DoctorProfile = () => {
   const [appointmentsCountToday, setAppointmentsCountToday] = useState(0);
   const [pendingRequestsCount, setPendingRequestsCount] = useState(0);
   const [acceptedCount, setAcceptedCount] = useState(0);
-  const [timelineActivities, setTimelineActivities] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -84,9 +65,7 @@ export const DoctorProfile = () => {
       return;
     }
 
-    let unsubscribeActivity = () => {};
-
-    const loadDoctorDashboard = async () => {
+    const loadDoctorProfile = async () => {
       try {
         const [profileData, patients, appointments] = await Promise.all([
           getUserProfile(doctorId),
@@ -112,11 +91,7 @@ export const DoctorProfile = () => {
         setAcceptedCount(accepted);
         setError("");
 
-        unsubscribeActivity = listenRecentActivityUseCase(doctorId, (activities) => {
-          setTimelineActivities((activities || []).slice(0, 4));
-        });
-
-        logDebug("DoctorProfile dashboard loaded", {
+        logDebug("DoctorProfile loaded", {
           feature: "profile",
           action: "DoctorProfile.load",
           doctorId,
@@ -126,7 +101,7 @@ export const DoctorProfile = () => {
         });
       } catch (loadError) {
         setError(loadError.message || "Impossible de charger le profil médecin.");
-        logError("Échec chargement dashboard médecin", loadError, {
+        logError("Échec chargement profil médecin", loadError, {
           code: ERROR_CODES.PROFILE.LOAD_FAILED,
           feature: "profile",
           action: "DoctorProfile.load",
@@ -137,11 +112,7 @@ export const DoctorProfile = () => {
       }
     };
 
-    loadDoctorDashboard();
-
-    return () => {
-      unsubscribeActivity();
-    };
+    loadDoctorProfile();
   }, [doctorId, user?.uid]);
 
   const satisfactionRate = useMemo(() => {
@@ -149,11 +120,6 @@ export const DoctorProfile = () => {
     if (!totalHandled) return 96;
     return Math.max(85, Math.min(99, Math.round((acceptedCount / totalHandled) * 100)));
   }, [acceptedCount, pendingRequestsCount]);
-
-  const miniChartValues = useMemo(
-    () => [Math.min(100, patientsCount * 4), Math.min(100, appointmentsCountToday * 20), satisfactionRate],
-    [patientsCount, appointmentsCountToday, satisfactionRate]
-  );
 
   if (isLoading) {
     return (
@@ -177,20 +143,9 @@ export const DoctorProfile = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-medical-50/40 to-neutral-50 p-4 md:p-6 lg:p-8 space-y-8">
-      <header className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-        <div>
-          <h1 className="text-3xl md:text-4xl font-bold text-neutral-900">Doctor Profile Dashboard</h1>
-          <p className="text-sm text-neutral-500">Vue premium HealthSync pour le suivi clinique quotidien.</p>
-        </div>
-        <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white border border-neutral-200 shadow-sm text-sm text-neutral-600">
-          <Bell className="h-4 w-4 text-medical-500" />
-          <span>Notifications</span>
-          {pendingRequestsCount > 0 && (
-            <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-yellow-100 text-yellow-700 animate-pulse">
-              {pendingRequestsCount}
-            </span>
-          )}
-        </div>
+      <header>
+        <h1 className="text-3xl md:text-4xl font-bold text-neutral-900">Profil Médecin</h1>
+        <p className="text-sm text-neutral-500">Consultation du profil professionnel et des informations de suivi.</p>
       </header>
 
       <section className="rounded-[20px] border border-white/60 bg-white/90 backdrop-blur-sm shadow-medical p-6 lg:p-8">
@@ -260,16 +215,6 @@ export const DoctorProfile = () => {
             Envoyer message
           </button>
         </div>
-
-        <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-3">
-          {miniChartValues.map((value, index) => (
-            <div key={index} className="rounded-xl bg-neutral-50 p-3">
-              <div className="h-2 rounded-full bg-neutral-200 overflow-hidden">
-                <div className="h-full bg-gradient-to-r from-medical-500 to-health-500 transition-all duration-500" style={{ width: `${value}%` }} />
-              </div>
-            </div>
-          ))}
-        </div>
       </section>
 
       <section className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-4 gap-4">
@@ -327,104 +272,61 @@ export const DoctorProfile = () => {
         </article>
       </section>
 
-      <section className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-        <div className="xl:col-span-2 rounded-[20px] bg-white border border-neutral-100 shadow-sm p-4 md:p-5">
-          <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-            <h2 className="text-lg md:text-xl font-semibold text-neutral-900">Patients & rendez-vous</h2>
-            <div className="inline-flex rounded-xl bg-neutral-100 p-1">
-              {tabs.map((tab) => (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
-                  className={`px-3 py-1.5 rounded-lg text-sm font-medium transition ${
-                    activeTab === tab.id
-                      ? "bg-white text-medical-700 shadow-sm"
-                      : "text-neutral-600 hover:text-neutral-900"
-                  }`}
-                >
-                  <span className="inline-flex items-center gap-1">
-                    {tab.label}
-                    {tab.id === "requests" && pendingRequestsCount > 0 && (
-                      <span className="inline-flex items-center justify-center min-w-[20px] h-5 px-1 rounded-full text-[10px] bg-yellow-200 text-yellow-800 animate-pulse">
-                        {pendingRequestsCount}
-                      </span>
-                    )}
-                  </span>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="transition-all duration-300">
-            {activeTab === "patients" && (
-              <Suspense fallback={<p className="text-sm text-neutral-500">Chargement des patients...</p>}>
-                <FollowedTable onDataLoaded={(items) => setPatientsCount(items.length)} />
-              </Suspense>
-            )}
-
-            {activeTab === "requests" && (
-              <Suspense fallback={<p className="text-sm text-neutral-500">Chargement des demandes...</p>}>
-                <AppointmentRequestsTable
-                  mode="requests"
-                  onDataLoaded={(items) => {
-                    const pending = (items || []).filter((item) => item.status === "en attente").length;
-                    const accepted = (items || []).filter((item) => item.status === "accepté").length;
-                    setPendingRequestsCount(pending);
-                    setAcceptedCount(accepted);
-                  }}
-                />
-              </Suspense>
-            )}
-
-            {activeTab === "history" && (
-              <Suspense fallback={<p className="text-sm text-neutral-500">Chargement de l'historique...</p>}>
-                <AppointmentRequestsTable mode="history" />
-              </Suspense>
-            )}
+      <section className="rounded-[20px] bg-white border border-neutral-100 shadow-sm p-4 md:p-5">
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+          <h2 className="text-lg md:text-xl font-semibold text-neutral-900">Données de consultation du profil</h2>
+          <div className="inline-flex rounded-xl bg-neutral-100 p-1">
+            {tabs.map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition ${
+                  activeTab === tab.id
+                    ? "bg-white text-medical-700 shadow-sm"
+                    : "text-neutral-600 hover:text-neutral-900"
+                }`}
+              >
+                <span className="inline-flex items-center gap-1">
+                  {tab.label}
+                  {tab.id === "requests" && pendingRequestsCount > 0 && (
+                    <span className="inline-flex items-center justify-center min-w-[20px] h-5 px-1 rounded-full text-[10px] bg-yellow-200 text-yellow-800 animate-pulse">
+                      {pendingRequestsCount}
+                    </span>
+                  )}
+                </span>
+              </button>
+            ))}
           </div>
         </div>
 
-        <aside className="rounded-[20px] bg-white border border-neutral-100 shadow-sm p-5">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-neutral-900">Timeline d'activité</h3>
-            <Activity className="h-4 w-4 text-medical-500" />
-          </div>
+        <div className="transition-all duration-300">
+          {activeTab === "patients" && (
+            <Suspense fallback={<p className="text-sm text-neutral-500">Chargement des patients...</p>}>
+              <FollowedTable onDataLoaded={(items) => setPatientsCount(items.length)} />
+            </Suspense>
+          )}
 
-          <div className="space-y-4">
-            {timelineActivities.length ? (
-              timelineActivities.map((activity) => (
-                <div key={activity.id} className="flex gap-3">
-                  <div className="mt-1 w-2 h-2 rounded-full bg-medical-500" />
-                  <div className="flex-1">
-                    <p className="text-sm font-medium text-neutral-800">{activity.title || "Activité"}</p>
-                    <p className="text-xs text-neutral-500">{activity.description || "Mise à jour enregistrée"}</p>
-                    <p className="text-[11px] text-neutral-400 mt-1 inline-flex items-center gap-1">
-                      <Clock3 className="h-3 w-3" />
-                      {formatTime(activity.createdAt)}
-                    </p>
-                  </div>
-                </div>
-              ))
-            ) : (
-              <p className="text-sm text-neutral-500">Aucune activité récente à afficher.</p>
-            )}
-          </div>
+          {activeTab === "requests" && (
+            <Suspense fallback={<p className="text-sm text-neutral-500">Chargement des demandes...</p>}>
+              <AppointmentRequestsTable
+                mode="requests"
+                onDataLoaded={(items) => {
+                  const pending = (items || []).filter((item) => item.status === "en attente").length;
+                  const accepted = (items || []).filter((item) => item.status === "accepté").length;
+                  setPendingRequestsCount(pending);
+                  setAcceptedCount(accepted);
+                }}
+              />
+            </Suspense>
+          )}
 
-          <div className="mt-6 rounded-xl bg-neutral-50 p-4 border border-neutral-100">
-            <div className="flex items-center justify-between">
-              <p className="text-xs text-neutral-500">Indicateur consultation hebdo</p>
-              <CalendarDays className="h-4 w-4 text-medical-500" />
-            </div>
-            <p className="text-xl font-semibold text-neutral-900 mt-2">{acceptedCount}</p>
-            <p className="text-xs text-neutral-500">consultations validées</p>
-          </div>
-        </aside>
+          {activeTab === "history" && (
+            <Suspense fallback={<p className="text-sm text-neutral-500">Chargement de l'historique...</p>}>
+              <AppointmentRequestsTable mode="history" />
+            </Suspense>
+          )}
+        </div>
       </section>
-
-      <div className="hidden md:flex items-center justify-end gap-2 text-xs text-neutral-400">
-        <Users className="h-3.5 w-3.5" />
-        <span>Interface optimisée pour desktop, tablette et mobile</span>
-      </div>
     </div>
   );
 };
