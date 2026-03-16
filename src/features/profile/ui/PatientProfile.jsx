@@ -16,6 +16,7 @@ import {
 import { AuthContext } from "../../../contexts/AuthContext";
 import { getAuthorizedDoctors, getUserProfile } from "..";
 import { getAppointmentsByUser } from "../../appointments";
+import { ListDoctorAvailable } from "./patient/ListDoctorAvailable";
 import { logDebug, logError, logWarn } from "../../../shared/lib/logger";
 import { ERROR_CODES } from "../../../shared/lib/errorCodes";
 
@@ -316,41 +317,45 @@ export const PatientProfile = () => {
         </div>
 
         {activeTab === "doctors" && (
-          <div className="rounded-[20px] border border-neutral-100 bg-white shadow-sm overflow-hidden">
-            <div className="overflow-x-auto max-h-[430px]">
-              <table className="w-full min-w-[720px] text-sm">
-                <thead className="sticky top-0 z-10 bg-neutral-50">
-                  <tr className="text-left text-neutral-600">
-                    <th className="px-4 py-3 font-semibold">Médecin</th>
-                    <th className="px-4 py-3 font-semibold">Département</th>
-                    <th className="px-4 py-3 font-semibold">Fonction</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {authorizedDoctors.length ? (
-                    authorizedDoctors.map((doctor, index) => (
-                      <tr
-                        key={doctor.id}
-                        className={`transition-colors hover:bg-medical-50 ${index % 2 === 0 ? "bg-white" : "bg-neutral-50/40"}`}
-                      >
-                        <td className="px-4 py-3 text-neutral-800 font-medium inline-flex items-center gap-2">
-                          <Stethoscope className="h-4 w-4 text-medical-500" />
-                          Dr. {doctor.firstName} {doctor.lastName}
-                        </td>
-                        <td className="px-4 py-3 text-neutral-700">{doctor.department || "—"}</td>
-                        <td className="px-4 py-3 text-neutral-700">{doctor.designation || "—"}</td>
-                      </tr>
-                    ))
-                  ) : (
-                    <tr>
-                      <td colSpan={3} className="px-4 py-8 text-center text-neutral-500">
-                        Aucun médecin autorisé pour le moment.
-                      </td>
+          <div className="space-y-5">
+            <div className="rounded-[20px] border border-neutral-100 bg-white shadow-sm overflow-hidden">
+              <div className="overflow-x-auto max-h-[430px]">
+                <table className="w-full min-w-[720px] text-sm">
+                  <thead className="sticky top-0 z-10 bg-neutral-50">
+                    <tr className="text-left text-neutral-600">
+                      <th className="px-4 py-3 font-semibold">Médecin</th>
+                      <th className="px-4 py-3 font-semibold">Département</th>
+                      <th className="px-4 py-3 font-semibold">Fonction</th>
                     </tr>
-                  )}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {authorizedDoctors.length ? (
+                      authorizedDoctors.map((doctor, index) => (
+                        <tr
+                          key={doctor.id}
+                          className={`transition-colors hover:bg-medical-50 ${index % 2 === 0 ? "bg-white" : "bg-neutral-50/40"}`}
+                        >
+                          <td className="px-4 py-3 text-neutral-800 font-medium inline-flex items-center gap-2">
+                            <Stethoscope className="h-4 w-4 text-medical-500" />
+                            Dr. {doctor.firstName} {doctor.lastName}
+                          </td>
+                          <td className="px-4 py-3 text-neutral-700">{doctor.department || "—"}</td>
+                          <td className="px-4 py-3 text-neutral-700">{doctor.designation || "—"}</td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan={3} className="px-4 py-8 text-center text-neutral-500">
+                          Aucun médecin autorisé pour le moment.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
+
+            {isOwner && <ListDoctorAvailable />}
           </div>
         )}
 
