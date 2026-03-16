@@ -1,5 +1,18 @@
-import { Component } from "react";
+import { useContext, useEffect, useState } from "react";
 import PropTypes from "prop-types";
+import {
+  Building2,
+  Camera,
+  HeartPulse,
+  Mail,
+  MapPin,
+  Phone,
+  Save,
+  ShieldCheck,
+  Sparkles,
+  Stethoscope,
+  UserCircle2,
+} from "lucide-react";
 import { getUserProfile, saveUserProfile, uploadProfilePicture } from "..";
 import { AuthContext } from "../../../contexts/AuthContext";
 import { ERROR_CODES } from "../../../shared/lib/errorCodes";
@@ -10,6 +23,7 @@ const initialFormValues = {
   lastName: "",
   firstName: "",
   age: "",
+  dateOfBirth: "",
   gender: "",
   email: "",
   type: "",
@@ -20,7 +34,7 @@ const initialFormValues = {
   postalCode: "",
   state: "",
   country: "",
-  status: "",
+  status: "active",
   medicalLicense: "",
   education: "",
   department: "",
@@ -28,108 +42,187 @@ const initialFormValues = {
   about: "",
 };
 
-export class EditProfile extends Component {
-  static contextType = AuthContext;
+const FieldError = ({ message }) => {
+  if (!message) return null;
+  return <p className="mt-1 text-xs text-red-600">{message}</p>;
+};
 
-  constructor(props) {
-    super(props);
-    this.state = {
-      user: null,
-      formValues: initialFormValues,
-      formErrors: {},
-      isLoading: true,
-      isSaving: false,
-      error: "",
-      successMessage: "",
-    };
-    this.inputPhoto = null;
-  }
+FieldError.propTypes = {
+  message: PropTypes.string,
+};
 
-  componentDidMount() {
-    this.fetchUserProfile();
-  }
+const SectionCard = ({ icon: Icon, title, description, children }) => (
+  <section className="rounded-[20px] border border-neutral-100 bg-white p-5 shadow-sm hover:shadow-md transition">
+    <div className="mb-4 flex items-start gap-3">
+      <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-medical-100 text-medical-700">
+        <Icon className="h-5 w-5" />
+      </div>
+      <div>
+        <h3 className="text-base font-semibold text-neutral-900">{title}</h3>
+        <p className="text-sm text-neutral-500">{description}</p>
+      </div>
+    </div>
+    <div className="h-px bg-neutral-100 mb-4" />
+    {children}
+  </section>
+);
 
-  fetchUserProfile = async () => {
-    const start = performance.now();
-    try {
-      const { user } = this.context;
-      if (!user?.uid) {
-        this.setState({ error: "Utilisateur non connecté.", isLoading: false });
-        logWarn("EditProfile: utilisateur absent", {
-          code: ERROR_CODES.PROFILE.LOAD_FAILED,
-          feature: "profile",
-          action: "EditProfile.fetchUserProfile",
-        });
-        return;
-      }
+SectionCard.propTypes = {
+  icon: PropTypes.elementType.isRequired,
+  title: PropTypes.string.isRequired,
+  description: PropTypes.string.isRequired,
+  children: PropTypes.node.isRequired,
+};
 
-      const profileData = await getUserProfile(user.uid);
-      const userType = profileData?.userType || profileData?.type || user.userType || "patient";
+const Input = ({ label, error, className = "", ...props }) => (
+  <label className={`block ${className}`}>
+    <span className="mb-1.5 block text-sm font-medium text-neutral-700">{label}</span>
+    <input
+      {...props}
+      className="w-full rounded-xl border border-neutral-200 bg-white px-4 py-3 text-sm text-neutral-800 shadow-sm outline-none transition focus:border-medical-400 focus:ring-4 focus:ring-medical-100"
+    />
+    <FieldError message={error} />
+  </label>
+);
 
-      this.setState({
-        isLoading: false,
-        user,
-        formValues: {
+Input.propTypes = {
+  label: PropTypes.string.isRequired,
+  error: PropTypes.string,
+  className: PropTypes.string,
+};
+
+const TextArea = ({ label, error, className = "", ...props }) => (
+  <label className={`block ${className}`}>
+    <span className="mb-1.5 block text-sm font-medium text-neutral-700">{label}</span>
+    <textarea
+      {...props}
+      className="w-full rounded-xl border border-neutral-200 bg-white px-4 py-3 text-sm text-neutral-800 shadow-sm outline-none transition focus:border-medical-400 focus:ring-4 focus:ring-medical-100"
+    />
+    <FieldError message={error} />
+  </label>
+);
+
+TextArea.propTypes = {
+  label: PropTypes.string.isRequired,
+  error: PropTypes.string,
+  className: PropTypes.string,
+};
+
+const Select = ({ label, error, className = "", children, ...props }) => (
+  <label className={`block ${className}`}>
+    <span className="mb-1.5 block text-sm font-medium text-neutral-700">{label}</span>
+    <select
+      {...props}
+      className="w-full rounded-xl border border-neutral-200 bg-white px-4 py-3 text-sm text-neutral-800 shadow-sm outline-none transition focus:border-medical-400 focus:ring-4 focus:ring-medical-100"
+    >
+      {children}
+    </select>
+    <FieldError message={error} />
+  </label>
+);
+
+Select.propTypes = {
+  label: PropTypes.string.isRequired,
+  error: PropTypes.string,
+  className: PropTypes.string,
+  children: PropTypes.node.isRequired,
+};
+
+const normalizeDateValue = (value) => {
+  if (!value) return "";
+  const date = value?.toDate ? value.toDate() : new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toISOString().split("T")[0];
+};
+
+export const EditProfile = ({ navigate }) => {
+  const { user } = useContext(AuthContext);
+  const [formValues, setFormValues] = useState(initialFormValues);
+  const [formErrors, setFormErrors] = useState({});
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
+  const [selectedPhoto, setSelectedPhoto] = useState(null);
+
+  useEffect(() => {
+    const fetchUserProfile = async () => {
+      const start = performance.now();
+
+      try {
+        if (!user?.uid) {
+          setError("Utilisateur non connecté.");
+          setIsLoading(false);
+          logWarn("EditProfile: utilisateur absent", {
+            code: ERROR_CODES.PROFILE.LOAD_FAILED,
+            feature: "profile",
+            action: "EditProfile.fetchUserProfile",
+          });
+          return;
+        }
+
+        const profileData = await getUserProfile(user.uid);
+        const userType = profileData?.userType || profileData?.type || user.userType || "patient";
+
+        setFormValues({
           ...initialFormValues,
           ...profileData,
           email: profileData?.email || user.email || "",
           type: profileData?.type || userType,
           userType,
-        },
-        error: "",
-      });
+          dateOfBirth: normalizeDateValue(profileData?.dateOfBirth),
+        });
+        setError("");
 
-      logInfo("EditProfile chargé", {
-        feature: "profile",
-        action: "EditProfile.fetchUserProfile",
-        userId: user.uid,
-        durationMs: Math.round(performance.now() - start),
-      });
-    } catch (error) {
-      this.setState({ error: error.message || "Erreur lors du chargement du profil.", isLoading: false });
-      logError("Échec chargement EditProfile", error, {
-        code: ERROR_CODES.PROFILE.LOAD_FAILED,
-        feature: "profile",
-        action: "EditProfile.fetchUserProfile",
-      });
-    }
-  };
+        logInfo("EditProfile chargé", {
+          feature: "profile",
+          action: "EditProfile.fetchUserProfile",
+          userId: user.uid,
+          durationMs: Math.round(performance.now() - start),
+        });
+      } catch (loadError) {
+        setError(loadError.message || "Erreur lors du chargement du profil.");
+        logError("Échec chargement EditProfile", loadError, {
+          code: ERROR_CODES.PROFILE.LOAD_FAILED,
+          feature: "profile",
+          action: "EditProfile.fetchUserProfile",
+          userId: user?.uid,
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    };
 
-  handleInputChange = (event) => {
+    fetchUserProfile();
+  }, [user?.email, user?.uid, user?.userType]);
+
+  const handleInputChange = (event) => {
     const { name, value } = event.target;
-
-    this.setState((previousState) => ({
-      formValues: { ...previousState.formValues, [name]: value },
-      formErrors: { ...previousState.formErrors, [name]: "" },
-      successMessage: "",
-    }));
+    setFormValues((previous) => ({ ...previous, [name]: value }));
+    setFormErrors((previous) => ({ ...previous, [name]: "" }));
+    setSuccessMessage("");
   };
 
-  handlePhotoUpload = (event) => {
+  const handlePhotoUpload = (event) => {
     const file = event.target.files?.[0];
-    if (!file) {
-      return;
-    }
+    if (!file) return;
 
     const reader = new FileReader();
     reader.onloadend = () => {
-      this.setState((previousState) => ({
-        formValues: { ...previousState.formValues, photoURL: reader.result },
-        successMessage: "",
-      }));
+      setSelectedPhoto(file);
+      setFormValues((previous) => ({ ...previous, photoURL: reader.result }));
+      setSuccessMessage("");
     };
     reader.readAsDataURL(file);
   };
 
-  handleSave = async () => {
-    const { user, formValues } = this.state;
-    if (!user?.uid) {
-      return;
-    }
+  const handleSave = async () => {
+    if (!user?.uid) return;
 
     const validation = validateProfileForm(formValues);
     if (!validation.isValid) {
-      this.setState({ formErrors: validation.errors, successMessage: "" });
+      setFormErrors(validation.errors);
+      setSuccessMessage("");
       logWarn("Validation profile échouée", {
         code: ERROR_CODES.APP.VALIDATION,
         feature: "profile",
@@ -141,338 +234,235 @@ export class EditProfile extends Component {
     }
 
     const start = performance.now();
+
     try {
-      this.setState({ isSaving: true, error: "", formErrors: {} });
+      setIsSaving(true);
+      setError("");
+      setFormErrors({});
 
       let updatedPhotoURL = formValues.photoURL;
-      if (this.inputPhoto?.files?.[0]) {
-        updatedPhotoURL = await uploadProfilePicture(user.uid, this.inputPhoto.files[0]);
+      if (selectedPhoto) {
+        updatedPhotoURL = await uploadProfilePicture(user.uid, selectedPhoto);
       }
 
       await saveUserProfile(user.uid, {
         ...formValues,
         photoURL: updatedPhotoURL,
+        dateOfBirth: formValues.dateOfBirth || null,
       });
 
-      this.setState({
-        successMessage: "Profil mis à jour avec succès.",
-      });
-
+      setSuccessMessage("Profil mis à jour avec succès.");
       logInfo("Profil mis à jour", {
         feature: "profile",
         action: "EditProfile.handleSave",
         userId: user.uid,
         durationMs: Math.round(performance.now() - start),
       });
-    } catch (error) {
-      this.setState({ error: error.message || "Échec de mise à jour du profil." });
-      logError("Échec mise à jour EditProfile", error, {
+    } catch (saveError) {
+      setError(saveError.message || "Échec de mise à jour du profil.");
+      logError("Échec mise à jour EditProfile", saveError, {
         code: ERROR_CODES.PROFILE.SAVE_FAILED,
         feature: "profile",
         action: "EditProfile.handleSave",
         userId: user.uid,
       });
     } finally {
-      this.setState({ isSaving: false });
+      setIsSaving(false);
     }
   };
 
-  renderFieldError = (fieldName) => {
-    const message = this.state.formErrors[fieldName];
-    if (!message) {
-      return null;
-    }
-
-    return <p className="mt-1 text-xs text-red-600">{message}</p>;
-  };
-
-  render() {
-    const { isLoading, isSaving, error, successMessage, formValues } = this.state;
-
-    if (isLoading) {
-      return (
-        <div className="p-6">
-          <div className="bg-white rounded-xl border border-gray-100 p-6 animate-pulse">
-            <div className="h-6 w-56 bg-gray-200 rounded mb-6" />
-            <div className="h-4 w-full bg-gray-100 rounded mb-3" />
-            <div className="h-4 w-5/6 bg-gray-100 rounded mb-3" />
-            <div className="h-4 w-2/3 bg-gray-100 rounded" />
-          </div>
-        </div>
-      );
-    }
-
-    const userType = formValues.userType || formValues.type || "patient";
-
+  if (isLoading) {
     return (
-      <div className="p-6 max-w-5xl mx-auto space-y-6">
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-          <h2 className="text-2xl font-bold text-gray-900">Modifier le profil</h2>
-          <p className="text-sm text-gray-500 mt-1">Mettez à jour vos informations {userType === "doctor" ? "professionnelles" : "personnelles"}.</p>
-        </div>
-
-        {error && (
-          <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg p-4">
-            {error}
-          </div>
-        )}
-
-        {successMessage && (
-          <div className="bg-green-50 border border-green-200 text-green-700 rounded-lg p-4">
-            {successMessage}
-          </div>
-        )}
-
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 space-y-6">
-          <div>
-            <label htmlFor="photo" className="block text-sm font-medium text-gray-700 mb-2">
-              Photo de profil
-            </label>
-            <input
-              type="file"
-              id="photo"
-              accept="image/*"
-              onChange={this.handlePhotoUpload}
-              ref={(input) => {
-                this.inputPhoto = input;
-              }}
-              className="w-full rounded-md border border-gray-300 px-3 py-2"
-            />
-            {formValues.photoURL && (
-              <img
-                src={formValues.photoURL}
-                alt="Aperçu du profil"
-                className="mt-3 w-24 h-24 object-cover rounded-full border border-gray-200"
-              />
-            )}
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label htmlFor="firstName" className="block text-sm font-medium text-gray-700">Prénom*</label>
-              <input
-                type="text"
-                id="firstName"
-                name="firstName"
-                value={formValues.firstName}
-                onChange={this.handleInputChange}
-                className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2"
-              />
-              {this.renderFieldError("firstName")}
-            </div>
-
-            <div>
-              <label htmlFor="lastName" className="block text-sm font-medium text-gray-700">Nom*</label>
-              <input
-                type="text"
-                id="lastName"
-                name="lastName"
-                value={formValues.lastName}
-                onChange={this.handleInputChange}
-                className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2"
-              />
-              {this.renderFieldError("lastName")}
-            </div>
-
-            <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-700">Email*</label>
-              <input
-                type="email"
-                id="email"
-                name="email"
-                value={formValues.email}
-                onChange={this.handleInputChange}
-                className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2"
-              />
-              {this.renderFieldError("email")}
-            </div>
-
-            <div>
-              <label htmlFor="mobileNumber" className="block text-sm font-medium text-gray-700">Téléphone</label>
-              <input
-                type="text"
-                id="mobileNumber"
-                name="mobileNumber"
-                value={formValues.mobileNumber}
-                onChange={this.handleInputChange}
-                className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2"
-              />
-              {this.renderFieldError("mobileNumber")}
-            </div>
-
-            <div>
-              <label htmlFor="age" className="block text-sm font-medium text-gray-700">Âge</label>
-              <input
-                type="number"
-                id="age"
-                name="age"
-                min="0"
-                value={formValues.age || ""}
-                onChange={this.handleInputChange}
-                className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2"
-              />
-              {this.renderFieldError("age")}
-            </div>
-
-            <div>
-              <label htmlFor="gender" className="block text-sm font-medium text-gray-700">Genre*</label>
-              <select
-                id="gender"
-                name="gender"
-                value={formValues.gender}
-                onChange={this.handleInputChange}
-                className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2"
-              >
-                <option value="">Sélectionner</option>
-                <option value="male">Masculin</option>
-                <option value="female">Féminin</option>
-              </select>
-              {this.renderFieldError("gender")}
-            </div>
-
-            <div>
-              <label htmlFor="address" className="block text-sm font-medium text-gray-700">Adresse</label>
-              <input
-                type="text"
-                id="address"
-                name="address"
-                value={formValues.address}
-                onChange={this.handleInputChange}
-                className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2"
-              />
-            </div>
-
-            <div>
-              <label htmlFor="state" className="block text-sm font-medium text-gray-700">Ville</label>
-              <input
-                type="text"
-                id="state"
-                name="state"
-                value={formValues.state}
-                onChange={this.handleInputChange}
-                className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2"
-              />
-            </div>
-
-            <div>
-              <label htmlFor="postalCode" className="block text-sm font-medium text-gray-700">Code postal</label>
-              <input
-                type="text"
-                id="postalCode"
-                name="postalCode"
-                value={formValues.postalCode}
-                onChange={this.handleInputChange}
-                className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2"
-              />
-            </div>
-
-            <div>
-              <label htmlFor="country" className="block text-sm font-medium text-gray-700">Pays</label>
-              <input
-                type="text"
-                id="country"
-                name="country"
-                value={formValues.country}
-                onChange={this.handleInputChange}
-                className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2"
-              />
-            </div>
-          </div>
-
-          {userType === "patient" && (
-            <div>
-              <label htmlFor="allergies" className="block text-sm font-medium text-gray-700">Allergies</label>
-              <textarea
-                id="allergies"
-                name="allergies"
-                rows="3"
-                value={formValues.allergies}
-                onChange={this.handleInputChange}
-                className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2"
-              />
-            </div>
-          )}
-
-          {userType === "doctor" && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label htmlFor="medicalLicense" className="block text-sm font-medium text-gray-700">Licence médicale</label>
-                <input
-                  type="text"
-                  id="medicalLicense"
-                  name="medicalLicense"
-                  value={formValues.medicalLicense}
-                  onChange={this.handleInputChange}
-                  className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2"
-                />
-                {this.renderFieldError("medicalLicense")}
-              </div>
-
-              <div>
-                <label htmlFor="department" className="block text-sm font-medium text-gray-700">Département</label>
-                <input
-                  type="text"
-                  id="department"
-                  name="department"
-                  value={formValues.department}
-                  onChange={this.handleInputChange}
-                  className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2"
-                />
-              </div>
-
-              <div>
-                <label htmlFor="education" className="block text-sm font-medium text-gray-700">Éducation</label>
-                <input
-                  type="text"
-                  id="education"
-                  name="education"
-                  value={formValues.education}
-                  onChange={this.handleInputChange}
-                  className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2"
-                />
-              </div>
-
-              <div>
-                <label htmlFor="designation" className="block text-sm font-medium text-gray-700">Fonction</label>
-                <input
-                  type="text"
-                  id="designation"
-                  name="designation"
-                  value={formValues.designation}
-                  onChange={this.handleInputChange}
-                  className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2"
-                />
-              </div>
-
-              <div className="md:col-span-2">
-                <label htmlFor="about" className="block text-sm font-medium text-gray-700">À propos</label>
-                <textarea
-                  id="about"
-                  name="about"
-                  rows="4"
-                  value={formValues.about}
-                  onChange={this.handleInputChange}
-                  className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2"
-                />
-              </div>
-            </div>
-          )}
-
-          <div className="flex justify-end">
-            <button
-              type="button"
-              onClick={this.handleSave}
-              disabled={isSaving}
-              className="px-5 py-2.5 rounded-md bg-health-600 text-white hover:bg-health-700 disabled:opacity-60"
-            >
-              {isSaving ? "Sauvegarde..." : "Sauvegarder"}
-            </button>
-          </div>
+      <div className="p-6 max-w-7xl mx-auto">
+        <div className="rounded-[24px] border border-neutral-100 bg-white p-8 shadow-sm animate-pulse">
+          <div className="h-10 w-72 rounded bg-neutral-200 mb-6" />
+          <div className="h-4 w-full rounded bg-neutral-100 mb-3" />
+          <div className="h-4 w-2/3 rounded bg-neutral-100" />
         </div>
       </div>
     );
   }
-}
+
+  const userType = formValues.userType || formValues.type || "patient";
+  const roleLabel = userType === "doctor" ? "médecin" : "patient";
+
+  return (
+    <div className="min-h-screen bg-gradient-to-b from-medical-50/40 to-neutral-50 p-4 md:p-6 lg:p-8">
+      <div className="mx-auto max-w-7xl space-y-6">
+        <section className="rounded-[24px] border border-white/70 bg-white/90 p-6 md:p-8 shadow-medical backdrop-blur-sm">
+          <div className="flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">
+            <div className="flex flex-col md:flex-row md:items-center gap-5">
+              <div className="relative h-24 w-24 md:h-28 md:w-28 rounded-2xl overflow-hidden border-4 border-white shadow-md">
+                <img
+                  src={formValues.photoURL || "/default-avatar.png"}
+                  alt="Aperçu profil"
+                  className="h-full w-full object-cover"
+                />
+                <label className="absolute right-2 bottom-2 flex h-9 w-9 cursor-pointer items-center justify-center rounded-xl bg-white/90 text-medical-700 shadow-sm hover:bg-white">
+                  <Camera className="h-4 w-4" />
+                  <input type="file" accept="image/*" onChange={handlePhotoUpload} className="hidden" />
+                </label>
+              </div>
+
+              <div className="space-y-3">
+                <div>
+                  <h1 className="text-3xl md:text-4xl font-bold text-neutral-900">Modifier le profil {roleLabel}</h1>
+                  <p className="text-sm text-neutral-500">Mettez a jour vos informations dans une interface adaptee a un SaaS medical.</p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <span className="rounded-full bg-health-100 px-3 py-1 text-xs font-semibold text-health-700">
+                    {userType === "doctor" ? "Profil professionnel" : "Profil patient"}
+                  </span>
+                  <span className="rounded-full bg-neutral-100 px-3 py-1 text-xs font-semibold text-neutral-700">
+                    Statut: {formValues.status || "active"}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 xl:min-w-[420px]">
+              <div className="rounded-2xl border border-neutral-100 bg-white p-4 shadow-sm">
+                <p className="text-xs text-neutral-500">Type de profil</p>
+                <p className="text-xl font-semibold text-neutral-900 capitalize">{roleLabel}</p>
+              </div>
+              <div className="rounded-2xl border border-neutral-100 bg-white p-4 shadow-sm">
+                <p className="text-xs text-neutral-500">Contact</p>
+                <p className="text-sm font-semibold text-neutral-900 break-all">{formValues.email || "Non renseigne"}</p>
+              </div>
+              <div className="rounded-2xl border border-neutral-100 bg-white p-4 shadow-sm">
+                <p className="text-xs text-neutral-500">Pays</p>
+                <p className="text-xl font-semibold text-neutral-900">{formValues.country || "Suisse"}</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {error && <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
+        {successMessage && <div className="rounded-xl border border-health-200 bg-health-50 px-4 py-3 text-sm text-health-700">{successMessage}</div>}
+
+        <div className="grid gap-6 xl:grid-cols-2">
+          <SectionCard icon={UserCircle2} title="Identite" description="Informations personnelles et administratives du profil.">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <Input label="Prenom" name="firstName" value={formValues.firstName} onChange={handleInputChange} error={formErrors.firstName} />
+              <Input label="Nom" name="lastName" value={formValues.lastName} onChange={handleInputChange} error={formErrors.lastName} />
+              <Input label="Age" name="age" type="number" min="0" value={formValues.age || ""} onChange={handleInputChange} error={formErrors.age} />
+              <Input label="Date de naissance" name="dateOfBirth" type="date" value={formValues.dateOfBirth || ""} onChange={handleInputChange} />
+              <Select label="Genre" name="gender" value={formValues.gender} onChange={handleInputChange} error={formErrors.gender}>
+                <option value="">Selectionner</option>
+                <option value="male">Masculin</option>
+                <option value="female">Feminin</option>
+              </Select>
+              <Select label="Statut" name="status" value={formValues.status || "active"} onChange={handleInputChange}>
+                <option value="active">Actif</option>
+                <option value="inactive">Inactif</option>
+                <option value="pending">En attente</option>
+              </Select>
+            </div>
+          </SectionCard>
+
+          <SectionCard icon={Phone} title="Contact" description="Canaux de contact et localisation du profil.">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <Input label="Email" name="email" type="email" value={formValues.email} onChange={handleInputChange} error={formErrors.email} />
+              <Input label="Telephone" name="mobileNumber" value={formValues.mobileNumber} onChange={handleInputChange} error={formErrors.mobileNumber} />
+              <Input label="Adresse" name="address" value={formValues.address} onChange={handleInputChange} className="md:col-span-2" />
+              <Input label="Code postal" name="postalCode" value={formValues.postalCode} onChange={handleInputChange} />
+              <Input label="Ville" name="state" value={formValues.state} onChange={handleInputChange} />
+              <Input label="Pays" name="country" value={formValues.country} onChange={handleInputChange} className="md:col-span-2" />
+            </div>
+          </SectionCard>
+
+          {userType === "patient" && (
+            <SectionCard icon={HeartPulse} title="Suivi medical" description="Informations cliniques essentielles pour le patient.">
+              <div className="grid grid-cols-1 gap-4">
+                <TextArea
+                  label="Allergies"
+                  name="allergies"
+                  rows="5"
+                  value={formValues.allergies}
+                  onChange={handleInputChange}
+                  error={formErrors.allergies}
+                />
+              </div>
+            </SectionCard>
+          )}
+
+          {userType === "doctor" && (
+            <SectionCard icon={Stethoscope} title="Activite professionnelle" description="Informations de pratique et elements de confiance clinique.">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Input label="Licence medicale" name="medicalLicense" value={formValues.medicalLicense} onChange={handleInputChange} error={formErrors.medicalLicense} />
+                <Input label="Departement" name="department" value={formValues.department} onChange={handleInputChange} />
+                <Input label="Formation" name="education" value={formValues.education} onChange={handleInputChange} />
+                <Input label="Fonction" name="designation" value={formValues.designation} onChange={handleInputChange} />
+                <TextArea
+                  label="A propos"
+                  name="about"
+                  rows="5"
+                  value={formValues.about}
+                  onChange={handleInputChange}
+                  className="md:col-span-2"
+                />
+              </div>
+            </SectionCard>
+          )}
+
+          <SectionCard
+            icon={userType === "doctor" ? Building2 : ShieldCheck}
+            title={userType === "doctor" ? "Positionnement medical" : "Resume du dossier"}
+            description={userType === "doctor" ? "Vue synthese de votre presence professionnelle." : "Vue synthetique des informations de profil patient."}
+          >
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+              <div className="rounded-2xl bg-neutral-50 border border-neutral-100 p-4">
+                <p className="text-xs text-neutral-500 inline-flex items-center gap-1"><Mail className="h-3.5 w-3.5" /> Contact principal</p>
+                <p className="mt-2 font-semibold text-neutral-900 break-all">{formValues.email || "Non renseigne"}</p>
+              </div>
+              <div className="rounded-2xl bg-neutral-50 border border-neutral-100 p-4">
+                <p className="text-xs text-neutral-500 inline-flex items-center gap-1"><MapPin className="h-3.5 w-3.5" /> Localisation</p>
+                <p className="mt-2 font-semibold text-neutral-900">{[formValues.state, formValues.country].filter(Boolean).join(", ") || "Non renseignee"}</p>
+              </div>
+              <div className="rounded-2xl bg-neutral-50 border border-neutral-100 p-4">
+                <p className="text-xs text-neutral-500 inline-flex items-center gap-1"><Sparkles className="h-3.5 w-3.5" /> Statut du profil</p>
+                <p className="mt-2 font-semibold text-neutral-900 capitalize">{formValues.status || "active"}</p>
+              </div>
+              <div className="rounded-2xl bg-neutral-50 border border-neutral-100 p-4">
+                <p className="text-xs text-neutral-500 inline-flex items-center gap-1"><ShieldCheck className="h-3.5 w-3.5" /> Niveau de completude</p>
+                <p className="mt-2 font-semibold text-neutral-900">{userType === "doctor" ? "Profil clinique" : "Profil de suivi"}</p>
+              </div>
+            </div>
+          </SectionCard>
+        </div>
+
+        <div className="sticky bottom-4 z-20">
+          <div className="ml-auto max-w-3xl rounded-[20px] border border-white/70 bg-white/90 p-4 shadow-lg backdrop-blur-sm">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-sm font-semibold text-neutral-900">Enregistrer les modifications</p>
+                <p className="text-xs text-neutral-500">Les changements seront sauvegardes dans votre profil HealthSync.</p>
+              </div>
+              <div className="flex flex-wrap gap-3">
+                <button
+                  type="button"
+                  onClick={() => navigate(-1)}
+                  className="rounded-xl border border-neutral-200 px-4 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50 active:scale-95 transition"
+                >
+                  Annuler
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSave}
+                  disabled={isSaving}
+                  className="inline-flex items-center gap-2 rounded-xl bg-health-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-health-700 active:scale-95 transition disabled:opacity-60"
+                >
+                  <Save className="h-4 w-4" />
+                  {isSaving ? "Sauvegarde..." : "Sauvegarder"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 EditProfile.propTypes = {
   navigate: PropTypes.func.isRequired,

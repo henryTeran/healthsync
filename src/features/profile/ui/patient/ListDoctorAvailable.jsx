@@ -1,146 +1,203 @@
-import React, { Component } from "react";
-import { getAllDoctors, getAuthorizedDoctors } from "../..";
-
-import { requestFollow } from "../.."; 
+import { useContext, useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import {
+  ArrowRight,
+  Building2,
+  CheckCircle2,
+  MessageSquare,
+  ShieldCheck,
+  Stethoscope,
+} from "lucide-react";
+import { getAllDoctors, getAuthorizedDoctors, requestFollow } from "../..";
 import { AuthContext } from "../../../../contexts/AuthContext";
-import PropTypes from "prop-types";
-import { logError } from "../../../../shared/lib/logger";
+import { logError, logInfo } from "../../../../shared/lib/logger";
 
-export class ListDoctorAvailable extends Component {
-  constructor() {
-    super();
-    this.state = {
-      user: null,
-      isLoading: true,
-      error: "",
-      doctors: [],
-      authorizedDoctors: [], // Médecins autorisés
-      formErrors: {},
+export const ListDoctorAvailable = () => {
+  const { user } = useContext(AuthContext);
+  const navigate = useNavigate();
+
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
+  const [doctors, setDoctors] = useState([]);
+  const [authorizedDoctors, setAuthorizedDoctors] = useState([]);
+  const [pendingDoctorId, setPendingDoctorId] = useState(null);
+
+  useEffect(() => {
+    const loadDoctors = async () => {
+      try {
+        if (!user?.uid) {
+          setError("Utilisateur non authentifié.");
+          setIsLoading(false);
+          return;
+        }
+
+        const [allDoctors, authorized] = await Promise.all([
+          getAllDoctors(),
+          getAuthorizedDoctors(user.uid),
+        ]);
+
+        setDoctors(allDoctors || []);
+        setAuthorizedDoctors(authorized || []);
+        setError("");
+      } catch (loadError) {
+        setError(loadError.message || "Impossible de charger les médecins disponibles.");
+        logError("Erreur lors du chargement des médecins disponibles", loadError, {
+          feature: "profile",
+          action: "ListDoctorAvailable.loadDoctors",
+          userId: user?.uid,
+        });
+      } finally {
+        setIsLoading(false);
+      }
     };
+
+    loadDoctors();
+  }, [user?.uid]);
+
+  const authorizedDoctorIds = useMemo(
+    () => new Set((authorizedDoctors || []).map((doctor) => doctor.id)),
+    [authorizedDoctors]
+  );
+
+  const handleFollowRequest = async (doctorId) => {
+    try {
+      if (!user?.uid) {
+        throw new Error("Utilisateur non authentifié.");
+      }
+
+      setPendingDoctorId(doctorId);
+      setSuccessMessage("");
+      await requestFollow(user.uid, doctorId);
+      setAuthorizedDoctors((previous) => {
+        const doctor = doctors.find((item) => item.id === doctorId);
+        return doctor ? [...previous, doctor] : previous;
+      });
+      setSuccessMessage("Demande de suivi envoyée avec succès.");
+      logInfo("Demande de suivi médecin envoyée", {
+        feature: "profile",
+        action: "ListDoctorAvailable.handleFollowRequest",
+        userId: user.uid,
+        doctorId,
+      });
+    } catch (requestError) {
+      setError(requestError.message || "Impossible d'envoyer la demande de suivi.");
+      logError("Erreur lors de l'envoi de la demande de suivi", requestError, {
+        feature: "profile",
+        action: "ListDoctorAvailable.handleFollowRequest",
+        userId: user?.uid,
+        doctorId,
+      });
+    } finally {
+      setPendingDoctorId(null);
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="rounded-[20px] border border-neutral-100 bg-white p-6 shadow-sm">
+        <div className="space-y-3 animate-pulse">
+          <div className="h-6 w-56 rounded bg-neutral-200" />
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            {[...Array(3)].map((_, index) => (
+              <div key={index} className="h-48 rounded-[20px] bg-neutral-100" />
+            ))}
+          </div>
+        </div>
+      </div>
+    );
   }
 
-  static contextType = AuthContext;
+  return (
+    <section className="rounded-[20px] border border-neutral-100 bg-white p-6 shadow-sm space-y-6">
+      <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+        <div>
+          <h2 className="text-xl font-semibold text-neutral-900">Médecins disponibles</h2>
+          <p className="text-sm text-neutral-500">Recherchez un professionnel de santé compatible avec votre parcours de soin.</p>
+        </div>
+        <button
+          onClick={() => navigate("/notifications")}
+          className="inline-flex items-center gap-2 rounded-xl border border-neutral-200 px-4 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50 active:scale-95 transition"
+        >
+          <MessageSquare className="h-4 w-4" />
+          Voir les notifications
+        </button>
+      </div>
 
-  componentDidMount() {
-    this.fetchDoctors();
-    this.fetchAuthorizedDoctors();
-  }
+      {error && <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
+      {successMessage && <div className="rounded-xl border border-health-200 bg-health-50 px-4 py-3 text-sm text-health-700">{successMessage}</div>}
 
-fetchDoctors = async () => {
-   try {
-     const doctors = await getAllDoctors();
-     this.setState({ doctors });
-   } catch (error) {
-     logError("Erreur lors de la récupération des médecins", error, {
-       feature: "profile",
-       action: "fetchDoctors",
-       userId: this.context?.user?.uid,
-     });
-   }finally{
-     this.setState({ isLoading: false });
-   }
- };
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        {doctors.length ? (
+          doctors.map((doctor) => {
+            const isAuthorized = authorizedDoctorIds.has(doctor.id);
+            const isPending = pendingDoctorId === doctor.id;
 
- fetchAuthorizedDoctors = async () => {
-   try {
-     const { user } = this.context;
-     if (!user) return;
-     const authorizedDoctors = await getAuthorizedDoctors(user.uid);
-     this.setState({ authorizedDoctors });
-   } catch (error) {
-     logError("Erreur lors de la récupération des médecins autorisés", error, {
-       feature: "profile",
-       action: "fetchAuthorizedDoctors",
-       userId: this.context?.user?.uid,
-     });
-   }finally{
-     this.setState({ isLoading: false });
-   }
- };
+            return (
+              <article
+                key={doctor.id}
+                className="group rounded-[20px] border border-neutral-100 bg-gradient-to-b from-white to-neutral-50 p-5 shadow-sm hover:-translate-y-0.5 hover:shadow-md transition"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-medical-100 text-medical-700">
+                      <Stethoscope className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <h3 className="text-base font-semibold text-neutral-900">
+                        Dr. {doctor.firstName} {doctor.lastName}
+                      </h3>
+                      <p className="text-xs text-neutral-500">{doctor.designation || "Praticien"}</p>
+                    </div>
+                  </div>
 
- handleFollowRequest = async (doctorId) => {
-   try {
-     const { user } = this.context;
-     if (!user) throw new Error("Utilisateur non authentifié.");
-     await requestFollow(user.uid, doctorId);
-     alert("Demande de suivi envoyée !");
-     this.props.navigate("/notifications");
-   } catch (error) {
-     alert(error.message);
-   }
- };
-  
- render() {
-   const { isLoading, error, doctors, authorizedDoctors } = this.state;
+                  <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${isAuthorized ? "bg-health-100 text-health-700" : "bg-yellow-100 text-yellow-700"}`}>
+                    {isAuthorized ? "Autorisé" : "Disponible"}
+                  </span>
+                </div>
 
-   if (isLoading) return <p className="text-center text-gray-600">Chargement...</p>;
-   if (error) return <p className="text-center text-red-500">{error}</p>;
+                <div className="mt-5 space-y-3 text-sm">
+                  <div className="flex items-center gap-2 text-neutral-600">
+                    <Building2 className="h-4 w-4 text-medical-500" />
+                    <span>{doctor.department || "Département non renseigné"}</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-neutral-600">
+                    <ShieldCheck className="h-4 w-4 text-medical-500" />
+                    <span>{doctor.medicalLicense || "Licence à vérifier"}</span>
+                  </div>
+                </div>
 
-   return (
-       <div className="p-4">
-       {/* Informations du profil */}
-           <div className="bg-white shadow-md rounded-lg p-6 mb-6">
-               <div className="flex items-center justify-between">
-                   {/* Tableau des médecins disponibles */}
-                   <div className="bg-white shadow-md rounded-lg p-6">
-                   <h2 className="text-xl font-bold mb-4">Liste des Médecins</h2>
-                   <table className="w-full border-collapse">
-                       <thead>
-                       <tr>
-                           <th className="border p-2">Nom</th>
-                           <th className="border p-2">Département</th>
-                           <th className="border p-2">Statut</th>
-                           <th className="border p-2">Action</th>
-                       </tr>
-                       </thead>
-                       <tbody>
-                       {doctors.length > 0 ? (
-                           doctors.map((doctor) => (
-                           <tr key={doctor.id}>
-                               <td className="border p-2">{`${doctor.firstName} ${doctor.lastName}`}</td>
-                               <td className="border p-2">{doctor.department || "Non spécifié"}</td>
-                               <td className="border p-2">
-                               {authorizedDoctors.some((authDoctor) => authDoctor.id === doctor.id)
-                                   ? "Autorisé"
-                                   : "En attente"}
-                               </td>
-                               <td className="border p-2">
-                               <button
-                                   onClick={() => this.handleFollowRequest(doctor.id)}
-                                   disabled={authorizedDoctors.some((authDoctor) => authDoctor.id === doctor.id)}
-                                   className={`px-4 py-2 rounded ${
-                                   authorizedDoctors.some((authDoctor) => authDoctor.id === doctor.id)
-                                       ? "bg-gray-300 cursor-not-allowed"
-                                       : "bg-green-500 text-white hover:bg-green-600"
-                                   }`}
-                               >
-                                   {authorizedDoctors.some((authDoctor) => authDoctor.id === doctor.id)
-                                   ? "Suivi en cours"
-                                   : "Demander suivi"}
-                               </button>
-                               </td>
-                           </tr>
-                           ))
-                       ) : (
-                           <tr>
-                           <td colSpan="4" className="text-center border p-2">
-                               Aucun médecin disponible pour le moment.
-                           </td>
-                           </tr>
-                       )}
-                       </tbody>
-                   </table>
-                   </div>
-               </div>
-           </div>
-       </div>
-          
+                <div className="mt-5 flex items-center justify-between gap-3">
+                  <button
+                    onClick={() => navigate(`/doctorprofile/${doctor.id}`)}
+                    className="inline-flex items-center gap-2 text-sm font-medium text-medical-700 hover:text-medical-800"
+                  >
+                    Consulter le profil
+                    <ArrowRight className="h-4 w-4 transition group-hover:translate-x-0.5" />
+                  </button>
 
-   )
- };
-
-}
-
-ListDoctorAvailable.propTypes = {
-  navigate: PropTypes.func.isRequired,
+                  <button
+                    onClick={() => handleFollowRequest(doctor.id)}
+                    disabled={isAuthorized || isPending}
+                    className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium transition active:scale-95 ${
+                      isAuthorized
+                        ? "bg-neutral-100 text-neutral-500 cursor-not-allowed"
+                        : "bg-health-600 text-white hover:bg-health-700"
+                    } ${isPending ? "opacity-70 cursor-wait" : ""}`}
+                  >
+                    {isAuthorized ? <CheckCircle2 className="h-4 w-4" /> : null}
+                    {isAuthorized ? "Suivi actif" : isPending ? "Envoi..." : "Demander suivi"}
+                  </button>
+                </div>
+              </article>
+            );
+          })
+        ) : (
+          <div className="col-span-full rounded-[20px] border border-dashed border-neutral-200 bg-neutral-50 px-6 py-10 text-center text-sm text-neutral-500">
+            Aucun médecin disponible pour le moment.
+          </div>
+        )}
+      </div>
+    </section>
+  );
 };
