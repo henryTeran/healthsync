@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { searchMedications } from "../../../shared/services/documedisService"; // 🔹 Importer la fonction qui appelle l'API
 import PropTypes from "prop-types";
 import { logDebug } from "../../../shared/lib/logger";
+import { Search, Sparkles } from "lucide-react";
 
 export const MedicationSearch = ({ onAddMedication }) => {
   const [searchTerm, setSearchTerm] = useState("");
@@ -26,9 +27,11 @@ export const MedicationSearch = ({ onAddMedication }) => {
           name: med.description || "Nom inconnu",
           atcCode: med.atcCode || "Code ATC inconnu",
           dosage: med.compactMonographieDosageDescription || "Dosage non précisé",
+          type: med.atcCode || "Type non précisé",
           indication: med.compactMonographieIndicationDescription || "Indications non précisées",
           packaging: med.smallestArticle?.description || "Conditionnement inconnu",
-          company: med.smallestArticle?.companyName || "Laboratoire inconnu"
+          company: med.smallestArticle?.companyName || "Laboratoire inconnu",
+          interactionBadge: med.compactMonographieIndicationDescription ? "À surveiller" : "Standard",
         }));
 
         setFilteredMedications(medications);
@@ -76,15 +79,20 @@ export const MedicationSearch = ({ onAddMedication }) => {
   };
 
   return (
-    <div className="p-4 bg-white shadow-md rounded-lg">
-      <h2 className="text-lg font-semibold mb-4">Rechercher un médicament</h2>
-      <input
-        type="text"
-        value={searchTerm}
-        onChange={handleSearch}
-        placeholder="Nom du médicament..."
-        className="w-full p-2 border rounded"
-      />
+    <div className="rounded-xl border border-neutral-200 bg-neutral-50/70 p-4">
+      <h3 className="text-base font-semibold text-neutral-900 mb-1">Rechercher un médicament</h3>
+      <p className="text-xs text-neutral-500 mb-3">Source données locales (tests) • sélectionnez puis complétez la posologie.</p>
+
+      <div className="relative">
+        <Search className="h-4 w-4 text-neutral-400 absolute left-4 top-1/2 -translate-y-1/2" />
+        <input
+          type="text"
+          value={searchTerm}
+          onChange={handleSearch}
+          placeholder="Rechercher un médicament..."
+          className="w-full h-12 rounded-xl border border-neutral-200 bg-white pl-11 pr-4 text-sm text-neutral-800 focus:outline-none focus:ring-2 focus:ring-medical-500"
+        />
+      </div>
 
       {/* 🔹 Affichage du chargement */}
       {loading && <p className="text-gray-500 mt-2">Recherche en cours...</p>}
@@ -94,14 +102,26 @@ export const MedicationSearch = ({ onAddMedication }) => {
 
       {/* 🔹 Liste des suggestions depuis l'API */}
       {filteredMedications.length > 0 && (
-        <ul className="border border-gray-300 mt-2 rounded">
+        <ul className="border border-neutral-200 bg-white mt-2 rounded-xl max-h-52 overflow-y-auto shadow-soft">
           {filteredMedications.map((med) => (
             <li
               key={med.id}
               onClick={() => handleSelectMedication(med)}
-              className="p-2 hover:bg-gray-200 cursor-pointer"
+              className="p-3 hover:bg-medical-50 cursor-pointer transition border-b border-neutral-100 last:border-b-0"
             >
-              {med.name}
+              <div className="flex items-center justify-between gap-2">
+                <div>
+                  <p className="text-sm font-medium text-neutral-800">{med.name}</p>
+                  <div className="mt-1 flex flex-wrap gap-1.5">
+                    <span className="inline-flex px-2 py-0.5 rounded-full bg-neutral-100 text-neutral-700 text-[11px]">{med.dosage}</span>
+                    <span className="inline-flex px-2 py-0.5 rounded-full bg-medical-100 text-medical-700 text-[11px]">{med.type}</span>
+                  </div>
+                </div>
+                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-health-100 text-health-700 text-[11px] font-medium">
+                  <Sparkles className="h-3 w-3" />
+                  {med.interactionBadge}
+                </span>
+              </div>
             </li>
           ))}
         </ul>
@@ -109,54 +129,54 @@ export const MedicationSearch = ({ onAddMedication }) => {
 
       {/* 🔹 Affichage des détails du médicament sélectionné */}
       {selectedMedication && (
-        <div className="mt-4 p-4 bg-gray-100 rounded">
-          <h3 className="text-md font-semibold">{selectedMedication.name}</h3>
+        <div className="mt-4 p-4 bg-white border border-medical-200 rounded-xl">
+          <h3 className="text-md font-semibold text-neutral-900 mb-3">{selectedMedication.name}</h3>
           <div className="mb-2">
-            <label>Type :</label>
+            <label className="text-xs font-medium text-neutral-600">Type :</label>
             <input
               type="text"
               value={selectedMedication.type || ""}
               onChange={(e) => handleMedicationChange("type", e.target.value)}
-              className="w-full p-1 border rounded"
+              className="input w-full mt-1"
             />
           </div>
           <div className="mb-2">
-            <label>Dosage :</label>
+            <label className="text-xs font-medium text-neutral-600">Dosage :</label>
             <input
               type="text"
               value={selectedMedication.dosage || ""}
               onChange={(e) => handleMedicationChange("dosage", e.target.value)}
-              className="w-full p-1 border rounded"
+              className="input w-full mt-1"
             />
           </div>
           <div className="mb-2">
-            <label>Fréquence :</label>
+            <label className="text-xs font-medium text-neutral-600">Fréquence :</label>
             <input
               type="text"
               value={selectedMedication.frequency || ""}
               onChange={(e) => handleMedicationChange("frequency", e.target.value)}
-              className="w-full p-1 border rounded"
+              className="input w-full mt-1"
             />
           </div>
           <div className="mb-2">
-            <label>Durée :</label>
+            <label className="text-xs font-medium text-neutral-600">Durée :</label>
             <input
               type="text"
               value={selectedMedication.duration || ""}
               onChange={(e) => handleMedicationChange("duration", e.target.value)}
-              className="w-full p-1 border rounded"
+              className="input w-full mt-1"
             />
           </div>
           <div className="mb-2">
-            <label>Effets secondaires :</label>
+            <label className="text-xs font-medium text-neutral-600">Effets secondaires :</label>
             <textarea
               value={selectedMedication.sideEffects || ""}
               onChange={(e) => handleMedicationChange("sideEffects", e.target.value)}
-              className="w-full p-1 border rounded"
+              className="input w-full mt-1"
             />
           </div>
           <button
-            className="mt-2 bg-blue-500 text-white p-2 rounded"
+            className="mt-2 btn-primary"
             onClick={handleAddToPrescription}
           >
             Ajouter à la prescription

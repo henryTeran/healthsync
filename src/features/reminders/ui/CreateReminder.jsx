@@ -23,6 +23,7 @@ export const CreateReminder = ({ onReminderAdded }) => {
         title,
         dateTime: new Date(dateTime),
         notificationType,
+        recurrence,
         status: "pending",
       });
 
@@ -41,15 +42,16 @@ export const CreateReminder = ({ onReminderAdded }) => {
   };
 
   return (
-    <div className="p-6 bg-white shadow-md rounded-lg">
-      <h2 className="text-lg font-semibold mb-4">➕ Ajouter un rappel</h2>
+    <div className="rounded-[20px] bg-white border border-neutral-100 shadow-sm p-6">
+      <h2 className="text-lg font-semibold text-neutral-800 mb-1">Nouveau rappel</h2>
+      <p className="text-sm text-neutral-600 mb-4">Planifiez un rappel clinique ponctuel ou récurrent.</p>
       <form onSubmit={handleCreateReminder} className="flex flex-col gap-4">
         <input
           type="text"
           placeholder="Titre du rappel"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
-          className="p-2 border rounded"
+          className="input"
           required
         />
 
@@ -57,14 +59,14 @@ export const CreateReminder = ({ onReminderAdded }) => {
           type="datetime-local"
           value={dateTime}
           onChange={(e) => setDateTime(e.target.value)}
-          className="p-2 border rounded"
+          className="input"
           required
         />
 
         <select
           value={notificationType}
           onChange={(e) => setNotificationType(e.target.value)}
-          className="p-2 border rounded"
+          className="input"
         >
           <option value="push">🔔 Notification push</option>
           <option value="email">📧 Email</option>
@@ -73,7 +75,7 @@ export const CreateReminder = ({ onReminderAdded }) => {
         <select
             value={recurrence}
             onChange={(e) => setRecurrence(e.target.value)}
-            className="p-2 border rounded"
+            className="input"
         >
             <option value="once">📌 Une seule fois</option>
             <option value="daily">🔄 Quotidien</option>
@@ -81,11 +83,7 @@ export const CreateReminder = ({ onReminderAdded }) => {
             <option value="monthly">📆 Mensuel</option>
         </select>
 
-        <button
-          type="submit"
-          disabled={loading}
-          className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
-        >
+        <button type="submit" disabled={loading} className="btn-primary">
           {loading ? "Ajout en cours..." : "Créer le rappel"}
         </button>
       </form>

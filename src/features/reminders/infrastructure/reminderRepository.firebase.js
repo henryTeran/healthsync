@@ -47,8 +47,12 @@ export const deleteReminderRecord = async (reminderId) => {
   await deleteDoc(doc(db, "reminders", reminderId));
 };
 
-export const findMedicationReminders = async (medicationId) => {
-  const reminderQuery = query(remindersCollection, where("idMedication", "==", medicationId));
+export const findMedicationReminders = async (userId, medicationId) => {
+  const reminderQuery = query(
+    remindersCollection,
+    where("userId", "==", userId),
+    where("idMedication", "==", medicationId)
+  );
   return getDocs(reminderQuery);
 };
 

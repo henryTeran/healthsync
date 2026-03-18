@@ -49,8 +49,24 @@ export const findUserTrackedMedication = async (medicationId, name) => {
   return getDocs(medicationQuery);
 };
 
+export const findUserTrackedMedicationBySource = async (
+  userId,
+  sourcePrescriptionId,
+  sourceMedicationId
+) => {
+  const medicationQuery = query(
+    userMedicationsCollection,
+    where("userId", "==", userId),
+    where("sourcePrescriptionId", "==", sourcePrescriptionId),
+    where("sourceMedicationId", "==", sourceMedicationId)
+  );
+
+  return getDocs(medicationQuery);
+};
+
 export const addUserMedication = async (payload) => {
-  await addDoc(userMedicationsCollection, payload);
+  const docRef = await addDoc(userMedicationsCollection, payload);
+  return docRef.id;
 };
 
 export const findByPrescriptionAndName = async (idPrescription, name) => {

@@ -1,55 +1,36 @@
-import React, { useState, useEffect } from "react";
-import { addSymptom, getSymptomsByUserRealtime, updateSymptom, deleteSymptom } from "../../../features/symptoms";
+import React, { useEffect, useState } from "react";
+import PropTypes from "prop-types";
+import { addSymptom, updateSymptom } from "../../../features/symptoms";
 import { useAuth } from "../../../contexts/AuthContext";
 import { logError } from "../../../shared/lib/logger";
 
-
-export const SymptomForm = () => {
+export const SymptomForm = ({ editingSymptom, onClose }) => {
   const { user } = useAuth();
-  const [symptoms, setSymptoms] = useState([]);
-  const [formData, setFormData] = useState({ symptomName: "", intensity: "", causes: "", notes: "" });
+  const [formData, setFormData] = useState({
+    symptomName: "",
+    intensity: "5",
+    causes: "",
+    notes: "",
+  });
   const [editingSymptomId, setEditingSymptomId] = useState(null);
 
   useEffect(() => {
-    if (user) {
-        const unsubscribe = getSymptomsByUserRealtime(user.uid, (userSymptoms) => {
-            setSymptoms(sortSymptoms(userSymptoms));
-          });
-          return () => unsubscribe(); // Arrête l'écoute lorsque le composant est démonté
-    }
-  }, [user]);
-
-  const fetchSymptoms = async () => {
-    try {
-      const userSymptoms = await getSymptomsByUser(user.uid);
-      const sortedSymptoms = sortSymptoms(userSymptoms);
-      setSymptoms(sortedSymptoms);
-    } catch (error) {
-      logError("Erreur lors de la récupération des symptômes", error, {
-        feature: "symptoms",
-        action: "fetchSymptoms",
-        userId: user?.uid,
+    if (editingSymptom) {
+      setFormData({
+        symptomName: editingSymptom.symptomName || "",
+        intensity: String(editingSymptom.intensity || 5),
+        causes: Array.isArray(editingSymptom.causes)
+          ? editingSymptom.causes.join(", ")
+          : editingSymptom.causes || "",
+        notes: editingSymptom.notes || "",
       });
+      setEditingSymptomId(editingSymptom.id);
+      return;
     }
-  };
 
-  const sortSymptoms = (symptoms) => {
-    // Regrouper les symptômes par symptomName
-    const groupedSymptoms = symptoms.reduce((acc, symptom) => {
-      if (!acc[symptom.symptomName]) {
-        acc[symptom.symptomName] = [];
-      }
-      acc[symptom.symptomName].push(symptom);
-      return acc;
-    }, {});
-
-    // Trier chaque groupe par date décroissante
-    Object.keys(groupedSymptoms).forEach((key) => {
-      groupedSymptoms[key].sort((a, b) => new Date(b.date) - new Date(a.date));
-    });
-
-    return groupedSymptoms;
-  };
+    setFormData({ symptomName: "", intensity: "5", causes: "", notes: "" });
+    setEditingSymptomId(null);
+  }, [editingSymptom]);
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -58,14 +39,25 @@ export const SymptomForm = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
+      const payload = {
+        symptomName: formData.symptomName,
+        intensity: Number(formData.intensity),
+        causes: formData.causes
+          .split(",")
+          .map((item) => item.trim())
+          .filter(Boolean),
+        notes: formData.notes,
+        date: new Date().toISOString(),
+      };
+
       if (editingSymptomId) {
-        await updateSymptom(editingSymptomId, formData);
+        await updateSymptom(editingSymptomId, payload);
         setEditingSymptomId(null);
       } else {
-        await addSymptom(user.uid, { ...formData, date: new Date().toISOString() });
+        await addSymptom(user.uid, payload);
       }
-      setFormData({ symptomName: "", intensity: "", causes: "", notes: "" });
-      fetchSymptoms();
+      setFormData({ symptomName: "", intensity: "5", causes: "", notes: "" });
+      onClose?.();
     } catch (error) {
       logError("Erreur lors de l'ajout/mise à jour du symptôme", error, {
         feature: "symptoms",
@@ -76,123 +68,97 @@ export const SymptomForm = () => {
     }
   };
 
-  const handleEdit = (symptom) => {
-    setFormData({
-      symptomName: symptom.symptomName,
-      intensity: symptom.intensity,
-      causes: symptom.causes,
-      notes: symptom.notes,
-    });
-    setEditingSymptomId(symptom.id);
-  };
-
-  const handleDelete = async (symptomId) => {
-    try {
-      await deleteSymptom(symptomId);
-      fetchSymptoms();
-    } catch (error) {
-      logError("Erreur lors de la suppression du symptôme", error, {
-        feature: "symptoms",
-        action: "handleDelete",
-        userId: user?.uid,
-        symptomId,
-      });
-    }
-  };
-
   return (
-    <div className="bg-white shadow-lg rounded-2xl p-6">
-      <h2 className="text-lg font-semibold mb-4">Suivi des Symptômes</h2>
+    <div className="rounded-[20px] bg-white border border-neutral-100 shadow-sm p-6">
+      <div className="mb-4">
+        <h2 className="text-lg font-semibold text-neutral-900">
+          {editingSymptomId ? "Modifier un symptôme" : "Nouveau symptôme"}
+        </h2>
+        <p className="text-sm text-neutral-500">Enregistrez précisément l'évolution clinique du patient.</p>
+      </div>
+
       <form onSubmit={handleSubmit} className="space-y-4">
-        <input
-          type="text"
-          name="symptomName"
-          placeholder="Nom du symptôme"
-          value={formData.symptomName}
-          onChange={handleChange}
-          className="w-full p-2 border rounded"
-          required
-        />
-        <input
-          type="number"
-          name="intensity"
-          placeholder="Intensité (1-10)"
-          value={formData.intensity}
-          onChange={handleChange}
-          className="w-full p-2 border rounded"
-          required
-        />
-        <input
-          type="text"
-          name="causes"
-          placeholder="Possibles causes"
-          value={formData.causes}
-          onChange={handleChange}
-          className="w-full p-2 border rounded"
-          required
-        />
+        <div>
+          <label className="block text-sm font-medium text-neutral-700 mb-1">Nom du symptôme</label>
+          <input
+            type="text"
+            name="symptomName"
+            placeholder="Ex: céphalée, nausée..."
+            value={formData.symptomName}
+            onChange={handleChange}
+            className="input w-full"
+            required
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-neutral-700 mb-1">Intensité (1 à 10)</label>
+          <input
+            type="number"
+            min="1"
+            max="10"
+            name="intensity"
+            placeholder="5"
+            value={formData.intensity}
+            onChange={handleChange}
+            className="input w-full"
+            required
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-neutral-700 mb-1">Causes possibles</label>
+          <input
+            type="text"
+            name="causes"
+            placeholder="Séparez par des virgules"
+            value={formData.causes}
+            onChange={handleChange}
+            className="input w-full"
+            required
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-neutral-700 mb-1">Notes cliniques</label>
         <textarea
           name="notes"
-          placeholder="Notes"
+          placeholder="Détails contextuels, facteurs aggravants/soulageants..."
           value={formData.notes}
           onChange={handleChange}
-          className="w-full p-2 border rounded"
-        ></textarea>
-        <button type="submit" className="bg-blue-500 text-white p-2 rounded w-full">
-          {editingSymptomId ? "Mettre à jour" : "Ajouter"}
-        </button>
-      </form>
+          className="input w-full min-h-[90px]"
+          />
+        </div>
 
-      {/* Liste des symptômes classés */}
-      <h3 className="text-md font-semibold mt-6">Historique des Symptômes</h3>
-      <div className="mt-4">
-        {Object.keys(symptoms).length > 0 ? (
-          Object.entries(symptoms).map(([symptomName, symptomList]) => (
-            <div key={symptomName} className="mb-6">
-              <h4 className="text-lg font-bold text-blue-600">{symptomName}</h4>
-              <ul className="mt-2 space-y-2">
-                {symptomList.map((symptom) => (
-                  <li
-                    key={symptom.id}
-                    className="flex justify-between items-center bg-gray-100 p-3 rounded"
-                  >
-                    <div>
-                      <p className="text-sm">
-                        <span className="font-bold">Intensité :</span> {symptom.intensity}
-                      </p>
-                      <p className="text-sm">
-                        <span className="font-bold">Causes :</span> {symptom.causes}
-                      </p>
-                      <p className="text-sm">
-                        <span className="font-bold">Notes :</span> {symptom.notes}
-                      </p>
-                      <p className="text-sm text-gray-500">
-                        {new Date(symptom.date).toLocaleString()}
-                      </p>
-                    </div>
-                    <div className="space-x-2">
-                      <button
-                        onClick={() => handleEdit(symptom)}
-                        className="bg-yellow-500 text-white p-2 rounded"
-                      >
-                        Modifier
-                      </button>
-                      <button
-                        onClick={() => handleDelete(symptom.id)}
-                        className="bg-red-500 text-white p-2 rounded"
-                      >
-                        Supprimer
-                      </button>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ))
-        ) : (
-          <p className="text-gray-500">Aucun symptôme enregistré.</p>
-        )}
-      </div>
+        <div className="flex items-center justify-end gap-3 pt-2">
+          <button
+            type="button"
+            onClick={() => onClose?.()}
+            className="btn-secondary"
+          >
+            Annuler
+          </button>
+          <button type="submit" className="btn-primary">
+            {editingSymptomId ? "Mettre à jour" : "Ajouter le symptôme"}
+          </button>
+        </div>
+      </form>
     </div>
   );
+};
+
+SymptomForm.propTypes = {
+  editingSymptom: PropTypes.shape({
+    id: PropTypes.string,
+    symptomName: PropTypes.string,
+    intensity: PropTypes.number,
+    causes: PropTypes.oneOfType([PropTypes.string, PropTypes.arrayOf(PropTypes.string)]),
+    notes: PropTypes.string,
+  }),
+  onClose: PropTypes.func,
+};
+
+SymptomForm.defaultProps = {
+  editingSymptom: null,
+  onClose: undefined,
 };

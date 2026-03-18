@@ -11,6 +11,21 @@ import {
 } from "../infrastructure/reminderRepository.firebase";
 
 export const addReminderUseCase = async (userId, medication) => {
+  if (medication?.title && medication?.dateTime) {
+    const reminderData = {
+      userId,
+      title: medication.title,
+      details: medication.details || medication.title,
+      dateTime: medication.dateTime,
+      notificationType: medication.notificationType || "push",
+      status: medication.status || "pending",
+      recurrence: medication.recurrence || "once",
+      createdAt: new Date().toISOString(),
+    };
+
+    return createReminderRecord(reminderData);
+  }
+
   const reminderData = {
     userId,
     medicationId: medication.id,
@@ -46,9 +61,9 @@ export const listenForRemindersUseCase = (userId) => {
     const now = new Date();
 
     for (const reminder of reminders) {
-      const reminderTime = new Date(reminder.time);
+      const reminderTime = new Date(reminder.dateTime);
       if (reminderTime <= now && !reminder.sent) {
-        await sendNotification(userId, reminder.title, reminder.message);
+        await sendNotification(userId, reminder.title, reminder.details || reminder.message);
         await updateReminderUseCase(reminder.id, { sent: true });
       }
     }
@@ -74,7 +89,11 @@ export const updateMedicationScheduleUseCase = async (prescriptionId, newStartDa
 
 export const scheduleMedicationRemindersUseCase = async (userId, medication) => {
   const times = generateTimes(medication.frequency);
-  const existingReminders = await findMedicationReminders(medication.id);
+  if (!times.length || !medication?.startDate) {
+    return;
+  }
+
+  const existingReminders = await findMedicationReminders(userId, medication.id);
 
   if (!existingReminders.empty) {
     return;
@@ -85,14 +104,17 @@ export const scheduleMedicationRemindersUseCase = async (userId, medication) => 
       userId,
       idMedication: medication.id,
       title: `Rappel Médicament : ${medication.name}`,
-      dateTime: `${medication.startDate}T${time}:00`,
+      details: `Prenez ${medication.name} selon votre prescription`,
+      dateTime: new Date(`${medication.startDate}T${time}:00`),
       status: "pending",
+      recurrence: "daily",
+      sent: false,
     });
   }
 };
 
 export const updateMedicationRemindersUseCase = async (userId, medication) => {
-  const existingReminders = await findMedicationReminders(medication.id);
+  const existingReminders = await findMedicationReminders(userId, medication.id);
 
   await Promise.all(
     existingReminders.docs.map((item) => updateReminderRecord(item.id, { status: "canceled" }))

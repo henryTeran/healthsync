@@ -1,6 +1,6 @@
-import React, { useCallback, useContext, useEffect, useState } from "react";
+import { useCallback, useContext, useEffect, useMemo, useState } from "react";
 import PropTypes from "prop-types";
-import { useTable } from "react-table";
+import { Bell, CheckCheck, Trash2 } from "lucide-react";
 import { AuthContext } from "../../../contexts/AuthContext";
 import {
   deleteNotification,
@@ -20,7 +20,11 @@ export const NotificationsPage = ({ title = "Notifications" }) => {
 
     try {
       const notificationsData = await getNotificationsByUser(user.uid);
-      setNotifications(notificationsData);
+      setNotifications(
+        [...notificationsData].sort(
+          (left, right) => new Date(right.createdAt) - new Date(left.createdAt)
+        )
+      );
     } catch (error) {
       logError("Erreur lors de la récupération des notifications", error, {
         feature: "notifications",
@@ -36,160 +40,118 @@ export const NotificationsPage = ({ title = "Notifications" }) => {
     fetchNotifications();
   }, [fetchNotifications]);
 
-  const handleMarkAsRead = useCallback(async (notificationId) => {
-    try {
-      await markNotificationAsRead(notificationId);
-      fetchNotifications();
-    } catch (error) {
-      logError("Erreur lors de la mise à jour de la notification", error, {
-        feature: "notifications",
-        action: "handleMarkAsRead",
-        notificationId,
-      });
-    }
-  }, [fetchNotifications]);
-
-  const handleDeleteNotification = useCallback(async (notificationId) => {
-    try {
-      await deleteNotification(notificationId);
-      fetchNotifications();
-    } catch (error) {
-      logError("Erreur lors de la suppression de la notification", error, {
-        feature: "notifications",
-        action: "handleDeleteNotification",
-        notificationId,
-      });
-    }
-  }, [fetchNotifications]);
-
-  const columns = React.useMemo(
-    () => [
-      { Header: "Message", accessor: "message" },
-      { Header: "Date", accessor: "createdAt" },
-      {
-        Header: "Statut",
-        accessor: "read",
-        Cell: ({ value }) => (
-          <span
-            className={`px-2 py-1 text-xs font-semibold rounded-full ${
-              value ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"
-            }`}
-          >
-            {value ? "✅ Lu" : "🔴 Non lu"}
-          </span>
-        ),
-      },
-      {
-        Header: "Action",
-        accessor: "id",
-        Cell: ({ row }) => (
-          <button
-            onClick={() => handleMarkAsRead(row.original.id)}
-            disabled={row.original.read}
-            className={`px-3 py-1 rounded-lg text-white font-semibold ${
-              row.original.read
-                ? "bg-gray-400 cursor-not-allowed"
-                : "bg-blue-500 hover:bg-blue-600"
-            }`}
-          >
-            {row.original.read ? "Déjà lu" : "Marquer comme lu"}
-          </button>
-        ),
-      },
-      {
-        Header: "Supprimer",
-        accessor: "delete",
-        Cell: ({ row }) => (
-          <button
-            onClick={() => handleDeleteNotification(row.original.id)}
-            className="px-3 py-1 rounded-lg bg-red-500 text-white font-semibold hover:bg-red-600"
-          >
-            Supprimer
-          </button>
-        ),
-      },
-    ],
-    [handleDeleteNotification, handleMarkAsRead]
+  const handleMarkAsRead = useCallback(
+    async (notificationId) => {
+      try {
+        await markNotificationAsRead(notificationId);
+        fetchNotifications();
+      } catch (error) {
+        logError("Erreur mise à jour notification", error, {
+          feature: "notifications",
+          action: "handleMarkAsRead",
+          notificationId,
+        });
+      }
+    },
+    [fetchNotifications]
   );
 
-  const tableInstance = useTable({ columns, data: notifications ?? [] });
+  const handleDeleteNotification = useCallback(
+    async (notificationId) => {
+      try {
+        await deleteNotification(notificationId);
+        fetchNotifications();
+      } catch (error) {
+        logError("Erreur suppression notification", error, {
+          feature: "notifications",
+          action: "handleDeleteNotification",
+          notificationId,
+        });
+      }
+    },
+    [fetchNotifications]
+  );
 
-  if (isLoading) return <p className="text-center text-gray-500">Chargement...</p>;
+  const unreadCount = useMemo(
+    () => notifications.filter((item) => !item.read).length,
+    [notifications]
+  );
 
   return (
-    <div className="p-4 bg-white shadow-md rounded-lg">
-      <h2 className="text-xl font-semibold mb-4">{title}</h2>
-      {notifications.length === 0 ? (
-        <p className="text-gray-500">Aucune notification.</p>
-      ) : (
-        <table
-          {...tableInstance.getTableProps()}
-          className="w-full border-collapse border border-gray-200"
-        >
-          <thead className="bg-gray-100">
-            {tableInstance.headerGroups.map((headerGroup) => (
-              <tr
-                {...headerGroup.getHeaderGroupProps()}
-                key={headerGroup.id}
-                className="border-b"
+    <div className="min-h-screen bg-gradient-to-b from-medical-50/40 to-neutral-50 p-4 md:p-6 lg:p-8 space-y-8">
+      <div className="max-w-6xl mx-auto space-y-6">
+        <header>
+          <h1 className="text-3xl md:text-4xl font-bold text-neutral-900">{title}</h1>
+          <p className="text-sm text-neutral-500">
+            {unreadCount} non lue(s) sur {notifications.length}
+          </p>
+        </header>
+
+        {isLoading ? (
+          <div className="rounded-[20px] bg-white border border-neutral-100 shadow-sm p-10 text-center text-neutral-500">
+            Chargement...
+          </div>
+        ) : notifications.length === 0 ? (
+          <div className="rounded-[20px] bg-white border border-neutral-100 shadow-sm p-12 text-center">
+            <Bell className="h-12 w-12 text-neutral-300 mx-auto mb-3" />
+            <p className="text-neutral-500">Aucune notification</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {notifications.map((notification) => (
+              <div
+                key={notification.id}
+                className={`rounded-[20px] bg-white border shadow-sm p-5 ${
+                  notification.read ? "border-neutral-200 opacity-80" : "border-medical-200"
+                }`}
               >
-                {headerGroup.headers.map((column) => (
-                  <th
-                    {...column.getHeaderProps()}
-                    key={column.id}
-                    className="px-4 py-2 text-left font-medium text-gray-700"
-                  >
-                    {column.render("Header")}
-                  </th>
-                ))}
-              </tr>
-            ))}
-          </thead>
-          <tbody {...tableInstance.getTableBodyProps()}>
-            {tableInstance.rows.map((row, index) => {
-              tableInstance.prepareRow(row);
-              return (
-                <tr
-                  {...row.getRowProps()}
-                  key={row.original.id}
-                  className={`border-b ${index % 2 === 0 ? "bg-gray-50" : "bg-white"}`}
-                >
-                  {row.cells.map((cell) => (
-                    <td
-                      {...cell.getCellProps()}
-                      key={cell.column.id}
-                      className="px-4 py-2 text-gray-700"
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <p className="font-medium text-neutral-800">{notification.message}</p>
+                    <p className="text-xs text-neutral-500 mt-1">
+                      {new Date(notification.createdAt).toLocaleString("fr-FR")}
+                    </p>
+                    <span
+                      className={`inline-flex mt-2 px-2.5 py-1 rounded-full text-xs font-semibold ${
+                        notification.read
+                          ? "bg-neutral-100 text-neutral-700"
+                          : "bg-health-100 text-health-700"
+                      }`}
                     >
-                      {cell.render("Cell")}
-                    </td>
-                  ))}
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      )}
+                      {notification.read ? "Lu" : "Non lu"}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    {!notification.read && (
+                      <button
+                        type="button"
+                        onClick={() => handleMarkAsRead(notification.id)}
+                        className="inline-flex items-center gap-1 rounded-lg bg-health-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-health-700"
+                      >
+                        <CheckCheck className="h-3.5 w-3.5" />
+                        Lu
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteNotification(notification.id)}
+                      className="inline-flex items-center gap-1 rounded-lg bg-red-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-red-700"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                      Supprimer
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 };
 
-const RowPropType = PropTypes.shape({
-  original: PropTypes.shape({
-    id: PropTypes.string.isRequired,
-    read: PropTypes.bool.isRequired,
-  }).isRequired,
-});
-
-const ValuePropType = PropTypes.shape({
-  value: PropTypes.bool.isRequired,
-});
-
 NotificationsPage.propTypes = {
   title: PropTypes.string,
-  row: RowPropType,
-  value: ValuePropType,
-};
-
-NotificationsPage.defaultProps = {
-  title: "Notifications",
 };

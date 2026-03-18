@@ -1,11 +1,39 @@
 import { logError } from '../lib/logger';
+import { simulationMedicationsCompendium } from '../../data/simulationMedicationsCompendium';
 
 const API_URL = import.meta.env.VITE_DOCUMEDIS_API_URL;
 const API_TOKEN = import.meta.env.VITE_DOCUMEDIS_TOKEN;
 
 const BEARER_TOKEN = API_TOKEN;
 
+const toDocumedisShape = (items) => ({
+  products: items.map((item, index) => ({
+    productNumber: index + 1,
+    description: item.name,
+    atcCode: item.type || 'N/A',
+    compactMonographieDosageDescription: item.dosage || 'Dosage non précisé',
+    compactMonographieIndicationDescription: item.indication || 'Indication non précisée',
+    smallestArticle: {
+      description: item.packaging || 'Conditionnement test',
+      companyName: item.company || 'Données locales',
+    },
+  })),
+});
+
+const searchMedicationsFromLocalData = (medName) => {
+  const query = (medName || '').trim().toLowerCase();
+  const filtered = simulationMedicationsCompendium.filter((item) =>
+    item.name.toLowerCase().includes(query)
+  );
+
+  return toDocumedisShape(filtered.slice(0, 10));
+};
+
 export const searchMedications = async (medName) => {
+  if (!API_URL || !BEARER_TOKEN) {
+    return searchMedicationsFromLocalData(medName);
+  }
+
   const headers = {
     Authorization: `Bearer ${BEARER_TOKEN}`,
     'Accept-Language': 'fr-CH',
@@ -54,6 +82,6 @@ export const searchMedications = async (medName) => {
       action: 'searchMedications',
       medName,
     });
-    return null;
+    return searchMedicationsFromLocalData(medName);
   }
 };

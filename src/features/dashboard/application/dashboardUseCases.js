@@ -1,6 +1,7 @@
 import { getAppointmentsByUser } from "../../appointments";
 import { getPrescriptionsByPatient, getPrescriptionsByUser } from "../../prescriptions";
 import { getAuthorizedPatients, getUserProfile } from "../../profile";
+import { PRESCRIPTION_STATUS } from "../../prescriptions/domain/prescriptionStatus";
 import {
   findActiveUserMedications,
   findRecentSymptomsByUser,
@@ -30,7 +31,10 @@ export const getPatientDashboardDataUseCase = async (userId) => {
   ).length;
 
   const activePrescriptions = prescriptions.filter(
-    (prescription) => prescription.status === "received" || prescription.status === "validated"
+    (prescription) =>
+      prescription.status === PRESCRIPTION_STATUS.RECEIVED ||
+      prescription.status === PRESCRIPTION_STATUS.VALIDATED_BY_PATIENT ||
+      prescription.status === PRESCRIPTION_STATUS.ACTIVE
   ).length;
 
   const symptomsThisWeek = symptoms.filter(
@@ -72,7 +76,12 @@ export const getDoctorDashboardDataUseCase = async (userId) => {
   weekStart.setDate(weekStart.getDate() - weekStart.getDay());
 
   const todayAppointments = appointments.filter((appointment) => appointment.date === today).length;
-  const pendingPrescriptions = prescriptions.filter((prescription) => prescription.status === "send").length;
+  const pendingPrescriptions = prescriptions.filter(
+    (prescription) =>
+      prescription.status === PRESCRIPTION_STATUS.CREATED ||
+      prescription.status === PRESCRIPTION_STATUS.PDF_GENERATED ||
+      prescription.status === PRESCRIPTION_STATUS.SENT
+  ).length;
   const weeklyConsultations = appointments.filter((appointment) => {
     const appointmentDate = new Date(appointment.date);
     return appointmentDate >= weekStart && appointment.status === "accepté";

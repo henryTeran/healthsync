@@ -70,13 +70,12 @@ export const SymptomsPage = () => {
   const stats = getSymptomStats();
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-medical-50 via-white to-health-50 p-6">
+    <div className="min-h-screen bg-gradient-to-b from-medical-50/40 to-neutral-50 p-4 md:p-6 lg:p-8 space-y-8">
       <div className="max-w-7xl mx-auto space-y-8">
-        {/* Header */}
-        <div className="text-center">
-          <h1 className="text-3xl font-bold text-gradient mb-2">Suivi des Symptômes</h1>
-          <p className="text-neutral-600">Enregistrez et suivez l'évolution de vos symptômes</p>
-        </div>
+        <header>
+          <h1 className="text-3xl md:text-4xl font-bold text-neutral-900">Suivi des Symptômes</h1>
+          <p className="text-sm text-neutral-500">Enregistrez et suivez l'évolution clinique de vos symptômes.</p>
+        </header>
 
         {/* Statistiques */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">

@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useParams } from "react-router-dom";
 import { useAuth } from "../../../contexts/AuthContext";
 import { MedicationCard } from "./MedicationCard";
 import {
@@ -7,24 +8,32 @@ import {
   getMedicationsByPrescription,
   updateMedication,
 } from "../../../features/medications";
-import { getReceivedPrescriptionsByPatient } from "../../../features/prescriptions";
+import {
+  getReceivedPrescriptionsByPatient,
+  markPrescriptionAsReceived,
+  validatePrescriptionAndActivateTreatments,
+} from "../../../features/prescriptions";
 import { getUserProfile } from "../../../features/profile";
 import { 
   Pill, 
   User, 
   FileText,
-  Search
+  Search,
+  CheckCircle2
 } from "lucide-react";
 import { logError, logInfo } from "../../../shared/lib/logger";
 
 export const MedicationsPrescriptionPage = () => {
   const { user } = useAuth();
+  const { prescriptionId: prescriptionIdFromRoute } = useParams();
   const [medicationsByDoctor, setMedicationsByDoctor] = useState({});
   const [doctorsInfo, setDoctorsInfo] = useState({});
   const [selectedDoctor, setSelectedDoctor] = useState(null);
   const [selectedPrescription, setSelectedPrescription] = useState(null);
   const [editingMedication, setEditingMedication] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
+  const [startDate, setStartDate] = useState(new Date().toISOString().split("T")[0]);
+  const [isValidating, setIsValidating] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -40,7 +49,7 @@ export const MedicationsPrescriptionPage = () => {
     let groupedMedications = {};
     let doctors = {};
 
-    for (let prescription of allPrescriptions) {
+    for (const prescription of allPrescriptions) {
       const medications = await getMedicationsByPrescription(prescription.id);
       const doctorId = prescription.createdBy;
 
@@ -52,10 +61,42 @@ export const MedicationsPrescriptionPage = () => {
       if (!doctors[doctorId]) {
         doctors[doctorId] = await getUserProfile(doctorId);
       }
+
+      if (prescription.id === prescriptionIdFromRoute) {
+        setSelectedDoctor(doctorId);
+        setSelectedPrescription(prescription.id);
+        await markPrescriptionAsReceived(prescription.id, user.uid);
+      }
     }
 
     setMedicationsByDoctor(groupedMedications);
     setDoctorsInfo(doctors);
+  };
+
+  const handleValidatePrescription = async () => {
+    if (!selectedPrescription || !startDate) return;
+
+    setIsValidating(true);
+    try {
+      await validatePrescriptionAndActivateTreatments({
+        prescriptionId: selectedPrescription,
+        patientId: user.uid,
+        startDate,
+      });
+
+      await fetchUserMedications();
+      alert("Ordonnance validée et traitements activés avec succès.");
+    } catch (error) {
+      logError("Erreur validation ordonnance", error, {
+        feature: "medications",
+        action: "handleValidatePrescription",
+        selectedPrescription,
+        userId: user?.uid,
+      });
+      alert("Impossible de valider cette ordonnance.");
+    } finally {
+      setIsValidating(false);
+    }
   };
 
   const handleEditMedication = (medication) => {
@@ -108,19 +149,18 @@ export const MedicationsPrescriptionPage = () => {
   });
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-medical-50 via-white to-health-50 p-6">
+    <div className="min-h-screen bg-gradient-to-b from-medical-50/40 to-neutral-50 p-4 md:p-6 lg:p-8 space-y-8">
       <div className="max-w-7xl mx-auto space-y-8">
-        {/* Header */}
-        <div className="text-center">
-          <h1 className="text-3xl font-bold text-gradient mb-2">Mes Médicaments</h1>
-          <p className="text-neutral-600">Gérez vos traitements et prescriptions</p>
-        </div>
+        <header>
+          <h1 className="text-3xl md:text-4xl font-bold text-neutral-900">Mes Médications</h1>
+          <p className="text-sm text-neutral-500">Suivi des ordonnances reçues, validation et activation des traitements.</p>
+        </header>
 
         {/* Interface principale */}
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
           {/* Sidebar - Médecins */}
           <div className="lg:col-span-1">
-            <div className="card-medical p-6 sticky top-6">
+            <div className="rounded-[20px] bg-white border border-neutral-100 shadow-sm p-6 sticky top-6">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-lg font-semibold text-neutral-800">Médecins</h2>
                 <User className="h-5 w-5 text-medical-500" />
@@ -167,7 +207,7 @@ export const MedicationsPrescriptionPage = () => {
               <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
                 {/* Prescriptions */}
                 <div className="xl:col-span-1">
-                  <div className="card-medical p-6">
+                  <div className="rounded-[20px] bg-white border border-neutral-100 shadow-sm p-6">
                     <div className="flex items-center justify-between mb-4">
                       <h3 className="text-lg font-semibold text-neutral-800">Prescriptions</h3>
                       <FileText className="h-5 w-5 text-medical-500" />
@@ -207,6 +247,34 @@ export const MedicationsPrescriptionPage = () => {
                 <div className="xl:col-span-2">
                   {selectedPrescription ? (
                     <div className="space-y-6">
+                      <div className="rounded-[20px] border border-white/60 bg-white/90 backdrop-blur-sm shadow-medical p-5 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                        <div>
+                          <h4 className="text-lg font-semibold text-neutral-800">
+                            Validation de l'ordonnance
+                          </h4>
+                          <p className="text-sm text-neutral-600">
+                            Confirmez la date réelle de démarrage pour activer le suivi.
+                          </p>
+                        </div>
+                        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+                          <input
+                            type="date"
+                            value={startDate}
+                            onChange={(event) => setStartDate(event.target.value)}
+                            className="input"
+                          />
+                          <button
+                            type="button"
+                            onClick={handleValidatePrescription}
+                            disabled={isValidating}
+                            className="btn-primary inline-flex items-center justify-center gap-2"
+                          >
+                            <CheckCircle2 className="h-4 w-4" />
+                            <span>{isValidating ? "Validation..." : "Valider l'ordonnance"}</span>
+                          </button>
+                        </div>
+                      </div>
+
                       <div className="flex items-center justify-between">
                         <h3 className="text-xl font-semibold text-neutral-800">Médicaments</h3>
                         <div className="flex items-center space-x-2">
@@ -228,7 +296,7 @@ export const MedicationsPrescriptionPage = () => {
                             <div key={med.id}>
                               {editingMedication?.id === med.id ? (
                                 // Mode édition
-                                <div className="card-medical p-6">
+                                <div className="rounded-[20px] bg-white border border-neutral-100 shadow-sm p-6">
                                   <h4 className="text-lg font-semibold mb-4">Modifier le médicament</h4>
                                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div>
@@ -306,7 +374,7 @@ export const MedicationsPrescriptionPage = () => {
                       </div>
                     </div>
                   ) : (
-                    <div className="card-medical p-12 text-center">
+                    <div className="rounded-[20px] bg-white border border-neutral-100 shadow-sm p-12 text-center">
                       <FileText className="h-16 w-16 text-neutral-300 mx-auto mb-4" />
                       <h3 className="text-lg font-semibold text-neutral-600 mb-2">
                         Sélectionnez une prescription
@@ -319,7 +387,7 @@ export const MedicationsPrescriptionPage = () => {
                 </div>
               </div>
             ) : (
-              <div className="card-medical p-12 text-center">
+              <div className="rounded-[20px] bg-white border border-neutral-100 shadow-sm p-12 text-center">
                 <User className="h-16 w-16 text-neutral-300 mx-auto mb-4" />
                 <h3 className="text-lg font-semibold text-neutral-600 mb-2">
                   Sélectionnez un médecin

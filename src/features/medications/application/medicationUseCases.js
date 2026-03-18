@@ -4,6 +4,7 @@ import {
   findByPrescriptionAndName,
   findByPrescriptionId,
   findUserTrackedMedication,
+  findUserTrackedMedicationBySource,
   removeById,
   updateById,
 } from "../infrastructure/medicationRepository.firebase";
@@ -47,14 +48,16 @@ export const trackMedicationForUser = async ({
   startDate,
   durationText,
   idPrescription,
+  userId,
 }) => {
-  if (!medication || !startDate || !durationText) {
+  if (!medication || !startDate || !durationText || !userId) {
     throw new Error("Veuillez remplir tous les champs.");
   }
 
-  const existingMedications = await findUserTrackedMedication(
-    medication.id,
-    medication.name
+  const existingMedications = await findUserTrackedMedicationBySource(
+    userId,
+    idPrescription,
+    medication.id
   );
 
   if (!existingMedications.empty) {
@@ -75,7 +78,10 @@ export const trackMedicationForUser = async ({
   const times = generateTimes(medication.frequency);
 
   await addUserMedication({
+    userId,
     idMedication: medication.id,
+    sourceMedicationId: medication.id,
+    sourcePrescriptionId: idPrescription,
     name: medication.name,
     dosage: medication.dosage,
     frequency: medication.frequency,

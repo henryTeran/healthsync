@@ -29,7 +29,7 @@ export const scheduleNotifications = onSchedule("every 1 hours", async () => {
 
     for (const doc of remindersSnapshot.docs) {
       const reminder = doc.data();
-      const userRef = firestore.collection("users").doc(reminder.idUser);
+      const userRef = firestore.collection("users").doc(reminder.userId || reminder.idUser);
       const userDoc = await userRef.get();
 
       if (userDoc.exists && userDoc.data().fcmToken) {

@@ -22,18 +22,20 @@ export const ReminderList = () => {
   };
 
   return (
-    <div className="p-6 bg-white shadow-md rounded-lg">
-      <h2 className="text-lg font-semibold mb-4">📅 Historique des Rappels</h2>
+    <div className="rounded-[20px] bg-white border border-neutral-100 shadow-sm p-6">
+      <h2 className="text-lg font-semibold text-neutral-800 mb-1">Historique des rappels</h2>
+      <p className="text-sm text-neutral-600 mb-4">Suivez vos rappels et leur état d'exécution.</p>
       {reminders && reminders.length > 0 ? (
-        <ul>
+        <ul className="space-y-3">
           {reminders.map((reminder) => (
-            <li key={reminder.id} className="flex justify-between items-center p-3 border-b">
-              <div>
-                <p className="font-bold">{reminder.title}</p>
-                <p className="text-sm text-gray-500">
+            <li key={reminder.id} className="rounded-2xl border border-neutral-200 p-4 hover:border-medical-300 hover:shadow-sm transition">
+              <div className="flex justify-between items-start gap-4">
+                <div>
+                <p className="font-semibold text-neutral-800">{reminder.title}</p>
+                <p className="text-sm text-neutral-500">
                   {reminder.dateTime.toDate ? reminder.dateTime.toDate().toLocaleString() : new Date(reminder.dateTime).toLocaleString()}
                 </p>
-                <span className={`text-sm font-bold ${reminder.status === "completed" ? "text-green-500" : "text-gray-500"}`}>
+                <span className={`inline-flex mt-2 px-2.5 py-1 rounded-full text-xs font-semibold ${reminder.status === "completed" ? "bg-health-100 text-health-700" : "bg-neutral-100 text-neutral-700"}`}>
                   {reminder.status === "completed" ? "✅ Terminé" : "⏳ En attente"}
                 </span>
               </div>
@@ -41,23 +43,26 @@ export const ReminderList = () => {
                 {reminder.status === "pending" && (
                   <button
                     onClick={() => handleCompleteReminder(reminder)}
-                    className="bg-green-500 text-white px-2 py-1 rounded"
+                    className="rounded-lg bg-health-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-health-700"
                   >
                     ✅ Marquer comme fait
                   </button>
                 )}
                 <button
                   onClick={() => handleDeleteReminder(reminder.id)}
-                  className="bg-red-500 text-white px-2 py-1 rounded"
+                  className="rounded-lg bg-red-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-red-700"
                 >
                   ❌ Supprimer
                 </button>
+              </div>
               </div>
             </li>
           ))}
         </ul>
       ) : (
-        <p className="text-gray-500">Aucun rappel enregistré.</p>
+        <div className="rounded-xl border border-dashed border-neutral-300 bg-neutral-50 p-8 text-center text-neutral-500">
+          Aucun rappel enregistré.
+        </div>
       )}
     </div>
   );

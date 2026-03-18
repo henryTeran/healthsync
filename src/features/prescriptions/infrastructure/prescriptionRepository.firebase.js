@@ -9,6 +9,7 @@ import {
   where,
 } from "firebase/firestore";
 import { db } from "../../../providers/firebase";
+import { RECEIVED_OR_ACTIONABLE_STATUSES } from "../domain/prescriptionStatus";
 
 const prescriptionsCollection = collection(db, "prescriptions");
 
@@ -31,7 +32,7 @@ export const findReceivedByPatientId = async (patientId) => {
   const prescriptionsQuery = query(
     prescriptionsCollection,
     where("patientId", "==", patientId),
-    where("status", "==", "received")
+    where("status", "in", RECEIVED_OR_ACTIONABLE_STATUSES)
   );
 
   const snapshot = await getDocs(prescriptionsQuery);
