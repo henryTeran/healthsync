@@ -258,15 +258,17 @@
 
 ## 📄 FILE LOCATIONS
 
-All files are in project root (c:\Formations\Webprogramer\project\healthsync_projet\healthsync\):
+Audit files are in docs/audit under the project root (c:\Formations\Webprogramer\project\healthsync_projet\healthsync\):
 
 ```
 healthsync/
-├── AUDIT_SECURITE_DEPENDANCES.md      # Full technical audit
-├── QUICK_START.md                      # Quick reference
-├── EXECUTION_SUMMARY.md                # What was executed
-├── PRE_PRODUCTION_CHECKLIST.md         # Testing & deployment
-├── INDEX.md                            # This file
+├── docs/
+│   └── audit/
+│       ├── AUDIT_SECURITE_DEPENDANCES.md      # Full technical audit
+│       ├── QUICK_START.md                     # Quick reference
+│       ├── EXECUTION_SUMMARY.md               # What was executed
+│       ├── PRE_PRODUCTION_CHECKLIST.md        # Testing & deployment
+│       └── INDEX.md                           # This file
 ├── package.json                        # Updated dependencies ✅
 ├── package-lock.json                   # Updated lock file ✅
 └── ...other project files...

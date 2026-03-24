@@ -224,7 +224,7 @@ npm run test:ci
 ## 📋 GIT COMMIT SUMMARY
 
 ```bash
-git add package.json package-lock.json AUDIT_SECURITE_DEPENDANCES.md
+git add package.json package-lock.json docs/audit/AUDIT_SECURITE_DEPENDANCES.md docs/audit/EXECUTION_SUMMARY.md
 git commit -m "chore(deps): Audit complet sécurité & optimisation bundle
 
 - Remove unused dependencies: react-table, recharts, react-bootstrap, tesseract.js
@@ -242,8 +242,8 @@ git commit -m "chore(deps): Audit complet sécurité & optimisation bundle
   * Tests: PASS
   
 - Documentation:
-  * Add AUDIT_SECURITE_DEPENDANCES.md (comprehensive audit report)
-  * Add EXECUTION_SUMMARY.md (this file)
+  * Add docs/audit/AUDIT_SECURITE_DEPENDANCES.md (comprehensive audit report)
+  * Add docs/audit/EXECUTION_SUMMARY.md (this file)
 
 Breaking changes: None detected
 Migration needed: No
