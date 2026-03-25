@@ -156,7 +156,8 @@ export const buildSwissEPrescriptionPayload = ({
   return payload;
 };
 
-export const validateSwissEPrescriptionPayload = (payload) => {
+export const validateSwissEPrescriptionPayload = (payload, options = {}) => {
+  const requireSignedToken = options?.requireSignedToken !== false;
   const errors = [];
 
   const issuedAtDate = payload?.issuedAt ? new Date(payload.issuedAt) : null;
@@ -215,12 +216,14 @@ export const validateSwissEPrescriptionPayload = (payload) => {
     errors.push("La déclaration d'exclusion des stupéfiants est obligatoire pour E-Rezept Suisse.");
   }
 
-  if (!payload?.signedRegisteredToken) {
-    errors.push("Le jeton du dataset signé/enregistré est obligatoire (exigence QR E-Rezept Suisse).");
-  }
+  if (requireSignedToken) {
+    if (!payload?.signedRegisteredToken) {
+      errors.push("Le jeton du dataset signé/enregistré est obligatoire (exigence QR E-Rezept Suisse).");
+    }
 
-  if (String(payload?.signedRegisteredToken || "").trim().length < 12) {
-    errors.push("Le jeton e-Rezept semble invalide (longueur minimale 12).");
+    if (String(payload?.signedRegisteredToken || "").trim().length < 12) {
+      errors.push("Le jeton e-Rezept semble invalide (longueur minimale 12).");
+    }
   }
 
   if (!payload?.datasetChecksum) {

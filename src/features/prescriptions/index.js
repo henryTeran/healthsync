@@ -12,6 +12,8 @@ export {
   validatePrescriptionAndActivateTreatmentsUseCase,
 } from "./application/prescriptionUseCases";
 
+export { signAndRegisterSwissEPrescriptionUseCase } from "./application/ePrescriptionSigningUseCases";
+
 export {
   canValidatePrescription,
   getPrescriptionWorkflowState,
@@ -41,3 +43,5 @@ export {
   updatePrescriptionUseCase as updatePrescription,
   validatePrescriptionAndActivateTreatmentsUseCase as validatePrescriptionAndActivateTreatments,
 } from "./application/prescriptionUseCases";
+
+export { signAndRegisterSwissEPrescriptionUseCase as signAndRegisterSwissEPrescription } from "./application/ePrescriptionSigningUseCases";

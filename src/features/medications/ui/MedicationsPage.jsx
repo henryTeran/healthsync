@@ -7,6 +7,7 @@ import {
   generateSwissERxToken,
   getPrescriptionById,
   savePrescription,
+  signAndRegisterSwissEPrescription,
   SWISS_EPRESCRIPTION_ISSUE_TYPES,
   updatePrescription,
   validateSwissEPrescriptionPayload,
@@ -56,7 +57,11 @@ const getSwissMissingFields = ({
       medications: selectedMedications,
     });
 
-    missing.push(...validateSwissEPrescriptionPayload(payload));
+    missing.push(
+      ...validateSwissEPrescriptionPayload(payload, {
+        requireSignedToken: false,
+      })
+    );
   }
 
   if (requiresRevocationReason && !revocationReason.trim()) {
@@ -213,14 +218,42 @@ export const MedicationsPage = () => {
     }));
   };
 
-  const buildSwissPayloadOrFail = () => {
-    const ePrescription = buildSwissEPrescriptionPayload({
+  const buildSwissPayloadOrFail = async () => {
+    const basePayload = buildSwissEPrescriptionPayload({
       formValues: ePrescriptionForm,
       doctorProfile,
       patient: selectedPatient,
       prescriptionId: idPrescription,
       medications: selectedMedications,
     });
+
+    const preSigningErrors = validateSwissEPrescriptionPayload(basePayload, {
+      requireSignedToken: false,
+    });
+
+    if (preSigningErrors.length > 0) {
+      throw new Error(preSigningErrors[0]);
+    }
+
+    const signingResult = await signAndRegisterSwissEPrescription(basePayload);
+
+    const ePrescription = {
+      ...basePayload,
+      signedRegisteredToken: signingResult.signedRegisteredToken,
+      datasetChecksum: signingResult.datasetChecksum,
+      registration: {
+        registrationId: signingResult.registrationId,
+        registeredAt: signingResult.registeredAt,
+        serviceStatus: signingResult.serviceStatus,
+        serviceSignature: signingResult.serviceSignature,
+      },
+    };
+
+    setEPrescriptionForm((previous) => ({
+      ...previous,
+      signedRegisteredToken: signingResult.signedRegisteredToken,
+      reference: previous.reference || ePrescription.reference,
+    }));
 
     const validationErrors = validateSwissEPrescriptionPayload(ePrescription);
     if (validationErrors.length > 0) {
@@ -273,7 +306,7 @@ export const MedicationsPage = () => {
 
     try {
       if (!idPrescription) {
-        const swissPayload = buildSwissPayloadOrFail();
+        const swissPayload = await buildSwissPayloadOrFail();
 
         const prescriptionId = await savePrescription(user.uid, idPatient, swissPayload);
         setIdPrescription(prescriptionId);
@@ -316,7 +349,7 @@ export const MedicationsPage = () => {
 
     try {
       if (idPrescription) {
-        const swissPayload = buildSwissPayloadOrFail();
+        const swissPayload = await buildSwissPayloadOrFail();
         const currentPrescription = await getPrescriptionById(idPrescription);
 
         if (!currentPrescription) {
