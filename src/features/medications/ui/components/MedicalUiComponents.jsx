@@ -683,6 +683,7 @@ export const PrescriptionDocumentPreview = ({ prescription, patient, doctor }) =
             <p><span className="text-neutral-600">Standard:</span> {displayValue(ePrescription?.standard, "CH-ERX")}</p>
             <p><span className="text-neutral-600">Version:</span> {displayValue(ePrescription?.chmedVersion, "CHMED16A_R2")}</p>
             <p><span className="text-neutral-600">Référence:</span> {displayValue(ePrescription?.reference)}</p>
+            <p><span className="text-neutral-600">Checksum dataset:</span> {displayValue(ePrescription?.datasetChecksum)}</p>
             <p><span className="text-neutral-600">Date d&apos;émission:</span> {displayValue(ePrescription?.issuedAt, documentDate)}</p>
             <p><span className="text-neutral-600">Validité:</span> {displayValue(ePrescription?.validUntil)}</p>
             <p><span className="text-neutral-600">Type:</span> {displayValue(ePrescription?.issueType)}</p>
@@ -694,6 +695,7 @@ export const PrescriptionDocumentPreview = ({ prescription, patient, doctor }) =
             <p className="sm:col-span-2"><span className="text-neutral-600">Indication thérapeutique:</span> {displayValue(ePrescription?.therapeuticPurpose)}</p>
             <p><span className="text-neutral-600">N° AVS:</span> {displayValue(ePrescription?.patientAdministrative?.avsNumber)}</p>
             <p><span className="text-neutral-600">Assureur:</span> {displayValue(ePrescription?.patientAdministrative?.insuranceName)}</p>
+            <p><span className="text-neutral-600">N° assurance:</span> {displayValue(ePrescription?.patientAdministrative?.insuranceNumber)}</p>
             <p><span className="text-neutral-600">GLN:</span> {displayValue(ePrescription?.prescriber?.gln)}</p>
             <p><span className="text-neutral-600">RCC / ID pro:</span> {displayValue(ePrescription?.prescriber?.rcc || ePrescription?.prescriber?.professionalId)}</p>
             <p className="sm:col-span-2 break-all"><span className="text-neutral-600">Payload eRx:</span> {displayValue(ePrescription?.qrPayload)}</p>

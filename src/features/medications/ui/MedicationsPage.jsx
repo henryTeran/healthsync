@@ -4,6 +4,7 @@ import { MedicationSearch } from "./MedicationSearch";
 import { PrescriptionForm } from "../../prescriptions/ui/PrescriptionForm";
 import {
   buildSwissEPrescriptionPayload,
+  generateSwissERxToken,
   getPrescriptionById,
   savePrescription,
   SWISS_EPRESCRIPTION_ISSUE_TYPES,
@@ -33,41 +34,36 @@ const WORKFLOW_STEPS = [
 
 const getSwissMissingFields = ({
   ePrescriptionForm,
-  clinicalInfoForm,
+  selectedPatient,
+  doctorProfile,
+  idPrescription,
   selectedMedications,
   requiresRevocationReason,
   revocationReason,
 }) => {
   const missing = [];
 
-  if (!ePrescriptionForm.placeOfIssue?.trim()) missing.push("Lieu d'émission");
-  if (!ePrescriptionForm.issuedAt) missing.push("Date d'émission");
-  if (!ePrescriptionForm.validUntil) missing.push("Date de validité");
-  if (!ePrescriptionForm.therapeuticPurpose?.trim()) missing.push("Indication thérapeutique");
-  if (
-    !ePrescriptionForm.prescriberGLN?.trim() &&
-    !ePrescriptionForm.prescriberRCC?.trim() &&
-    !ePrescriptionForm.prescriberProfessionalId?.trim()
-  ) {
-    missing.push("Identifiant prescripteur (GLN/RCC/ID pro)");
+  if (!selectedPatient) {
+    missing.push("Patient sélectionné requis");
   }
-  if (!ePrescriptionForm.signedRegisteredToken?.trim()) missing.push("Token signé/enregistré");
-  if (!ePrescriptionForm.narcoticsExcludedDeclaration)
-    missing.push("Déclaration d'absence de stupéfiants");
-  if (!selectedMedications.length) missing.push("Au moins un médicament");
 
-  const hasNarcotics = selectedMedications.some(
-    (medication) => medication?.controlledSubstance || medication?.isNarcotic
-  );
-  if (hasNarcotics) missing.push("Stupéfiants détectés (non autorisés sur e-Rezept)");
+  if (selectedPatient) {
+    const payload = buildSwissEPrescriptionPayload({
+      formValues: ePrescriptionForm,
+      doctorProfile,
+      patient: selectedPatient,
+      prescriptionId: idPrescription,
+      medications: selectedMedications,
+    });
+
+    missing.push(...validateSwissEPrescriptionPayload(payload));
+  }
 
   if (requiresRevocationReason && !revocationReason.trim()) {
     missing.push("Motif de révocation obligatoire");
   }
 
-  if (!clinicalInfoForm?.diagnosis?.trim()) missing.push("Diagnostic recommandé");
-
-  return missing;
+  return [...new Set(missing)];
 };
 
 const IMMUTABLE_PRESCRIPTION_STATUSES = new Set([
@@ -426,14 +422,18 @@ export const MedicationsPage = () => {
     () =>
       getSwissMissingFields({
         ePrescriptionForm,
-        clinicalInfoForm,
+        selectedPatient,
+        doctorProfile,
+        idPrescription,
         selectedMedications,
         requiresRevocationReason,
         revocationReason,
       }),
     [
       ePrescriptionForm,
-      clinicalInfoForm,
+      selectedPatient,
+      doctorProfile,
+      idPrescription,
       selectedMedications,
       requiresRevocationReason,
       revocationReason,
@@ -444,8 +444,17 @@ export const MedicationsPage = () => {
 
   const handleGenerateSwissToken = () => {
     if (!user?.uid) return;
-    const token = `ERX-${new Date().toISOString().replace(/[-:.TZ]/g, "").slice(0, 14)}-${user.uid.slice(0, 6).toUpperCase()}`;
-    setEPrescriptionForm((previous) => ({ ...previous, signedRegisteredToken: token }));
+    const currentReference =
+      ePrescriptionForm.reference ||
+      `CH-ERX-${new Date().getFullYear()}-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
+
+    const token = generateSwissERxToken({ userId: user.uid, reference: currentReference });
+
+    setEPrescriptionForm((previous) => ({
+      ...previous,
+      reference: previous.reference || currentReference,
+      signedRegisteredToken: token,
+    }));
   };
 
   const handleApplySwissQuickDefaults = () => {
@@ -630,6 +639,22 @@ export const MedicationsPage = () => {
                         className="mt-1 h-10 w-full rounded-xl border border-neutral-200 bg-white px-3 text-sm"
                       />
                     </label>
+                    <label className="text-xs text-neutral-600">ZSR prescripteur
+                      <input
+                        type="text"
+                        value={ePrescriptionForm.prescriberZSR}
+                        onChange={(event) => setEPrescriptionForm((previous) => ({ ...previous, prescriberZSR: event.target.value }))}
+                        className="mt-1 h-10 w-full rounded-xl border border-neutral-200 bg-white px-3 text-sm"
+                      />
+                    </label>
+                    <label className="text-xs text-neutral-600">Identifiant professionnel
+                      <input
+                        type="text"
+                        value={ePrescriptionForm.prescriberProfessionalId}
+                        onChange={(event) => setEPrescriptionForm((previous) => ({ ...previous, prescriberProfessionalId: event.target.value }))}
+                        className="mt-1 h-10 w-full rounded-xl border border-neutral-200 bg-white px-3 text-sm"
+                      />
+                    </label>
                     <label className="text-xs text-neutral-600">Jeton dataset signé/enregistré
                       <input
                         type="text"
@@ -652,6 +677,14 @@ export const MedicationsPage = () => {
                         type="text"
                         value={ePrescriptionForm.insuranceName}
                         onChange={(event) => setEPrescriptionForm((previous) => ({ ...previous, insuranceName: event.target.value }))}
+                        className="mt-1 h-10 w-full rounded-xl border border-neutral-200 bg-white px-3 text-sm"
+                      />
+                    </label>
+                    <label className="text-xs text-neutral-600">N° assurance
+                      <input
+                        type="text"
+                        value={ePrescriptionForm.insuranceNumber}
+                        onChange={(event) => setEPrescriptionForm((previous) => ({ ...previous, insuranceNumber: event.target.value }))}
                         className="mt-1 h-10 w-full rounded-xl border border-neutral-200 bg-white px-3 text-sm"
                       />
                     </label>

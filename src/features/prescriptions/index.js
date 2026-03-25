@@ -21,6 +21,7 @@ export {
 
 export {
   buildSwissEPrescriptionPayload,
+  generateSwissERxToken,
   SWISS_EPRESCRIPTION_ISSUE_TYPES,
   validateSwissEPrescriptionPayload,
 } from "./domain/ePrescriptionSwiss";
