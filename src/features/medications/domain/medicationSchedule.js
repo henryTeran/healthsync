@@ -1,20 +1,58 @@
 export const extractFrequency = (text) => {
   if (!text || typeof text !== "string") return null;
-  const match = text.match(/(\d+) fois par jour/);
-  return match ? Number.parseInt(match[1], 10) : null;
+
+  const normalized = text
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim();
+
+  const directPerDay = normalized.match(/(\d+)\s*(x|fois)?\s*(par\s*)?(jour|j)/);
+  if (directPerDay) return Number.parseInt(directPerDay[1], 10);
+
+  if (normalized.includes("matin") && normalized.includes("midi") && normalized.includes("soir")) {
+    return 3;
+  }
+
+  if (normalized.includes("matin") && normalized.includes("soir")) {
+    return 2;
+  }
+
+  const anyNumber = normalized.match(/(\d+)/);
+  if (anyNumber) {
+    const parsed = Number.parseInt(anyNumber[1], 10);
+    if (parsed > 0 && parsed <= 8) return parsed;
+  }
+
+  return null;
 };
 
 export const extractDuration = (text) => {
   if (!text || typeof text !== "string") return null;
 
-  let match = text.match(/(\d+) jour/);
+  const normalized = text
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim();
+
+  let match = normalized.match(/(\d+)\s*jour/);
   if (match) return Number.parseInt(match[1], 10);
 
-  match = text.match(/(\d+) semaine/);
+  match = normalized.match(/(\d+)\s*semaine/);
   if (match) return Number.parseInt(match[1], 10) * 7;
 
-  match = text.match(/(\d+) mois/);
+  match = normalized.match(/(\d+)\s*mois/);
   if (match) return Number.parseInt(match[1], 10) * 30;
+
+  match = normalized.match(/(\d+)\s*(j|jr)/);
+  if (match) return Number.parseInt(match[1], 10);
+
+  const anyNumber = normalized.match(/(\d+)/);
+  if (anyNumber) {
+    const parsed = Number.parseInt(anyNumber[1], 10);
+    if (parsed > 0) return parsed;
+  }
 
   return null;
 };

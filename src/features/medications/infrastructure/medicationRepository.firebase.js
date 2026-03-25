@@ -25,13 +25,22 @@ export const findByPrescriptionId = async (idPrescription) => {
   );
   const querySnapshot = await getDocs(medicationsQuery);
 
-  return querySnapshot.docs.map((snapshot) => ({
-    id: snapshot.id,
-    ...snapshot.data(),
-  }));
+  return querySnapshot.docs.map((snapshot) => {
+    const data = snapshot.data();
+
+    return {
+      ...data,
+      id: data?.id ?? snapshot.id,
+      documentId: snapshot.id,
+    };
+  });
 };
 
 export const removeById = async (idMedication) => {
+  if (!idMedication || typeof idMedication !== "string") {
+    throw new Error("Identifiant document médicament invalide.");
+  }
+
   await deleteDoc(doc(db, "medications", idMedication));
 };
 

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+﻿import React, { useState } from "react";
 import { searchMedications } from "../../../shared/services/documedisService"; // 🔹 Importer la fonction qui appelle l'API
 import PropTypes from "prop-types";
 import { logDebug } from "../../../shared/lib/logger";
@@ -79,7 +79,7 @@ export const MedicationSearch = ({ onAddMedication }) => {
   };
 
   return (
-    <div className="rounded-xl border border-neutral-200 bg-neutral-50/70 p-4">
+    <div className="rounded-[20px] border border-neutral-100 bg-white shadow-sm p-4">
       <h3 className="text-base font-semibold text-neutral-900 mb-1">Rechercher un médicament</h3>
       <p className="text-xs text-neutral-500 mb-3">Source données locales (tests) • sélectionnez puis complétez la posologie.</p>
 
@@ -90,7 +90,7 @@ export const MedicationSearch = ({ onAddMedication }) => {
           value={searchTerm}
           onChange={handleSearch}
           placeholder="Rechercher un médicament..."
-          className="w-full h-12 rounded-xl border border-neutral-200 bg-white pl-11 pr-4 text-sm text-neutral-800 focus:outline-none focus:ring-2 focus:ring-medical-500"
+          className="h-11 w-full rounded-xl border border-neutral-200 bg-white px-4 pl-11 text-sm focus:ring-2 focus:ring-medical-500/20 focus:border-medical-500 outline-none"
         />
       </div>
 
@@ -102,12 +102,12 @@ export const MedicationSearch = ({ onAddMedication }) => {
 
       {/* 🔹 Liste des suggestions depuis l'API */}
       {filteredMedications.length > 0 && (
-        <ul className="border border-neutral-200 bg-white mt-2 rounded-xl max-h-52 overflow-y-auto shadow-soft">
+        <ul className="border border-neutral-200 bg-white mt-2 rounded-xl max-h-52 overflow-y-auto shadow-sm">
           {filteredMedications.map((med) => (
             <li
               key={med.id}
               onClick={() => handleSelectMedication(med)}
-              className="p-3 hover:bg-medical-50 cursor-pointer transition border-b border-neutral-100 last:border-b-0"
+              className="p-3 hover:bg-neutral-50 cursor-pointer transition border-b border-neutral-100 last:border-b-0"
             >
               <div className="flex items-center justify-between gap-2">
                 <div>
@@ -117,7 +117,7 @@ export const MedicationSearch = ({ onAddMedication }) => {
                     <span className="inline-flex px-2 py-0.5 rounded-full bg-medical-100 text-medical-700 text-[11px]">{med.type}</span>
                   </div>
                 </div>
-                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-health-100 text-health-700 text-[11px] font-medium">
+                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-emerald-100 text-emerald-700 text-[11px] font-medium">
                   <Sparkles className="h-3 w-3" />
                   {med.interactionBadge}
                 </span>
@@ -129,7 +129,7 @@ export const MedicationSearch = ({ onAddMedication }) => {
 
       {/* 🔹 Affichage des détails du médicament sélectionné */}
       {selectedMedication && (
-        <div className="mt-4 p-4 bg-white border border-medical-200 rounded-xl">
+        <div className="mt-4 p-4 bg-neutral-50 border border-neutral-200 rounded-xl">
           <h3 className="text-md font-semibold text-neutral-900 mb-3">{selectedMedication.name}</h3>
           <div className="mb-2">
             <label className="text-xs font-medium text-neutral-600">Type :</label>
@@ -137,7 +137,7 @@ export const MedicationSearch = ({ onAddMedication }) => {
               type="text"
               value={selectedMedication.type || ""}
               onChange={(e) => handleMedicationChange("type", e.target.value)}
-              className="input w-full mt-1"
+              className="h-11 w-full rounded-xl border border-neutral-200 bg-white px-4 text-sm focus:ring-2 focus:ring-medical-500/20 focus:border-medical-500 outline-none mt-1"
             />
           </div>
           <div className="mb-2">
@@ -146,7 +146,7 @@ export const MedicationSearch = ({ onAddMedication }) => {
               type="text"
               value={selectedMedication.dosage || ""}
               onChange={(e) => handleMedicationChange("dosage", e.target.value)}
-              className="input w-full mt-1"
+              className="h-11 w-full rounded-xl border border-neutral-200 bg-white px-4 text-sm focus:ring-2 focus:ring-medical-500/20 focus:border-medical-500 outline-none mt-1"
             />
           </div>
           <div className="mb-2">
@@ -155,7 +155,7 @@ export const MedicationSearch = ({ onAddMedication }) => {
               type="text"
               value={selectedMedication.frequency || ""}
               onChange={(e) => handleMedicationChange("frequency", e.target.value)}
-              className="input w-full mt-1"
+              className="h-11 w-full rounded-xl border border-neutral-200 bg-white px-4 text-sm focus:ring-2 focus:ring-medical-500/20 focus:border-medical-500 outline-none mt-1"
             />
           </div>
           <div className="mb-2">
@@ -164,7 +164,7 @@ export const MedicationSearch = ({ onAddMedication }) => {
               type="text"
               value={selectedMedication.duration || ""}
               onChange={(e) => handleMedicationChange("duration", e.target.value)}
-              className="input w-full mt-1"
+              className="h-11 w-full rounded-xl border border-neutral-200 bg-white px-4 text-sm focus:ring-2 focus:ring-medical-500/20 focus:border-medical-500 outline-none mt-1"
             />
           </div>
           <div className="mb-2">
@@ -172,11 +172,11 @@ export const MedicationSearch = ({ onAddMedication }) => {
             <textarea
               value={selectedMedication.sideEffects || ""}
               onChange={(e) => handleMedicationChange("sideEffects", e.target.value)}
-              className="input w-full mt-1"
+              className="w-full rounded-xl border border-neutral-200 bg-white px-4 py-3 text-sm focus:ring-2 focus:ring-medical-500/20 focus:border-medical-500 outline-none mt-1"
             />
           </div>
           <button
-            className="mt-2 btn-primary"
+            className="mt-2 h-11 rounded-xl bg-medical-600 hover:bg-medical-700 text-white font-medium px-5"
             onClick={handleAddToPrescription}
           >
             Ajouter à la prescription

@@ -1,10 +1,12 @@
-import React, { useMemo, useState, useEffect, useContext } from "react";
-import PropTypes from "prop-types";
-import { useTable, usePagination, useSortBy } from "react-table";
+import React, { useState, useEffect, useContext } from "react";
+import { Mail, MapPin, Phone } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { AuthContext } from "../../../../contexts/AuthContext";
 import { followPatientAsDoctor, getAllPatients, getAuthorizedPatients } from "../..";
 import { logError } from "../../../../shared/lib/logger";
+
+const PAGE_SIZE = 6;
+const DEFAULT_AVATAR = "/default-avatar.png";
 
 export const ListePatientsProfiles = () => {
   const [patients, setPatients] = useState([]);
@@ -74,131 +76,144 @@ export const ListePatientsProfiles = () => {
     }
   };
 
-  const columns = useMemo(
-    () => [
-      { Header: "Patient", accessor: "fullName" },
-      { Header: "Téléphone", accessor: "mobileNumber" },
-      { Header: "Email", accessor: "email" },
-      { Header: "Ville", accessor: "state" },
-      { Header: "Pays", accessor: "country" },
-      {
-        Header: "Date d'inscription",
-        accessor: "signupDate",
-        Cell: ({ value }) => (value ? new Date(value).toLocaleDateString() : "Non spécifié"),
-      },
-      {
-        Header: "Action",
-        accessor: "actions",
-        Cell: ({ row }) => {
-          const patientId = row.original.id;
-          const isAlreadyFollowed = followedPatients.includes(patientId);
+  const [pageIndex, setPageIndex] = useState(0);
 
-          return (
-            <div className="flex space-x-2">
-              {patientId ? (
-                <button
-                  onClick={() => navigate(`/patientprofile/${patientId}`)}
-                  className="bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600"
-                >
-                  Voir Profil
-                </button>
-              ) : (
-                <span className="text-gray-500">ID introuvable</span>
-              )}
-
-              {isDoctor && !isAlreadyFollowed && (
-                <button
-                  onClick={() => handleFollowPatient(patientId)}
-                  className="bg-green-500 text-white px-3 py-1 rounded hover:bg-green-600"
-                >
-                  Suivre Patient
-                </button>
-              )}
-
-              {isDoctor && isAlreadyFollowed && (
-                <span className="bg-gray-300 text-gray-700 px-3 py-1 rounded">Déjà suivi</span>
-              )}
-            </div>
-          );
-        },
-      },
-    ],
-    [navigate, isDoctor, followedPatients]
-  );
-
-  const data = useMemo(() => patients, [patients]);
-
-  const {
-    getTableProps,
-    getTableBodyProps,
-    headerGroups,
-    page,
-    prepareRow,
-    nextPage,
-    previousPage,
-    canNextPage,
-    canPreviousPage,
-    state: { pageIndex },
-  } = useTable(
-    { columns, data, initialState: { pageIndex: 0, pageSize: 5 } },
-    useSortBy,
-    usePagination
-  );
+  const pageCount = Math.ceil(patients.length / PAGE_SIZE);
+  const page = patients.slice(pageIndex * PAGE_SIZE, (pageIndex + 1) * PAGE_SIZE);
+  const canPreviousPage = pageIndex > 0;
+  const canNextPage = pageIndex < pageCount - 1;
 
   return (
-    <div className="p-6 bg-white shadow-lg rounded-lg">
-      <h2 className="text-2xl font-semibold text-gray-700 mb-6">Liste des Patients</h2>
+    <div className="min-h-screen bg-gradient-to-b from-medical-50/40 to-neutral-50 p-4 md:p-6 lg:p-8 space-y-8">
 
-      <table {...getTableProps()} className="min-w-full bg-white border border-gray-200">
-        <thead>
-          {headerGroups.map((headerGroup, index) => (
-            <tr {...headerGroup.getHeaderGroupProps()} key={index} className="border-b bg-gray-100">
-              {headerGroup.headers.map((column, colIndex) => (
-                <th
-                  {...column.getHeaderProps(column.getSortByToggleProps())}
-                  key={colIndex}
-                  className="px-6 py-3 text-left text-sm font-medium text-gray-500"
-                >
-                  {column.render("Header")}
-                  <span>{column.isSorted ? (column.isSortedDesc ? " ▼" : " ▲") : ""}</span>
-                </th>
-              ))}
-            </tr>
-          ))}
-        </thead>
-        <tbody {...getTableBodyProps()}>
-          {page.map((row, rowIndex) => {
-            prepareRow(row);
-            return (
-              <tr {...row.getRowProps()} key={rowIndex} className="border-b">
-                {row.cells.map((cell, cellIndex) => (
-                  <td {...cell.getCellProps()} key={cellIndex} className="px-6 py-4 text-sm text-gray-500">
-                    {cell.render("Cell")}
-                  </td>
-                ))}
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+      <header className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h1 className="text-3xl md:text-4xl font-bold text-neutral-900">Liste des Patients</h1>
+          <p className="text-sm text-neutral-500 mt-1">Consultez et suivez les patients enregistrés sur la plateforme.</p>
+        </div>
+        <div className="rounded-2xl border border-neutral-100 bg-white p-4 shadow-sm shrink-0">
+          <p className="text-xs text-neutral-500">Patients enregistrés</p>
+          <p className="text-2xl font-semibold text-neutral-900">{patients.length}</p>
+        </div>
+      </header>
 
-      <div className="flex justify-between mt-4">
-        <button onClick={previousPage} disabled={!canPreviousPage} className="bg-gray-300 px-4 py-2 rounded-lg">
-          Précédent
-        </button>
-        <span>Page {pageIndex + 1}</span>
-        <button onClick={nextPage} disabled={!canNextPage} className="bg-gray-300 px-4 py-2 rounded-lg">
-          Suivant
-        </button>
-      </div>
+      {patients.length === 0 ? (
+        <section className="rounded-[20px] border border-neutral-100 bg-white p-8 shadow-sm text-center">
+          <p className="text-base font-medium text-neutral-800">Aucun patient trouvé.</p>
+          <p className="text-sm text-neutral-500 mt-1">La liste sera affichée dès qu&apos;un profil patient est disponible.</p>
+        </section>
+      ) : (
+        <>
+          <section className="grid grid-cols-1 gap-6 md:grid-cols-2 2xl:grid-cols-3">
+            {page.map((patient) => {
+              const patientId = patient.id;
+              const isAlreadyFollowed = followedPatients.includes(patientId);
+              const fullName = patient.fullName || `${patient.firstName || ""} ${patient.lastName || ""}`.trim() || "Patient";
+              const city = [patient.state, patient.country].filter(Boolean).join(", ") || "Non renseigné";
+              const signupDate = patient.signupDate ? new Date(patient.signupDate).toLocaleDateString("fr-FR") : "—";
+              const avatar = patient.photoURL || DEFAULT_AVATAR;
+
+              return (
+                <article key={patientId} className="rounded-[20px] bg-white border border-neutral-100 p-5 shadow-sm hover:-translate-y-0.5 hover:shadow-md transition">
+                  <div className="mb-5 flex items-start justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <div className="h-12 w-12 overflow-hidden rounded-2xl border border-neutral-100 bg-neutral-100">
+                        <img
+                          src={avatar}
+                          alt={`Avatar ${fullName}`}
+                          className="h-full w-full object-cover"
+                          onError={(event) => {
+                            event.currentTarget.src = DEFAULT_AVATAR;
+                          }}
+                        />
+                      </div>
+                      <div>
+                        <h3 className="text-base font-semibold text-neutral-900">{fullName}</h3>
+                        <p className="text-sm text-neutral-500">Patient HealthSync</p>
+                      </div>
+                    </div>
+                    {isDoctor && isAlreadyFollowed ? (
+                      <span className="inline-flex items-center rounded-full bg-health-100 px-3 py-1 text-xs font-semibold text-health-700">
+                        Suivi
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center rounded-full bg-neutral-100 px-3 py-1 text-xs font-semibold text-neutral-600">
+                        Actif
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="h-px bg-neutral-100 mb-4" />
+
+                  <div className="space-y-2 mb-5">
+                    <div className="flex items-center gap-2 text-sm text-neutral-700">
+                      <Mail className="h-4 w-4 text-health-600 shrink-0" />
+                      <span className="truncate">{patient.email || "Non renseigné"}</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-sm text-neutral-700">
+                      <Phone className="h-4 w-4 text-health-600 shrink-0" />
+                      <span>{patient.mobileNumber || "Non renseigné"}</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-sm text-neutral-700">
+                      <MapPin className="h-4 w-4 text-health-600 shrink-0" />
+                      <span>{city}</span>
+                    </div>
+                  </div>
+
+                  <div className="mb-4">
+                    <span className="inline-flex items-center rounded-full bg-neutral-100 px-3 py-1 text-xs font-semibold text-neutral-600">
+                      Inscrit le {signupDate}
+                    </span>
+                  </div>
+
+                  <div className="flex flex-wrap gap-3">
+                    {patientId ? (
+                      <button
+                        onClick={() => navigate(`/patientprofile/${patientId}`)}
+                        className="inline-flex items-center rounded-xl bg-medical-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-medical-700 active:scale-95"
+                      >
+                        Voir profil
+                      </button>
+                    ) : (
+                      <span className="text-neutral-500 text-xs">ID introuvable</span>
+                    )}
+                    {isDoctor && !isAlreadyFollowed && (
+                      <button
+                        onClick={() => handleFollowPatient(patientId)}
+                        className="inline-flex items-center rounded-xl border border-health-200 bg-health-50 px-4 py-2 text-sm font-medium text-health-700 transition hover:bg-health-100 active:scale-95"
+                      >
+                        Suivre patient
+                      </button>
+                    )}
+                  </div>
+                </article>
+              );
+            })}
+          </section>
+
+          {pageCount > 1 && (
+            <div className="flex items-center justify-between">
+              <button
+                onClick={() => setPageIndex((p) => p - 1)}
+                disabled={!canPreviousPage}
+                className="rounded-xl border border-neutral-200 bg-white px-4 py-2 text-sm font-medium text-neutral-700 shadow-sm transition hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                Précédent
+              </button>
+              <span className="text-sm font-medium text-neutral-600">Page {pageIndex + 1} / {pageCount}</span>
+              <button
+                onClick={() => setPageIndex((p) => p + 1)}
+                disabled={!canNextPage}
+                className="rounded-xl border border-neutral-200 bg-white px-4 py-2 text-sm font-medium text-neutral-700 shadow-sm transition hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                Suivant
+              </button>
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 };
 
-ListePatientsProfiles.propTypes = {
-  row: PropTypes.shape({
-    original: PropTypes.shape({
-      id: PropTypes.string,
-    }),
-  }),
-};
+

@@ -13,6 +13,21 @@ export {
 } from "./application/prescriptionUseCases";
 
 export {
+  canValidatePrescription,
+  getPrescriptionWorkflowState,
+  isPrescriptionAlreadyValidated,
+  isPrescriptionEditableByPatient,
+} from "./domain/prescriptionWorkflow";
+
+export {
+  buildSwissEPrescriptionPayload,
+  SWISS_EPRESCRIPTION_ISSUE_TYPES,
+  validateSwissEPrescriptionPayload,
+} from "./domain/ePrescriptionSwiss";
+
+export { mapPrescriptionToPdfPreview } from "./application/prescriptionPresentationService";
+
+export {
   acceptPrescriptionUseCase as acceptPrescription,
   getPrescriptionByIdUseCase as getPrescriptionById,
   getReceivedPrescriptionsByPatientUseCase as getReceivedPrescriptionsByPatient,

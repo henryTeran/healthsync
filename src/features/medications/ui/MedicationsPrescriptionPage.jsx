@@ -1,53 +1,75 @@
-import { useState, useEffect } from "react";
+﻿import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
+import { CheckCircle2, Search } from "lucide-react";
 import { useAuth } from "../../../contexts/AuthContext";
-import { MedicationCard } from "./MedicationCard";
 import {
-  calculateEndDate,
-  generateTimes,
   getMedicationsByPrescription,
-  updateMedication,
 } from "../../../features/medications";
 import {
+  getPrescriptionWorkflowState,
   getReceivedPrescriptionsByPatient,
+  mapPrescriptionToPdfPreview,
   markPrescriptionAsReceived,
   validatePrescriptionAndActivateTreatments,
 } from "../../../features/prescriptions";
 import { getUserProfile } from "../../../features/profile";
-import { 
-  Pill, 
-  User, 
-  FileText,
-  Search,
-  CheckCircle2
-} from "lucide-react";
-import { logError, logInfo } from "../../../shared/lib/logger";
+import { logError } from "../../../shared/lib/logger";
+import {
+  PrescriptionDocumentPreview,
+  DoctorCard,
+  EmptyStateMedical,
+  MedicationItem,
+  PrescriptionStatusBadge,
+  PrescriptionPreviewPanel,
+  PrescriptionCard,
+  StepProgress,
+} from "./components/MedicalUiComponents";
+
+const WORKFLOW_STEPS = [
+  "Médecin",
+  "Ordonnance",
+  "Validation",
+  "Traitements actifs",
+];
+
+const statusToLabel = (status) => {
+  if (!status) return "en attente";
+  if (status === "validated_by_patient") return "validé";
+  if (status === "sent") return "envoyé";
+  if (status === "received") return "reçu";
+  if (status === "active") return "actif";
+  if (status === "completed") return "terminé";
+  if (status === "pdf_generated") return "brouillon";
+  return status;
+};
+
+const getStepIndex = (selectedDoctor, selectedPrescription, validated) => {
+  if (validated) return 3;
+  if (selectedPrescription) return 2;
+  if (selectedDoctor) return 1;
+  return 0;
+};
 
 export const MedicationsPrescriptionPage = () => {
   const { user } = useAuth();
   const { prescriptionId: prescriptionIdFromRoute } = useParams();
+
   const [medicationsByDoctor, setMedicationsByDoctor] = useState({});
   const [doctorsInfo, setDoctorsInfo] = useState({});
   const [selectedDoctor, setSelectedDoctor] = useState(null);
   const [selectedPrescription, setSelectedPrescription] = useState(null);
-  const [editingMedication, setEditingMedication] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [startDate, setStartDate] = useState(new Date().toISOString().split("T")[0]);
   const [isValidating, setIsValidating] = useState(false);
+  const [patientProfile, setPatientProfile] = useState(null);
 
-  useEffect(() => {
-    if (user) {
-      fetchUserMedications();
-    }
-  }, [user]);
-
-  const fetchUserMedications = async () => {
+  const fetchUserMedications = useCallback(async () => {
     if (!user) return;
 
     const allPrescriptions = await getReceivedPrescriptionsByPatient(user.uid);
 
-    let groupedMedications = {};
-    let doctors = {};
+    const groupedMedications = {};
+    const doctors = {};
 
     for (const prescription of allPrescriptions) {
       const medications = await getMedicationsByPrescription(prescription.id);
@@ -56,7 +78,18 @@ export const MedicationsPrescriptionPage = () => {
       if (!groupedMedications[doctorId]) {
         groupedMedications[doctorId] = [];
       }
-      groupedMedications[doctorId].push({ prescriptionId: prescription.id, medications, creationDate: prescription.creationDate });
+
+      groupedMedications[doctorId].push({
+        prescriptionId: prescription.id,
+        patientId: prescription.patientId,
+        createdBy: prescription.createdBy,
+        medications,
+        creationDate: prescription.creationDate,
+        status: prescription.status,
+        validation: prescription.validation || null,
+        metadata: prescription.metadata || null,
+        clinicalInfo: prescription.clinicalInfo || null,
+      });
 
       if (!doctors[doctorId]) {
         doctors[doctorId] = await getUserProfile(doctorId);
@@ -71,10 +104,41 @@ export const MedicationsPrescriptionPage = () => {
 
     setMedicationsByDoctor(groupedMedications);
     setDoctorsInfo(doctors);
-  };
+  }, [prescriptionIdFromRoute, user]);
+
+  useEffect(() => {
+    if (user) {
+      fetchUserMedications();
+    }
+  }, [fetchUserMedications, user]);
+
+  useEffect(() => {
+    const fetchPatientProfile = async () => {
+      if (!user?.uid) return;
+
+      try {
+        const profile = await getUserProfile(user.uid);
+        setPatientProfile(profile);
+      } catch (error) {
+        logError("Erreur chargement profil patient", error, {
+          feature: "medications",
+          action: "fetchPatientProfile",
+          userId: user?.uid,
+        });
+      }
+    };
+
+    fetchPatientProfile();
+  }, [user?.uid]);
 
   const handleValidatePrescription = async () => {
     if (!selectedPrescription || !startDate) return;
+
+    const workflowState = getPrescriptionWorkflowState(selectedPrescriptionData, user?.uid);
+    if (!workflowState.canValidate) {
+      alert(workflowState.message || workflowState.validationBlockedReason || "Ordonnance déjà validée.");
+      return;
+    }
 
     setIsValidating(true);
     try {
@@ -93,313 +157,237 @@ export const MedicationsPrescriptionPage = () => {
         selectedPrescription,
         userId: user?.uid,
       });
-      alert("Impossible de valider cette ordonnance.");
+      alert(error?.message || "Impossible de valider cette ordonnance.");
     } finally {
       setIsValidating(false);
     }
   };
 
-  const handleEditMedication = (medication) => {
-    setEditingMedication(medication);
-  };
+  const filteredDoctors = useMemo(
+    () =>
+      Object.keys(doctorsInfo).filter((doctorId) => {
+        const doctor = doctorsInfo[doctorId];
+        return `${doctor?.firstName || ""} ${doctor?.lastName || ""}`
+          .toLowerCase()
+          .includes(searchTerm.toLowerCase());
+      }),
+    [doctorsInfo, searchTerm]
+  );
 
-  const handleSaveMedication = async () => {
-    if (!editingMedication) return;
+  const prescriptionsForDoctor = selectedDoctor ? medicationsByDoctor[selectedDoctor] || [] : [];
+  const selectedPrescriptionData = prescriptionsForDoctor.find(
+    (prescription) => prescription.prescriptionId === selectedPrescription
+  );
+  const selectedMedications = selectedPrescriptionData?.medications || [];
+  const workflowState = getPrescriptionWorkflowState(selectedPrescriptionData, user?.uid);
+  const validated = workflowState.isLocked;
+  const stepIndex = getStepIndex(selectedDoctor, selectedPrescription, validated);
 
-    const { id, name, dosage, frequency, startDate, duration } = editingMedication;
-    const newEndDate = calculateEndDate(startDate, duration);
-    const newTimes = generateTimes(frequency);
+  const activeTreatments = Object.values(medicationsByDoctor)
+    .flatMap((prescriptions) => prescriptions.flatMap((prescription) => prescription.medications || []))
+    .length;
 
-    await updateMedication(id, {
-      name,
-      dosage,
-      frequency,
-      startDate,
-      duration, // On garde la durée en texte (ex: "2 semaines")
-      endDate: newEndDate,
-      times: newTimes,
-    });
-
-    setEditingMedication(null);
-    fetchUserMedications();
-  };
-
-  const handleDeleteMedication = async (medication) => {
-    if (window.confirm('Êtes-vous sûr de vouloir supprimer ce médicament ?')) {
-      try {
-        // Logique de suppression à implémenter
-        logInfo("Suppression médicament demandée (non implémentée)", {
-          feature: "medications",
-          action: "handleDeleteMedication",
-          medicationId: medication?.id,
-        });
-      } catch (error) {
-        logError("Erreur lors de la suppression du médicament", error, {
-          feature: "medications",
-          action: "handleDeleteMedication",
-          medicationId: medication?.id,
-        });
-      }
-    }
-  };
-
-  const filteredDoctors = Object.keys(doctorsInfo).filter(doctorId => {
-    const doctor = doctorsInfo[doctorId];
-    return `${doctor.firstName} ${doctor.lastName}`.toLowerCase().includes(searchTerm.toLowerCase());
+  const previewPrescription = mapPrescriptionToPdfPreview({
+    prescription: selectedPrescriptionData
+      ? {
+          id: selectedPrescriptionData.prescriptionId,
+          creationDate: selectedPrescriptionData.creationDate,
+          medications: selectedMedications,
+          status: selectedPrescriptionData.status,
+          metadata: selectedPrescriptionData.metadata,
+          clinicalInfo: selectedPrescriptionData.clinicalInfo,
+          validation: selectedPrescriptionData.validation,
+          patientId: selectedPrescriptionData.patientId,
+        }
+      : null,
+    patient: patientProfile,
+    doctor: doctorsInfo[selectedDoctor],
   });
 
-  return (
-    <div className="min-h-screen bg-gradient-to-b from-medical-50/40 to-neutral-50 p-4 md:p-6 lg:p-8 space-y-8">
-      <div className="max-w-7xl mx-auto space-y-8">
-        <header>
-          <h1 className="text-3xl md:text-4xl font-bold text-neutral-900">Mes Médications</h1>
-          <p className="text-sm text-neutral-500">Suivi des ordonnances reçues, validation et activation des traitements.</p>
-        </header>
+  useEffect(() => {
+    if (workflowState?.patientStartDate) {
+      setStartDate(workflowState.patientStartDate);
+    }
+  }, [workflowState?.patientStartDate]);
 
-        {/* Interface principale */}
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
-          {/* Sidebar - Médecins */}
-          <div className="lg:col-span-1">
-            <div className="rounded-[20px] bg-white border border-neutral-100 shadow-sm p-6 sticky top-6">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-semibold text-neutral-800">Médecins</h2>
-                <User className="h-5 w-5 text-medical-500" />
-              </div>
-              
-              {/* Recherche */}
-              <div className="relative mb-4">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-neutral-400" />
-                <input
-                  type="text"
-                  placeholder="Rechercher..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 bg-neutral-50 border border-neutral-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-medical-500"
-                />
-              </div>
-              
-              <div className="space-y-2 max-h-96 overflow-y-auto scrollbar-thin">
-                {filteredDoctors.map((doctorId) => (
-                  <button
-                    key={doctorId}
-                    onClick={() => setSelectedDoctor(doctorId)}
-                    className={`w-full p-3 text-left rounded-xl transition-all duration-200 ${
-                      selectedDoctor === doctorId
-                        ? "bg-medical-100 text-medical-700 border-2 border-medical-300"
-                        : "hover:bg-neutral-50 border-2 border-transparent"
-                    }`}
-                  >
-                    <div className="font-medium">
-                      Dr. {doctorsInfo[doctorId]?.firstName} {doctorsInfo[doctorId]?.lastName}
-                    </div>
-                    <div className="text-sm text-neutral-500">
-                      {medicationsByDoctor[doctorId]?.length || 0} prescription{medicationsByDoctor[doctorId]?.length > 1 ? 's' : ''}
-                    </div>
-                  </button>
-                ))}
-              </div>
+  return (
+    <div className="min-h-screen bg-gradient-to-b from-medical-50/40 to-neutral-50 p-4 md:p-6 lg:p-8 space-y-6">
+        <header className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <h1 className="text-3xl md:text-4xl font-bold text-neutral-900">Mes Médications</h1>
+            <p className="text-sm text-neutral-500 mt-1">Consultez vos ordonnances, validez leur démarrage et suivez vos traitements actifs.</p>
+          </div>
+          <div className="flex gap-3 shrink-0">
+            <div className="rounded-2xl border border-neutral-100 bg-white p-4 shadow-sm">
+              <p className="text-xs text-neutral-500">Prescriptions</p>
+              <p className="text-2xl font-semibold text-neutral-900">{Object.values(medicationsByDoctor).flat().length}</p>
+            </div>
+            <div className="rounded-2xl border border-neutral-100 bg-white p-4 shadow-sm">
+              <p className="text-xs text-neutral-500">Traitements actifs</p>
+              <p className="text-2xl font-semibold text-neutral-900">{activeTreatments}</p>
             </div>
           </div>
+        </header>
 
-          {/* Contenu principal */}
-          <div className="lg:col-span-3">
+        <StepProgress steps={WORKFLOW_STEPS} currentStep={stepIndex} />
+
+        <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
+          <aside className="xl:col-span-3 rounded-[20px] border border-neutral-100 bg-white shadow-sm p-4 sm:p-5 space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-neutral-900 font-semibold">Médecins</h2>
+              <PrescriptionStatusBadge status={`${filteredDoctors.length} actif(s)`} className="bg-neutral-100 text-neutral-700 border-neutral-200" />
+            </div>
+
+            <label className="relative block">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-400" />
+              <input
+                type="text"
+                placeholder="Rechercher un médecin"
+                value={searchTerm}
+                onChange={(event) => setSearchTerm(event.target.value)}
+                className="h-11 w-full rounded-xl border border-neutral-200 bg-white pl-10 pr-4 text-sm focus:ring-2 focus:ring-medical-500/20 focus:border-medical-500 outline-none"
+              />
+            </label>
+
+            <div className="space-y-3 max-h-[68vh] overflow-y-auto pr-1">
+              {filteredDoctors.map((doctorId) => (
+                <DoctorCard
+                  key={doctorId}
+                  doctor={doctorsInfo[doctorId]}
+                  selected={selectedDoctor === doctorId}
+                  onSelect={() => {
+                    setSelectedDoctor(doctorId);
+                    setSelectedPrescription(null);
+                  }}
+                  prescriptionsCount={medicationsByDoctor[doctorId]?.length || 0}
+                />
+              ))}
+
+              {filteredDoctors.length === 0 ? (
+                <EmptyStateMedical
+                  title="Aucun médecin trouvé"
+                  description="Ajustez votre recherche pour afficher vos prescripteurs."
+                />
+              ) : null}
+            </div>
+          </aside>
+
+          <section className="xl:col-span-5 rounded-[20px] border border-neutral-100 bg-white shadow-sm p-4 sm:p-6 space-y-4">
             {selectedDoctor ? (
-              <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
-                {/* Prescriptions */}
-                <div className="xl:col-span-1">
-                  <div className="rounded-[20px] bg-white border border-neutral-100 shadow-sm p-6">
-                    <div className="flex items-center justify-between mb-4">
-                      <h3 className="text-lg font-semibold text-neutral-800">Prescriptions</h3>
-                      <FileText className="h-5 w-5 text-medical-500" />
-                    </div>
-                    
-                    <div className="space-y-3 max-h-96 overflow-y-auto scrollbar-thin">
-                      {medicationsByDoctor[selectedDoctor]
-                        ?.sort((a, b) => new Date(b.creationDate) - new Date(a.creationDate))
-                        .map(({ prescriptionId, creationDate }) => (
-                          <button
-                            key={prescriptionId}
-                            onClick={() => setSelectedPrescription(prescriptionId)}
-                            className={`w-full p-4 text-left rounded-xl transition-all duration-200 ${
-                              selectedPrescription === prescriptionId
-                                ? "bg-health-100 text-health-700 border-2 border-health-300"
-                                : "bg-white border-2 border-neutral-200 hover:border-medical-300"
-                            }`}
-                          >
-                            <div className="flex items-center space-x-3">
-                              <div className="w-10 h-10 bg-gradient-to-br from-health-400 to-health-500 rounded-xl flex items-center justify-center">
-                                <FileText className="h-5 w-5 text-white" />
-                              </div>
-                              <div>
-                                <div className="font-medium">Prescription #{prescriptionId.slice(-6)}</div>
-                                <div className="text-sm text-neutral-500">
-                                  {new Date(creationDate).toLocaleDateString('fr-FR')}
-                                </div>
-                              </div>
-                            </div>
-                          </button>
-                        ))}
+              <>
+                <h3 className="text-neutral-900 font-semibold text-xl">Prescriptions reçues</h3>
+                <div className="space-y-3 max-h-[30vh] overflow-y-auto pr-1">
+                  {prescriptionsForDoctor
+                    .sort((a, b) => new Date(b.creationDate) - new Date(a.creationDate))
+                    .map(({ prescriptionId, creationDate, status, medications }) => (
+                      <PrescriptionCard
+                        key={prescriptionId}
+                        title={`Ordonnance #${prescriptionId.slice(-6)}`}
+                        subtitle={new Date(creationDate).toLocaleDateString("fr-FR")}
+                        status={statusToLabel(status)}
+                        selected={selectedPrescription === prescriptionId}
+                        onSelect={() => setSelectedPrescription(prescriptionId)}
+                        medicationsCount={medications.length}
+                      />
+                    ))}
+                </div>
+
+                {selectedPrescription ? (
+                  <div className="space-y-4">
+                    <section className="rounded-[20px] border border-neutral-100 bg-neutral-50 p-4">
+                      {workflowState.canValidate ? (
+                        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
+                          <div>
+                            <h4 className="text-neutral-900 font-semibold">Validation de l&apos;ordonnance</h4>
+                            <p className="text-sm text-neutral-500">Confirmez la date de démarrage pour activer le suivi thérapeutique.</p>
+                          </div>
+                          <div className="flex flex-col sm:flex-row gap-2">
+                            <input
+                              type="date"
+                              value={startDate}
+                              onChange={(event) => setStartDate(event.target.value)}
+                              className="h-11 rounded-xl border border-neutral-200 bg-white px-4 text-sm focus:ring-2 focus:ring-medical-500/20 focus:border-medical-500 outline-none"
+                            />
+                            <button
+                              type="button"
+                              onClick={handleValidatePrescription}
+                              disabled={isValidating || !startDate}
+                              className="h-11 rounded-xl bg-medical-600 hover:bg-medical-700 disabled:bg-neutral-300 text-white font-medium px-5 inline-flex items-center justify-center gap-2"
+                            >
+                              <CheckCircle2 className="h-4 w-4" />
+                              {isValidating ? "Validation..." : "Valider l'ordonnance"}
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <h4 className="text-neutral-900 font-semibold">Ordonnance déjà validée</h4>
+                            <PrescriptionStatusBadge status={statusToLabel(selectedPrescriptionData?.status)} />
+                          </div>
+                          <p className="text-sm text-neutral-600">{workflowState.message || workflowState.validationBlockedReason || "Validation indisponible."}</p>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm text-neutral-600">
+                            <p>Validation : {workflowState.validatedAt ? new Date(workflowState.validatedAt).toLocaleDateString("fr-FR") : "Non renseignée"}</p>
+                            <p>Début traitement : {workflowState.patientStartDate ? new Date(workflowState.patientStartDate).toLocaleDateString("fr-FR") : "Non renseigné"}</p>
+                          </div>
+                        </div>
+                      )}
+                    </section>
+
+                    <div className="space-y-3">
+                      {selectedMedications.map((medication) => (
+                        <MedicationItem
+                          key={medication.id}
+                          medication={medication}
+                          actions={false}
+                          readonlyActions
+                          onViewDetails={() => alert("Le détail complet est visible dans l'aperçu clinique à droite.")}
+                          onContactDoctor={() => alert("Contact médecin : utilisez la messagerie sécurisée HealthSync.")}
+                          onReportProblem={() => alert("Signalement enregistré. Un professionnel vous répondra rapidement.")}
+                        />
+                      ))}
                     </div>
                   </div>
-                </div>
-
-                {/* Médicaments */}
-                <div className="xl:col-span-2">
-                  {selectedPrescription ? (
-                    <div className="space-y-6">
-                      <div className="rounded-[20px] border border-white/60 bg-white/90 backdrop-blur-sm shadow-medical p-5 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                        <div>
-                          <h4 className="text-lg font-semibold text-neutral-800">
-                            Validation de l'ordonnance
-                          </h4>
-                          <p className="text-sm text-neutral-600">
-                            Confirmez la date réelle de démarrage pour activer le suivi.
-                          </p>
-                        </div>
-                        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-                          <input
-                            type="date"
-                            value={startDate}
-                            onChange={(event) => setStartDate(event.target.value)}
-                            className="input"
-                          />
-                          <button
-                            type="button"
-                            onClick={handleValidatePrescription}
-                            disabled={isValidating}
-                            className="btn-primary inline-flex items-center justify-center gap-2"
-                          >
-                            <CheckCircle2 className="h-4 w-4" />
-                            <span>{isValidating ? "Validation..." : "Valider l'ordonnance"}</span>
-                          </button>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center justify-between">
-                        <h3 className="text-xl font-semibold text-neutral-800">Médicaments</h3>
-                        <div className="flex items-center space-x-2">
-                          <Pill className="h-5 w-5 text-medical-500" />
-                          <span className="text-sm text-neutral-600">
-                            {medicationsByDoctor[selectedDoctor]
-                              ?.find(prescription => prescription.prescriptionId === selectedPrescription)
-                              ?.medications.length || 0} médicament{medicationsByDoctor[selectedDoctor]
-                              ?.find(prescription => prescription.prescriptionId === selectedPrescription)
-                              ?.medications.length > 1 ? 's' : ''}
-                          </span>
-                        </div>
-                      </div>
-                      
-                      <div className="grid grid-cols-1 gap-6">
-                        {medicationsByDoctor[selectedDoctor]
-                          ?.find(prescription => prescription.prescriptionId === selectedPrescription)
-                          ?.medications.map((med) => (
-                            <div key={med.id}>
-                              {editingMedication?.id === med.id ? (
-                                // Mode édition
-                                <div className="rounded-[20px] bg-white border border-neutral-100 shadow-sm p-6">
-                                  <h4 className="text-lg font-semibold mb-4">Modifier le médicament</h4>
-                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div>
-                                      <label className="block text-sm font-medium text-neutral-700 mb-2">Nom</label>
-                                      <input
-                                        type="text"
-                                        className="input w-full"
-                                        value={editingMedication.name}
-                                        onChange={(e) => setEditingMedication({ ...editingMedication, name: e.target.value })}
-                                      />
-                                    </div>
-                                    <div>
-                                      <label className="block text-sm font-medium text-neutral-700 mb-2">Dosage</label>
-                                      <input
-                                        type="text"
-                                        className="input w-full"
-                                        value={editingMedication.dosage}
-                                        onChange={(e) => setEditingMedication({ ...editingMedication, dosage: e.target.value })}
-                                      />
-                                    </div>
-                                    <div>
-                                      <label className="block text-sm font-medium text-neutral-700 mb-2">Fréquence</label>
-                                      <input
-                                        type="text"
-                                        className="input w-full"
-                                        value={editingMedication.frequency}
-                                        onChange={(e) => setEditingMedication({ ...editingMedication, frequency: e.target.value })}
-                                      />
-                                    </div>
-                                    <div>
-                                      <label className="block text-sm font-medium text-neutral-700 mb-2">Date de début</label>
-                                      <input
-                                        type="date"
-                                        className="input w-full"
-                                        value={editingMedication.startDate}
-                                        onChange={(e) => setEditingMedication({ ...editingMedication, startDate: e.target.value })}
-                                      />
-                                    </div>
-                                    <div className="md:col-span-2">
-                                      <label className="block text-sm font-medium text-neutral-700 mb-2">Durée</label>
-                                      <input
-                                        type="text"
-                                        className="input w-full"
-                                        value={editingMedication.duration}
-                                        onChange={(e) => setEditingMedication({ ...editingMedication, duration: e.target.value })}
-                                      />
-                                    </div>
-                                  </div>
-                                  
-                                  <div className="flex justify-end space-x-3 mt-6">
-                                    <button 
-                                      onClick={() => setEditingMedication(null)}
-                                      className="btn-secondary"
-                                    >
-                                      Annuler
-                                    </button>
-                                    <button 
-                                      onClick={handleSaveMedication}
-                                      className="btn-primary"
-                                    >
-                                      Sauvegarder
-                                    </button>
-                                  </div>
-                                </div>
-                              ) : (
-                                // Mode affichage
-                                <MedicationCard
-                                  medication={med}
-                                  onEdit={handleEditMedication}
-                                  onDelete={handleDeleteMedication}
-                                />
-                              )}
-                            </div>
-                          ))}
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="rounded-[20px] bg-white border border-neutral-100 shadow-sm p-12 text-center">
-                      <FileText className="h-16 w-16 text-neutral-300 mx-auto mb-4" />
-                      <h3 className="text-lg font-semibold text-neutral-600 mb-2">
-                        Sélectionnez une prescription
-                      </h3>
-                      <p className="text-neutral-500">
-                        Choisissez une prescription pour voir les médicaments associés
-                      </p>
-                    </div>
-                  )}
-                </div>
-              </div>
+                ) : (
+                  <EmptyStateMedical
+                    title="Sélectionnez une ordonnance"
+                    description="Choisissez une prescription pour afficher le détail des traitements."
+                  />
+                )}
+              </>
             ) : (
-              <div className="rounded-[20px] bg-white border border-neutral-100 shadow-sm p-12 text-center">
-                <User className="h-16 w-16 text-neutral-300 mx-auto mb-4" />
-                <h3 className="text-lg font-semibold text-neutral-600 mb-2">
-                  Sélectionnez un médecin
-                </h3>
-                <p className="text-neutral-500">
-                  Choisissez un médecin pour voir vos prescriptions
-                </p>
-              </div>
+              <EmptyStateMedical
+                title="Sélectionnez un médecin"
+                description="Choisissez un prescripteur pour voir vos ordonnances reçues."
+              />
             )}
-          </div>
+          </section>
+
+          <aside className="xl:col-span-4 xl:sticky xl:top-24 self-start">
+            <PrescriptionPreviewPanel
+              title="Détails ordonnance"
+              subtitle="Version document clinique réaliste de l’ordonnance sélectionnée."
+              status={statusToLabel(selectedPrescriptionData?.status)}
+              sticky
+            >
+              {selectedPrescriptionData ? (
+                <div className="max-h-[70vh] overflow-auto rounded-[20px] bg-neutral-50 p-3">
+                  <PrescriptionDocumentPreview
+                    prescription={previewPrescription}
+                    patient={patientProfile}
+                    doctor={doctorsInfo[selectedDoctor]}
+                  />
+                </div>
+              ) : (
+                <EmptyStateMedical
+                  title="Détail indisponible"
+                  description="Le panneau affichera les informations dès qu'une ordonnance est sélectionnée."
+                />
+              )}
+            </PrescriptionPreviewPanel>
+          </aside>
         </div>
-      </div>
     </div>
   );
 };
+

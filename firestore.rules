@@ -5,6 +5,26 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    function prescriptionAlreadyValidated(data) {
+      return data.status in ['validated_by_patient', 'active', 'completed'] ||
+        (data.validation != null && (
+          data.validation.validatedByPatient == true ||
+          data.validation.validatedAt is string ||
+          data.validation.patientStartDate is string
+        ));
+    }
+
+    function isPatientSingleValidationUpdate() {
+      return request.auth.uid == resource.data.patientId &&
+        request.resource.data.diff(resource.data).changedKeys().hasOnly(['status', 'validation', 'statusUpdatedAt']) &&
+        resource.data.status in ['sent', 'received'] &&
+        request.resource.data.status == 'active' &&
+        !prescriptionAlreadyValidated(resource.data) &&
+        request.resource.data.validation.validatedByPatient == true &&
+        request.resource.data.validation.validatedAt is string &&
+        request.resource.data.validation.patientStartDate is string;
+    }
+
     // Règles pour les utilisateurs - lecture pour tous les utilisateurs authentifiés
     match /users/{userId} {
       allow read: if isSignedIn();
@@ -41,8 +61,7 @@ service cloud.firestore {
       allow create: if isSignedIn() &&
         request.auth.uid == request.resource.data.createdBy;
       allow update, delete: if isSignedIn() &&
-        (request.auth.uid == resource.data.createdBy ||
-         request.auth.uid == resource.data.patientId);
+        request.auth.uid == resource.data.createdBy;
     }
     
     // Règles pour les médicaments utilisateur
@@ -100,7 +119,7 @@ service cloud.firestore {
       allow create: if isSignedIn() && request.auth.uid == request.resource.data.createdBy;
       allow update, delete: if isSignedIn() &&
         (request.auth.uid == resource.data.createdBy ||
-         request.auth.uid == resource.data.patientId);
+         isPatientSingleValidationUpdate());
     }
     
     // Règles pour les notifications

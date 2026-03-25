@@ -1,4 +1,5 @@
 import {
+  activatePrescriptionOnce,
   createPrescription,
   findByCreatorId,
   findById,
@@ -13,13 +14,17 @@ import {
   canTransitionPrescriptionStatus,
   PRESCRIPTION_STATUS,
 } from "../domain/prescriptionStatus";
+import { canValidatePrescription } from "../domain/prescriptionWorkflow";
 
-export const savePrescriptionUseCase = async (createdBy, patientId) => {
+export const savePrescriptionUseCase = async (createdBy, patientId, options = {}) => {
   const payload = {
     createdBy,
     patientId,
     creationDate: new Date().toISOString(),
     status: PRESCRIPTION_STATUS.CREATED,
+    metadata: options?.metadata || null,
+    clinicalInfo: options?.clinicalInfo || null,
+    ePrescription: options?.ePrescription || null,
   };
 
   return createPrescription(payload);
@@ -121,15 +126,9 @@ export const validatePrescriptionAndActivateTreatmentsUseCase = async ({
     throw new Error("Action non autorisée.");
   }
 
-  if (
-    ![
-      PRESCRIPTION_STATUS.RECEIVED,
-      PRESCRIPTION_STATUS.SENT,
-      PRESCRIPTION_STATUS.VALIDATED_BY_PATIENT,
-      PRESCRIPTION_STATUS.ACTIVE,
-    ].includes(prescription.status)
-  ) {
-    throw new Error("Cette ordonnance ne peut pas être validée actuellement.");
+  const validationState = canValidatePrescription(prescription, patientId);
+  if (!validationState.allowed) {
+    throw new Error(validationState.reason || "Cette ordonnance ne peut pas être validée actuellement.");
   }
 
   const medications = await listPrescriptionMedications(prescriptionId);
@@ -155,15 +154,10 @@ export const validatePrescriptionAndActivateTreatmentsUseCase = async ({
     }
   }
 
-  await updateById(prescriptionId, {
-    status: PRESCRIPTION_STATUS.ACTIVE,
-    validation: {
-      validatedByPatient: true,
-      validatedAt: new Date().toISOString(),
-      patientStartDate: startDate,
-    },
-    statusUpdatedAt: new Date().toISOString(),
-  });
+  const activationResult = await activatePrescriptionOnce(prescriptionId, startDate);
+  if (activationResult?.alreadyValidated) {
+    throw new Error("Ordonnance déjà validée.");
+  }
 
   return {
     activatedTreatments: createdCount,

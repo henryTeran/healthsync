@@ -52,7 +52,7 @@ FieldError.propTypes = {
 };
 
 const SectionCard = ({ icon: Icon, title, description, children }) => (
-  <section className="rounded-[20px] border border-neutral-100 bg-white p-5 shadow-sm hover:shadow-md transition">
+  <section className="rounded-[20px] border border-neutral-100 bg-white p-5 shadow-sm hover:-translate-y-0.5 hover:shadow-md transition">
     <div className="mb-4 flex items-start gap-3">
       <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-medical-100 text-medical-700">
         <Icon className="h-5 w-5" />
@@ -273,10 +273,10 @@ export const EditProfile = ({ navigate }) => {
 
   if (isLoading) {
     return (
-      <div className="p-6 max-w-7xl mx-auto">
-        <div className="rounded-[24px] border border-neutral-100 bg-white p-8 shadow-sm animate-pulse">
-          <div className="h-10 w-72 rounded bg-neutral-200 mb-6" />
-          <div className="h-4 w-full rounded bg-neutral-100 mb-3" />
+      <div className="min-h-screen bg-gradient-to-b from-medical-50/40 to-neutral-50 p-4 md:p-6 lg:p-8">
+        <div className="rounded-[20px] border border-neutral-100 bg-white p-8 shadow-sm animate-pulse">
+          <div className="mb-6 h-10 w-72 rounded bg-neutral-200" />
+          <div className="mb-3 h-4 w-full rounded bg-neutral-100" />
           <div className="h-4 w-2/3 rounded bg-neutral-100" />
         </div>
       </div>
@@ -285,20 +285,32 @@ export const EditProfile = ({ navigate }) => {
 
   const userType = formValues.userType || formValues.type || "patient";
   const roleLabel = userType === "doctor" ? "médecin" : "patient";
+  const completionFields = [
+    formValues.firstName,
+    formValues.lastName,
+    formValues.email,
+    formValues.mobileNumber,
+    formValues.country,
+    userType === "doctor" ? formValues.medicalLicense : formValues.allergies,
+  ];
+  const completion = Math.round(
+    (completionFields.filter((field) => String(field || "").trim().length > 0).length /
+      completionFields.length) *
+      100
+  );
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-medical-50/40 to-neutral-50 p-4 md:p-6 lg:p-8">
-      <div className="mx-auto max-w-7xl space-y-6">
-        <section className="rounded-[24px] border border-white/70 bg-white/90 p-6 md:p-8 shadow-medical backdrop-blur-sm">
+    <div className="min-h-screen bg-gradient-to-b from-medical-50/40 to-neutral-50 p-4 md:p-6 lg:p-8 space-y-6">
+      <section className="rounded-[20px] border border-white/60 bg-white/90 backdrop-blur-sm shadow-medical p-6 md:p-8">
           <div className="flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">
-            <div className="flex flex-col md:flex-row md:items-center gap-5">
-              <div className="relative h-24 w-24 md:h-28 md:w-28 rounded-2xl overflow-hidden border-4 border-white shadow-md">
+            <div className="flex flex-col gap-5 md:flex-row md:items-center">
+              <div className="relative h-24 w-24 overflow-hidden rounded-2xl border-4 border-white shadow-md md:h-28 md:w-28">
                 <img
                   src={formValues.photoURL || "/default-avatar.png"}
                   alt="Aperçu profil"
                   className="h-full w-full object-cover"
                 />
-                <label className="absolute right-2 bottom-2 flex h-9 w-9 cursor-pointer items-center justify-center rounded-xl bg-white/90 text-medical-700 shadow-sm hover:bg-white">
+                <label className="absolute bottom-2 right-2 flex h-9 w-9 cursor-pointer items-center justify-center rounded-xl bg-white/90 text-medical-700 shadow-sm hover:bg-white">
                   <Camera className="h-4 w-4" />
                   <input type="file" accept="image/*" onChange={handlePhotoUpload} className="hidden" />
                 </label>
@@ -306,8 +318,8 @@ export const EditProfile = ({ navigate }) => {
 
               <div className="space-y-3">
                 <div>
-                  <h1 className="text-3xl md:text-4xl font-bold text-neutral-900">Modifier le profil {roleLabel}</h1>
-                  <p className="text-sm text-neutral-500">Mettez a jour vos informations.</p>
+                  <h1 className="text-3xl font-bold text-neutral-900 md:text-4xl">Modifier le profil {roleLabel}</h1>
+                  <p className="text-sm text-neutral-500">Mettez à jour vos informations médicales et administratives.</p>
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <span className="rounded-full bg-health-100 px-3 py-1 text-xs font-semibold text-health-700">
@@ -320,29 +332,30 @@ export const EditProfile = ({ navigate }) => {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 xl:min-w-[420px]">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 xl:min-w-[420px]">
               <div className="rounded-2xl border border-neutral-100 bg-white p-4 shadow-sm">
                 <p className="text-xs text-neutral-500">Type de profil</p>
-                <p className="text-xl font-semibold text-neutral-900 capitalize">{roleLabel}</p>
+                <p className="text-xl font-semibold capitalize text-neutral-900">{roleLabel}</p>
               </div>
               <div className="rounded-2xl border border-neutral-100 bg-white p-4 shadow-sm">
                 <p className="text-xs text-neutral-500">Contact</p>
-                <p className="text-sm font-semibold text-neutral-900 break-all">{formValues.email || "Non renseigne"}</p>
+                <p className="break-all text-sm font-semibold text-neutral-900">{formValues.email || "Non renseigné"}</p>
               </div>
               <div className="rounded-2xl border border-neutral-100 bg-white p-4 shadow-sm">
-                <p className="text-xs text-neutral-500">Pays</p>
-                <p className="text-xl font-semibold text-neutral-900">{formValues.country || "Suisse"}</p>
+                <p className="text-xs text-neutral-500">Complétude</p>
+                <p className="text-xl font-semibold text-neutral-900">{completion}%</p>
               </div>
             </div>
           </div>
         </section>
 
-        {error && <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
-        {successMessage && <div className="rounded-xl border border-health-200 bg-health-50 px-4 py-3 text-sm text-health-700">{successMessage}</div>}
+      {error && <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
+      {successMessage && <div className="rounded-xl border border-health-200 bg-health-50 px-4 py-3 text-sm text-health-700">{successMessage}</div>}
 
-        <div className="grid gap-6 xl:grid-cols-2">
-          <SectionCard icon={UserCircle2} title="Identite" description="Informations personnelles et administratives du profil.">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
+          <div className="space-y-6 xl:col-span-2">
+            <SectionCard icon={UserCircle2} title="Identité" description="Informations personnelles et administratives du profil.">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <Input label="Prenom" name="firstName" value={formValues.firstName} onChange={handleInputChange} error={formErrors.firstName} />
               <Input label="Nom" name="lastName" value={formValues.lastName} onChange={handleInputChange} error={formErrors.lastName} />
               <Input label="Age" name="age" type="number" min="0" value={formValues.age || ""} onChange={handleInputChange} error={formErrors.age} />
@@ -357,109 +370,120 @@ export const EditProfile = ({ navigate }) => {
                 <option value="inactive">Inactif</option>
                 <option value="pending">En attente</option>
               </Select>
-            </div>
-          </SectionCard>
+              </div>
+            </SectionCard>
 
-          <SectionCard icon={Phone} title="Contact" description="Canaux de contact et localisation du profil.">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <SectionCard icon={Phone} title="Contact" description="Canaux de contact et localisation du profil.">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <Input label="Email" name="email" type="email" value={formValues.email} onChange={handleInputChange} error={formErrors.email} />
               <Input label="Telephone" name="mobileNumber" value={formValues.mobileNumber} onChange={handleInputChange} error={formErrors.mobileNumber} />
               <Input label="Adresse" name="address" value={formValues.address} onChange={handleInputChange} className="md:col-span-2" />
               <Input label="Code postal" name="postalCode" value={formValues.postalCode} onChange={handleInputChange} />
               <Input label="Ville" name="state" value={formValues.state} onChange={handleInputChange} />
               <Input label="Pays" name="country" value={formValues.country} onChange={handleInputChange} className="md:col-span-2" />
-            </div>
-          </SectionCard>
-
-          {userType === "patient" && (
-            <SectionCard icon={HeartPulse} title="Suivi medical" description="Informations cliniques essentielles pour le patient.">
-              <div className="grid grid-cols-1 gap-4">
-                <TextArea
-                  label="Allergies"
-                  name="allergies"
-                  rows="5"
-                  value={formValues.allergies}
-                  onChange={handleInputChange}
-                  error={formErrors.allergies}
-                />
               </div>
             </SectionCard>
-          )}
 
-          {userType === "doctor" && (
-            <SectionCard icon={Stethoscope} title="Activite professionnelle" description="Informations de pratique et elements de confiance clinique.">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <Input label="Licence medicale" name="medicalLicense" value={formValues.medicalLicense} onChange={handleInputChange} error={formErrors.medicalLicense} />
-                <Input label="Departement" name="department" value={formValues.department} onChange={handleInputChange} />
-                <Input label="Formation" name="education" value={formValues.education} onChange={handleInputChange} />
-                <Input label="Fonction" name="designation" value={formValues.designation} onChange={handleInputChange} />
-                <TextArea
-                  label="A propos"
-                  name="about"
-                  rows="5"
-                  value={formValues.about}
-                  onChange={handleInputChange}
-                  className="md:col-span-2"
-                />
-              </div>
-            </SectionCard>
-          )}
+            {userType === "patient" && (
+              <SectionCard icon={HeartPulse} title="Suivi médical" description="Informations cliniques essentielles pour le patient.">
+                <div className="grid grid-cols-1 gap-4">
+                  <TextArea
+                    label="Allergies"
+                    name="allergies"
+                    rows="5"
+                    value={formValues.allergies}
+                    onChange={handleInputChange}
+                    error={formErrors.allergies}
+                  />
+                </div>
+              </SectionCard>
+            )}
 
-          <SectionCard
-            icon={userType === "doctor" ? Building2 : ShieldCheck}
-            title={userType === "doctor" ? "Positionnement medical" : "Resume du dossier"}
-            description={userType === "doctor" ? "Vue synthese de votre presence professionnelle." : "Vue synthetique des informations de profil patient."}
-          >
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-              <div className="rounded-2xl bg-neutral-50 border border-neutral-100 p-4">
-                <p className="text-xs text-neutral-500 inline-flex items-center gap-1"><Mail className="h-3.5 w-3.5" /> Contact principal</p>
-                <p className="mt-2 font-semibold text-neutral-900 break-all">{formValues.email || "Non renseigne"}</p>
-              </div>
-              <div className="rounded-2xl bg-neutral-50 border border-neutral-100 p-4">
-                <p className="text-xs text-neutral-500 inline-flex items-center gap-1"><MapPin className="h-3.5 w-3.5" /> Localisation</p>
-                <p className="mt-2 font-semibold text-neutral-900">{[formValues.state, formValues.country].filter(Boolean).join(", ") || "Non renseignee"}</p>
-              </div>
-              <div className="rounded-2xl bg-neutral-50 border border-neutral-100 p-4">
-                <p className="text-xs text-neutral-500 inline-flex items-center gap-1"><Sparkles className="h-3.5 w-3.5" /> Statut du profil</p>
-                <p className="mt-2 font-semibold text-neutral-900 capitalize">{formValues.status || "active"}</p>
-              </div>
-              <div className="rounded-2xl bg-neutral-50 border border-neutral-100 p-4">
-                <p className="text-xs text-neutral-500 inline-flex items-center gap-1"><ShieldCheck className="h-3.5 w-3.5" /> Niveau de completude</p>
-                <p className="mt-2 font-semibold text-neutral-900">{userType === "doctor" ? "Profil clinique" : "Profil de suivi"}</p>
-              </div>
-            </div>
-          </SectionCard>
-        </div>
+            {userType === "doctor" && (
+              <SectionCard icon={Stethoscope} title="Suivi médical" description="Informations de pratique et éléments de confiance clinique.">
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                  <Input label="Licence medicale" name="medicalLicense" value={formValues.medicalLicense} onChange={handleInputChange} error={formErrors.medicalLicense} />
+                  <Input label="Departement" name="department" value={formValues.department} onChange={handleInputChange} />
+                  <Input label="Formation" name="education" value={formValues.education} onChange={handleInputChange} />
+                  <Input label="Fonction" name="designation" value={formValues.designation} onChange={handleInputChange} />
+                  <TextArea
+                    label="A propos"
+                    name="about"
+                    rows="5"
+                    value={formValues.about}
+                    onChange={handleInputChange}
+                    className="md:col-span-2"
+                  />
+                </div>
+              </SectionCard>
+            )}
 
-        <div className="sticky bottom-4 z-20">
-          <div className="ml-auto max-w-3xl rounded-[20px] border border-white/70 bg-white/90 p-4 shadow-lg backdrop-blur-sm">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <p className="text-sm font-semibold text-neutral-900">Enregistrer les modifications</p>
-                <p className="text-xs text-neutral-500">Les changements seront sauvegardes dans votre profil HealthSync.</p>
+            <section className="rounded-[20px] bg-white border border-neutral-100 p-4 shadow-sm">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-sm font-semibold text-neutral-900">Enregistrer les modifications</p>
+                  <p className="text-xs text-neutral-500">Les changements seront sauvegardés dans votre profil HealthSync.</p>
+                </div>
+                <div className="flex flex-wrap gap-3">
+                  <button
+                    type="button"
+                    onClick={() => navigate(-1)}
+                    className="rounded-xl border border-neutral-200 px-4 py-2 text-sm font-medium text-neutral-700 transition hover:bg-neutral-50"
+                  >
+                    Annuler
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSave}
+                    disabled={isSaving}
+                    className="inline-flex items-center gap-2 rounded-xl bg-health-600 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-health-700 disabled:opacity-60"
+                  >
+                    <Save className="h-4 w-4" />
+                    {isSaving ? "Sauvegarde..." : "Sauvegarder"}
+                  </button>
+                </div>
               </div>
-              <div className="flex flex-wrap gap-3">
-                <button
-                  type="button"
-                  onClick={() => navigate(-1)}
-                  className="rounded-xl border border-neutral-200 px-4 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50 active:scale-95 transition"
-                >
-                  Annuler
-                </button>
-                <button
-                  type="button"
-                  onClick={handleSave}
-                  disabled={isSaving}
-                  className="inline-flex items-center gap-2 rounded-xl bg-health-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-health-700 active:scale-95 transition disabled:opacity-60"
-                >
-                  <Save className="h-4 w-4" />
-                  {isSaving ? "Sauvegarde..." : "Sauvegarder"}
-                </button>
-              </div>
-            </div>
+            </section>
           </div>
+
+          <aside className="xl:col-span-1">
+            <section className="rounded-[20px] border border-neutral-100 bg-white p-5 shadow-sm xl:sticky xl:top-24">
+              <div className="mb-4 flex items-start gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-medical-100 text-medical-700">
+                  {userType === "doctor" ? <Building2 className="h-5 w-5" /> : <ShieldCheck className="h-5 w-5" />}
+                </div>
+                <div>
+                  <h3 className="text-base font-semibold text-neutral-900">Résumé du dossier</h3>
+                  <p className="text-sm text-neutral-500">Vue synthétique des informations clés du profil.</p>
+                </div>
+              </div>
+              <div className="h-px bg-neutral-100 mb-4" />
+
+              <div className="space-y-3 text-sm">
+                <div className="rounded-2xl bg-neutral-50 border border-neutral-100 p-4">
+                  <p className="inline-flex items-center gap-1 text-xs text-neutral-500"><Mail className="h-3.5 w-3.5" /> Contact principal</p>
+                  <p className="mt-2 break-all font-medium text-neutral-800">{formValues.email || "Non renseigné"}</p>
+                </div>
+                <div className="rounded-2xl bg-neutral-50 border border-neutral-100 p-4">
+                  <p className="inline-flex items-center gap-1 text-xs text-neutral-500"><MapPin className="h-3.5 w-3.5" /> Localisation</p>
+                  <p className="mt-2 font-medium text-neutral-800">{[formValues.state, formValues.country].filter(Boolean).join(", ") || "Non renseignée"}</p>
+                </div>
+                <div className="rounded-2xl bg-neutral-50 border border-neutral-100 p-4">
+                  <p className="inline-flex items-center gap-1 text-xs text-neutral-500"><Sparkles className="h-3.5 w-3.5" /> Statut du profil</p>
+                  <p className="mt-2 font-medium capitalize text-neutral-800">{formValues.status || "active"}</p>
+                </div>
+                <div className="rounded-2xl bg-neutral-50 border border-neutral-100 p-4">
+                  <p className="inline-flex items-center gap-1 text-xs text-neutral-500"><ShieldCheck className="h-3.5 w-3.5" /> Type de suivi</p>
+                  <p className="mt-2 font-medium text-neutral-800">{userType === "doctor" ? "Profil clinique" : "Profil de suivi"}</p>
+                </div>
+                <div className="rounded-2xl bg-neutral-50 border border-neutral-100 p-4">
+                  <p className="text-xs text-neutral-500">Complétude du dossier</p>
+                  <p className="mt-2 text-2xl font-semibold text-neutral-900">{completion}%</p>
+                </div>
+              </div>
+            </section>
+          </aside>
         </div>
-      </div>
     </div>
   );
 };

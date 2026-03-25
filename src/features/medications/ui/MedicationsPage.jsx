@@ -1,15 +1,27 @@
-// src/pages/MedicationPage.jsx
-import React, { useEffect, useState } from "react";
+﻿import { useEffect, useMemo, useState } from "react";
+import { FileText, Search, Users } from "lucide-react";
 import { MedicationSearch } from "./MedicationSearch";
-import { PrescriptionTable } from "../../prescriptions/ui/PrescriptionTable";
-import { savePrescription } from "../../../features/prescriptions";
+import { PrescriptionForm } from "../../prescriptions/ui/PrescriptionForm";
+import {
+  buildSwissEPrescriptionPayload,
+  getPrescriptionById,
+  savePrescription,
+  SWISS_EPRESCRIPTION_ISSUE_TYPES,
+  updatePrescription,
+  validateSwissEPrescriptionPayload,
+} from "../../../features/prescriptions";
 import { addMedication, deleteMedication, getMedicationsByPrescription } from "../../../features/medications";
 import { useAuth } from "../../../contexts/AuthContext";
-import { getAuthorizedPatients } from "../../../features/profile";
-import { CheckCircle2, Circle, FileText, UserCircle2, Users } from "lucide-react";
-import { PrescriptionForm } from "../../prescriptions/ui/PrescriptionForm";
+import { getAuthorizedPatients, getUserProfile } from "../../../features/profile";
 import { logDebug, logError } from "../../../shared/lib/logger";
 import { PRESCRIPTION_STATUS } from "../../prescriptions/domain/prescriptionStatus";
+import {
+  EmptyStateMedical,
+  MedicationItem,
+  PatientCard,
+  PrescriptionPreviewPanel,
+  StepProgress,
+} from "./components/MedicalUiComponents";
 
 const WORKFLOW_STEPS = [
   "Patient sélectionné",
@@ -19,127 +31,165 @@ const WORKFLOW_STEPS = [
   "Validé patient",
 ];
 
+const getSwissMissingFields = ({
+  ePrescriptionForm,
+  clinicalInfoForm,
+  selectedMedications,
+  requiresRevocationReason,
+  revocationReason,
+}) => {
+  const missing = [];
+
+  if (!ePrescriptionForm.placeOfIssue?.trim()) missing.push("Lieu d'émission");
+  if (!ePrescriptionForm.issuedAt) missing.push("Date d'émission");
+  if (!ePrescriptionForm.validUntil) missing.push("Date de validité");
+  if (!ePrescriptionForm.therapeuticPurpose?.trim()) missing.push("Indication thérapeutique");
+  if (
+    !ePrescriptionForm.prescriberGLN?.trim() &&
+    !ePrescriptionForm.prescriberRCC?.trim() &&
+    !ePrescriptionForm.prescriberProfessionalId?.trim()
+  ) {
+    missing.push("Identifiant prescripteur (GLN/RCC/ID pro)");
+  }
+  if (!ePrescriptionForm.signedRegisteredToken?.trim()) missing.push("Token signé/enregistré");
+  if (!ePrescriptionForm.narcoticsExcludedDeclaration)
+    missing.push("Déclaration d'absence de stupéfiants");
+  if (!selectedMedications.length) missing.push("Au moins un médicament");
+
+  const hasNarcotics = selectedMedications.some(
+    (medication) => medication?.controlledSubstance || medication?.isNarcotic
+  );
+  if (hasNarcotics) missing.push("Stupéfiants détectés (non autorisés sur e-Rezept)");
+
+  if (requiresRevocationReason && !revocationReason.trim()) {
+    missing.push("Motif de révocation obligatoire");
+  }
+
+  if (!clinicalInfoForm?.diagnosis?.trim()) missing.push("Diagnostic recommandé");
+
+  return missing;
+};
+
+const IMMUTABLE_PRESCRIPTION_STATUSES = new Set([
+  PRESCRIPTION_STATUS.PDF_GENERATED,
+  PRESCRIPTION_STATUS.SENT,
+  PRESCRIPTION_STATUS.RECEIVED,
+  PRESCRIPTION_STATUS.VALIDATED_BY_PATIENT,
+  PRESCRIPTION_STATUS.ACTIVE,
+]);
+
+const getStepIndex = (prescriptionStatus, selectedPatient, selectedMedications) => {
+  if (
+    prescriptionStatus === PRESCRIPTION_STATUS.VALIDATED_BY_PATIENT ||
+    prescriptionStatus === PRESCRIPTION_STATUS.ACTIVE ||
+    prescriptionStatus === PRESCRIPTION_STATUS.COMPLETED
+  ) {
+    return 4;
+  }
+
+  if (prescriptionStatus === PRESCRIPTION_STATUS.SENT) return 3;
+  if (prescriptionStatus === PRESCRIPTION_STATUS.PDF_GENERATED) return 2;
+  if (selectedMedications.length > 0) return 1;
+  if (selectedPatient) return 0;
+
+  return -1;
+};
+
 export const MedicationsPage = () => {
   const { user } = useAuth();
   const [selectedMedications, setSelectedMedications] = useState([]);
-  const [idPatient, setIdPatient] = useState(""); // ID du patient sélectionné
+  const [idPatient, setIdPatient] = useState("");
   const [idPrescription, setIdPrescription] = useState(null);
-  const [contacts, setContacts] = useState([]); // Liste des contacts (patients)
-  const [selectedPatient, setSelectedPatient] = useState(null); // Patient sélectionné
+  const [contacts, setContacts] = useState([]);
+  const [selectedPatient, setSelectedPatient] = useState(null);
   const [showPdf, setShowPdf] = useState(false);
   const [isLoadingPatients, setIsLoadingPatients] = useState(true);
   const [statusBanner, setStatusBanner] = useState("");
   const [prescriptionStatus, setPrescriptionStatus] = useState(PRESCRIPTION_STATUS.DRAFT);
+  const [patientSearch, setPatientSearch] = useState("");
+  const [previewRefreshToken, setPreviewRefreshToken] = useState(0);
+  const [revocationReason, setRevocationReason] = useState("");
+  const [doctorProfile, setDoctorProfile] = useState(null);
+  const [ePrescriptionForm, setEPrescriptionForm] = useState({
+    issueType: SWISS_EPRESCRIPTION_ISSUE_TYPES.SINGLE,
+    issuedAt: new Date().toISOString().split("T")[0],
+    validUntil: new Date(new Date().setDate(new Date().getDate() + 30)).toISOString().split("T")[0],
+    placeOfIssue: "",
+    repeatsAllowed: 0,
+    substitutionAllowed: false,
+    emergencyPrescription: false,
+    therapeuticPurpose: "",
+    legalNotes: "",
+    avsNumber: "",
+    insuranceName: "",
+    insuranceNumber: "",
+    prescriberGLN: "",
+    prescriberZSR: "",
+    prescriberRCC: "",
+    prescriberProfessionalId: "",
+    signedRegisteredToken: "",
+    narcoticsExcludedDeclaration: false,
+    reference: "",
+    medicalRecordNumber: "",
+  });
+  const [clinicalInfoForm, setClinicalInfoForm] = useState({
+    allergies: "",
+    history: "",
+    diagnosis: "",
+    notes: "",
+  });
 
- // Charger les patients suivis par le médecin
- useEffect(() => {
-  const fetchPatients = async () => {
-    try {
-      setIsLoadingPatients(true);
-      if (!user || user.userType === "patient") return;
-      const contactsData = await getAuthorizedPatients(user.uid);
-      setContacts(contactsData);
-    } catch (error) {
-      logError("Erreur lors de la récupération des patients", error, {
-        feature: "medications",
-        action: "fetchPatients",
-        userId: user?.uid,
-      });
-      throw error;
-    } finally {
-      setIsLoadingPatients(false);
-    }
-  };
-
-  fetchPatients();
-}, [user]);
-
-  // Gestion de la sélection d'un contact
-  const handleContactSelect = (contact) => {
-    setIdPatient(contact.id);
-    setSelectedPatient(contact);
-    setStatusBanner("");
-  };
-
-  const handleAddMedication = (medication) => {
-    setSelectedMedications([...selectedMedications, medication]);
-  };
-
-  const handleRemoveMedication = (index) => {
-    setSelectedMedications(selectedMedications.filter((_, i) => i !== index));
-  };
-
-  const handleSavePrescription = async () => {
-    setShowPdf (!showPdf);
-    if (!idPatient || selectedMedications.length === 0) {
-      alert("Veuillez sélectionner un patient et ajouter des médicaments.");
-      return;
-    }
-
-    try {
-      if (idPrescription) {
-        // Mettre à jour la prescription existante)
-      }else {
-        const prescriptionId = await savePrescription(user.uid, idPatient);
-        setIdPrescription(prescriptionId);
-        setPrescriptionStatus(PRESCRIPTION_STATUS.CREATED);
-
-        // Enregistrer chaque médicament avec l'ID de la prescription
-        for (const medication of selectedMedications) {
-          await addMedication(prescriptionId, medication, idPatient, user.uid);
-        }
-
-        setStatusBanner("Prescription créée avec succès.");
-      }
-    } catch (error) {
-      alert("Erreur lors de l'enregistrement de la prescription.");
-      throw error
-    }
-  };
-     
-  const handleUpdatePrescription = async () => {
-    setShowPdf (!showPdf);
-    
-    if (!idPatient || selectedMedications.length === 0) {
-      alert("Veuillez sélectionner un patient et ajouter des médicaments.");
-      return;
-    }
-
-    try {
-      if (idPrescription) {      
-        // Étape 1 : Supprimer tous les médicaments liés à la prescription existante
-        const medications = await getMedicationsByPrescription(idPrescription);
-        logDebug("Suppression des médicaments existants avant mise à jour", {
+  useEffect(() => {
+    const fetchPatients = async () => {
+      try {
+        setIsLoadingPatients(true);
+        if (!user || user.userType === "patient") return;
+        const contactsData = await getAuthorizedPatients(user.uid);
+        setContacts(contactsData);
+      } catch (error) {
+        logError("Erreur lors de la récupération des patients", error, {
           feature: "medications",
-          action: "handleUpdatePrescription",
-          prescriptionId: idPrescription,
-          medicationsCount: medications.length,
+          action: "fetchPatients",
+          userId: user?.uid,
         });
-
-        const deletePromises = medications.map((med) => {
-          logDebug("Suppression médicament", {
-            feature: "medications",
-            action: "handleUpdatePrescription.deleteMedication",
-            medicationId: med.id,
-          });
-          return deleteMedication(med.id);
-        });
-        await Promise.all(deletePromises);
-       
-        // Enregistrer chaque médicament avec l'ID de la prescription
-        for (const medication of selectedMedications) {
-          await addMedication(idPrescription, medication, idPatient, user.uid);
-        }
-
-        setStatusBanner("Prescription mise à jour.");
-        
+      } finally {
+        setIsLoadingPatients(false);
       }
-      //PrescriptionForm.reset();
-    } catch (error) {
-      alert("Erreur lors de la modifation de la prescription.");
-      throw error
-    }
-  };
+    };
+
+    fetchPatients();
+  }, [user]);
+
+  useEffect(() => {
+    const fetchDoctorProfile = async () => {
+      if (!user?.uid) return;
+
+      try {
+        const profile = await getUserProfile(user.uid);
+        setDoctorProfile(profile || null);
+        setEPrescriptionForm((previous) => ({
+          ...previous,
+          placeOfIssue: previous.placeOfIssue || profile?.state || profile?.country || "",
+          prescriberGLN: previous.prescriberGLN || profile?.gln || "",
+          prescriberZSR: previous.prescriberZSR || profile?.zsr || "",
+          prescriberRCC: previous.prescriberRCC || profile?.rcc || "",
+          prescriberProfessionalId:
+            previous.prescriberProfessionalId ||
+            profile?.professionalId ||
+            profile?.medicalLicense ||
+            "",
+        }));
+      } catch (error) {
+        logError("Erreur chargement profil médecin", error, {
+          feature: "medications",
+          action: "fetchDoctorProfile",
+          userId: user?.uid,
+        });
+      }
+    };
+
+    fetchDoctorProfile();
+  }, [user?.uid]);
 
   useEffect(() => {
     if (!statusBanner) return;
@@ -148,165 +198,638 @@ export const MedicationsPage = () => {
     return () => clearTimeout(timeout);
   }, [statusBanner]);
 
-  const getProgressIndex = () => {
-    if (
-      prescriptionStatus === PRESCRIPTION_STATUS.VALIDATED_BY_PATIENT ||
-      prescriptionStatus === PRESCRIPTION_STATUS.ACTIVE ||
-      prescriptionStatus === PRESCRIPTION_STATUS.COMPLETED
-    ) {
-      return 4;
-    }
+  const filteredPatients = useMemo(
+    () =>
+      contacts.filter((patient) => {
+        const fullName = `${patient.firstName || ""} ${patient.lastName || ""}`.toLowerCase();
+        return fullName.includes(patientSearch.toLowerCase());
+      }),
+    [contacts, patientSearch]
+  );
 
-    if (prescriptionStatus === PRESCRIPTION_STATUS.SENT) {
-      return 3;
-    }
-
-    if (prescriptionStatus === PRESCRIPTION_STATUS.PDF_GENERATED) {
-      return 2;
-    }
-
-    if (selectedMedications.length > 0) {
-      return 1;
-    }
-
-    if (selectedPatient) {
-      return 0;
-    }
-
-    return -1;
+  const handleContactSelect = (contact) => {
+    setIdPatient(contact.id);
+    setSelectedPatient(contact);
+    setStatusBanner("");
+    setClinicalInfoForm((previous) => ({
+      ...previous,
+      allergies: contact?.allergies || previous.allergies,
+    }));
   };
 
-  const progressIndex = getProgressIndex();
-  
+  const buildSwissPayloadOrFail = () => {
+    const ePrescription = buildSwissEPrescriptionPayload({
+      formValues: ePrescriptionForm,
+      doctorProfile,
+      patient: selectedPatient,
+      prescriptionId: idPrescription,
+      medications: selectedMedications,
+    });
+
+    const validationErrors = validateSwissEPrescriptionPayload(ePrescription);
+    if (validationErrors.length > 0) {
+      throw new Error(validationErrors[0]);
+    }
+
+    return {
+      ePrescription,
+      clinicalInfo: {
+        allergies: clinicalInfoForm?.allergies || selectedPatient?.allergies || null,
+        history: clinicalInfoForm?.history || null,
+        diagnosis: clinicalInfoForm?.diagnosis || null,
+        notes: clinicalInfoForm?.notes || null,
+      },
+      metadata: {
+        place: ePrescription.placeOfIssue,
+        medicalRecordNumber: ePrescriptionForm.medicalRecordNumber || selectedPatient?.recordNumber || null,
+        legalNotes: ePrescription.legalNotes,
+      },
+    };
+  };
+
+  const handleAddMedication = (medication) => {
+    const normalizedMedication = {
+      ...medication,
+      frequency: medication?.frequency || "1 fois par jour",
+      duration: medication?.duration || "7 jours",
+      controlledSubstance: Boolean(medication?.controlledSubstance || medication?.isNarcotic),
+    };
+
+    setSelectedMedications((previous) => [...previous, normalizedMedication]);
+  };
+
+  const handleRemoveMedication = (index) => {
+    setSelectedMedications((previous) => previous.filter((_, currentIndex) => currentIndex !== index));
+  };
+
+  const handleSavePrescription = async () => {
+    setShowPdf(true);
+
+    if (!user?.uid) {
+      alert("Utilisateur non authentifié.");
+      return;
+    }
+
+    if (!idPatient || selectedMedications.length === 0) {
+      alert("Veuillez sélectionner un patient et ajouter des médicaments.");
+      return;
+    }
+
+    try {
+      if (!idPrescription) {
+        const swissPayload = buildSwissPayloadOrFail();
+
+        const prescriptionId = await savePrescription(user.uid, idPatient, swissPayload);
+        setIdPrescription(prescriptionId);
+        setPrescriptionStatus(PRESCRIPTION_STATUS.CREATED);
+
+        for (const medication of selectedMedications) {
+          await addMedication({
+            idPrescription: prescriptionId,
+            medication,
+            patientId: idPatient,
+            doctorId: user.uid,
+          });
+        }
+
+        setStatusBanner("Prescription créée avec succès.");
+        setPreviewRefreshToken((previous) => previous + 1);
+      }
+    } catch (error) {
+      alert("Erreur lors de l'enregistrement de la prescription.");
+      logError("Erreur création ordonnance", error, {
+        feature: "medications",
+        action: "handleSavePrescription",
+        patientId: idPatient,
+      });
+    }
+  };
+
+  const handleUpdatePrescription = async () => {
+    setShowPdf(true);
+
+    if (!user?.uid) {
+      alert("Utilisateur non authentifié.");
+      return;
+    }
+
+    if (!idPatient || selectedMedications.length === 0) {
+      alert("Veuillez sélectionner un patient et ajouter des médicaments.");
+      return;
+    }
+
+    try {
+      if (idPrescription) {
+        const swissPayload = buildSwissPayloadOrFail();
+        const currentPrescription = await getPrescriptionById(idPrescription);
+
+        if (!currentPrescription) {
+          throw new Error("Ordonnance introuvable.");
+        }
+
+        const mustRevokeAndRecreate = IMMUTABLE_PRESCRIPTION_STATUSES.has(
+          currentPrescription.status
+        );
+
+        if (mustRevokeAndRecreate) {
+          if (!revocationReason.trim()) {
+            throw new Error("Le motif de révocation est obligatoire pour recréer une ordonnance déjà émise.");
+          }
+
+          const newPrescriptionId = await savePrescription(user.uid, idPatient, {
+            ...swissPayload,
+            metadata: {
+              ...(swissPayload.metadata || {}),
+              replacementOfPrescriptionId: idPrescription,
+              revisionType: "recreated_after_revocation",
+              revocationReason: revocationReason.trim(),
+            },
+          });
+
+          for (const medication of selectedMedications) {
+            await addMedication({
+              idPrescription: newPrescriptionId,
+              medication,
+              patientId: idPatient,
+              doctorId: user.uid,
+            });
+          }
+
+          await updatePrescription(idPrescription, {
+            status: PRESCRIPTION_STATUS.CANCELLED,
+            statusUpdatedAt: new Date().toISOString(),
+            revocation: {
+              revokedAt: new Date().toISOString(),
+              revokedBy: user.uid,
+              reason: revocationReason.trim(),
+              replacedByPrescriptionId: newPrescriptionId,
+            },
+          });
+
+          setIdPrescription(newPrescriptionId);
+          setPrescriptionStatus(PRESCRIPTION_STATUS.CREATED);
+          setRevocationReason("");
+          setStatusBanner(
+            "Ordonnance existante révoquée puis recréée avec une nouvelle référence."
+          );
+          setPreviewRefreshToken((previous) => previous + 1);
+          return;
+        }
+
+        const medications = await getMedicationsByPrescription(idPrescription);
+        logDebug("Suppression médicaments avant mise à jour", {
+          feature: "medications",
+          action: "handleUpdatePrescription",
+          prescriptionId: idPrescription,
+          medicationsCount: medications.length,
+        });
+
+        await Promise.all(
+          medications.map((medication) =>
+            deleteMedication(medication.documentId || medication.id)
+          )
+        );
+
+        for (const medication of selectedMedications) {
+          await addMedication({
+            idPrescription,
+            medication,
+            patientId: idPatient,
+            doctorId: user.uid,
+          });
+        }
+
+        await updatePrescription(idPrescription, {
+          ...swissPayload,
+          status: PRESCRIPTION_STATUS.UPDATED,
+          statusUpdatedAt: new Date().toISOString(),
+        });
+
+        setStatusBanner("Prescription mise à jour.");
+        setPreviewRefreshToken((previous) => previous + 1);
+      }
+    } catch (error) {
+      alert("Erreur lors de la modification de la prescription.");
+      logError("Erreur mise à jour ordonnance", error, {
+        feature: "medications",
+        action: "handleUpdatePrescription",
+        prescriptionId: idPrescription,
+      });
+    }
+  };
+
+  const progressIndex = getStepIndex(prescriptionStatus, selectedPatient, selectedMedications);
+  const requiresRevocationReason =
+    Boolean(idPrescription) && IMMUTABLE_PRESCRIPTION_STATUSES.has(prescriptionStatus);
+
+  const missingSwissFields = useMemo(
+    () =>
+      getSwissMissingFields({
+        ePrescriptionForm,
+        clinicalInfoForm,
+        selectedMedications,
+        requiresRevocationReason,
+        revocationReason,
+      }),
+    [
+      ePrescriptionForm,
+      clinicalInfoForm,
+      selectedMedications,
+      requiresRevocationReason,
+      revocationReason,
+    ]
+  );
+
+  const canSubmitSwissPrescription = missingSwissFields.length === 0;
+
+  const handleGenerateSwissToken = () => {
+    if (!user?.uid) return;
+    const token = `ERX-${new Date().toISOString().replace(/[-:.TZ]/g, "").slice(0, 14)}-${user.uid.slice(0, 6).toUpperCase()}`;
+    setEPrescriptionForm((previous) => ({ ...previous, signedRegisteredToken: token }));
+  };
+
+  const handleApplySwissQuickDefaults = () => {
+    const chronic = Number(ePrescriptionForm.repeatsAllowed || 0) > 0;
+
+    setEPrescriptionForm((previous) => ({
+      ...previous,
+      issueType: chronic
+        ? SWISS_EPRESCRIPTION_ISSUE_TYPES.CHRONIC
+        : SWISS_EPRESCRIPTION_ISSUE_TYPES.SINGLE,
+      validUntil: chronic
+        ? new Date(new Date().setDate(new Date().getDate() + 90)).toISOString().split("T")[0]
+        : previous.validUntil,
+      legalNotes:
+        previous.legalNotes ||
+        "Ordonnance électronique conforme aux principes E-Rezept Suisse (CHMED16A rev.2).",
+    }));
+  };
+
+  const handleAutofillFromPatient = () => {
+    setEPrescriptionForm((previous) => ({
+      ...previous,
+      avsNumber: previous.avsNumber || selectedPatient?.avsNumber || "",
+      insuranceName: previous.insuranceName || selectedPatient?.insuranceName || "",
+      insuranceNumber: previous.insuranceNumber || selectedPatient?.insuranceNumber || "",
+      medicalRecordNumber: previous.medicalRecordNumber || selectedPatient?.recordNumber || "",
+    }));
+  };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-medical-50/40 to-neutral-50 p-4 md:p-6 lg:p-8 space-y-8">
-      <div className="max-w-7xl mx-auto space-y-6">
-        <header>
-          <h1 className="text-3xl md:text-4xl font-bold text-neutral-900">Ordonnances & Médications</h1>
-          <p className="text-sm text-neutral-500">Sélection patient, composition d'ordonnance et génération du document clinique.</p>
+    <div className="min-h-screen bg-gradient-to-b from-medical-50/40 to-neutral-50 p-4 md:p-6 lg:p-8 space-y-6">
+        <header className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <h1 className="text-3xl md:text-4xl font-bold text-neutral-900">Ordonnances et Médications</h1>
+            <p className="text-sm text-neutral-500 mt-1">Créez des prescriptions, validez le workflow clinique et générez les documents patients.</p>
+          </div>
+          <div className="flex gap-3 shrink-0">
+            <div className="rounded-2xl border border-neutral-100 bg-white p-4 shadow-sm">
+              <p className="text-xs text-neutral-500">Patients suivis</p>
+              <p className="text-2xl font-semibold text-neutral-900">{contacts.length}</p>
+            </div>
+            <div className="rounded-2xl border border-neutral-100 bg-white p-4 shadow-sm">
+              <p className="text-xs text-neutral-500">Médicaments</p>
+              <p className="text-2xl font-semibold text-neutral-900">{selectedMedications.length}</p>
+            </div>
+          </div>
         </header>
 
-        <section className="rounded-[22px] border border-neutral-100 bg-white/90 backdrop-blur-sm shadow-sm p-4 md:p-5">
-          <div className="flex gap-3 overflow-x-auto pb-1">
-            {WORKFLOW_STEPS.map((step, index) => {
-              const isDone = index <= progressIndex;
+        <StepProgress steps={WORKFLOW_STEPS} currentStep={progressIndex} />
 
-              return (
-                <div key={step} className="flex items-center gap-2 shrink-0">
-                  {isDone ? (
-                    <CheckCircle2 className="h-4 w-4 text-health-600" />
-                  ) : (
-                    <Circle className="h-4 w-4 text-neutral-300" />
-                  )}
-                  <span className={`text-xs font-medium ${isDone ? "text-neutral-900" : "text-neutral-400"}`}>
-                    {step}
-                  </span>
-                  {index < WORKFLOW_STEPS.length - 1 && <span className="mx-1 h-px w-6 bg-neutral-200" />}
-                </div>
-              );
-            })}
-          </div>
-        </section>
-
-        {statusBanner && (
-          <div className="rounded-xl border border-health-200 bg-health-50 px-4 py-3 text-sm text-health-700 animate-pulse-soft">
+        {statusBanner ? (
+          <div className="rounded-[20px] border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
             {statusBanner}
           </div>
-        )}
+        ) : null}
 
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-12 gap-6">
-          <aside className="md:col-span-1 xl:col-span-3 rounded-[22px] bg-white border border-neutral-100 shadow-sm p-5 h-fit">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold text-neutral-900">Patients suivis</h2>
+        <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
+          <aside className="xl:col-span-3 rounded-[20px] border border-neutral-100 bg-white shadow-sm p-4 sm:p-5 space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-neutral-900 font-semibold">Patients suivis</h2>
               <Users className="h-5 w-5 text-medical-600" />
             </div>
-            <div className="space-y-2 max-h-[70vh] overflow-y-auto">
+
+            <label className="relative block">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-400" />
+              <input
+                value={patientSearch}
+                onChange={(event) => setPatientSearch(event.target.value)}
+                placeholder="Rechercher un patient"
+                className="h-11 w-full rounded-xl border border-neutral-200 bg-white pl-10 pr-4 text-sm focus:ring-2 focus:ring-medical-500/20 focus:border-medical-500 outline-none"
+              />
+            </label>
+
+            <div className="space-y-3 max-h-[68vh] overflow-y-auto pr-1">
               {isLoadingPatients
-                ? Array.from({ length: 5 }).map((_, index) => (
-                    <div key={index} className="h-14 rounded-xl bg-neutral-100 animate-pulse" />
+                ? Array.from({ length: 4 }).map((_, index) => (
+                    <div key={index} className="rounded-[20px] border border-neutral-100 bg-neutral-100 p-4 h-24 animate-pulse" />
                   ))
-                : contacts.map((patient) => (
-                    <button
-                      type="button"
+                : filteredPatients.map((patient) => (
+                    <PatientCard
                       key={patient.id}
-                      className={`w-full flex items-center gap-3 rounded-xl border px-3 py-2.5 text-left transition-all duration-200 hover:-translate-y-0.5 hover:shadow-sm ${
-                        selectedPatient?.id === patient.id
-                          ? "border-medical-300 bg-gradient-to-r from-medical-50 to-health-50"
-                          : "border-neutral-200 bg-white hover:border-medical-200"
-                      }`}
-                      onClick={() => handleContactSelect(patient)}
-                    >
-                      <UserCircle2 className="h-8 w-8 text-medical-500" />
-                      <span className="font-medium text-neutral-800">{patient.firstName} {patient.lastName}</span>
-                    </button>
+                      patient={patient}
+                      selected={selectedPatient?.id === patient.id}
+                      onSelect={handleContactSelect}
+                    />
                   ))}
+
+              {!isLoadingPatients && filteredPatients.length === 0 ? (
+                <EmptyStateMedical
+                  title="Aucun patient"
+                  description="Aucun patient ne correspond à votre recherche actuelle."
+                />
+              ) : null}
             </div>
           </aside>
 
-          <section className="md:col-span-1 xl:col-span-5 rounded-[22px] bg-white border border-neutral-100 shadow-sm p-5 space-y-4">
+          <section className="xl:col-span-5 rounded-[20px] border border-neutral-100 bg-white shadow-sm p-4 sm:p-6 space-y-5">
             {selectedPatient ? (
               <>
                 <div>
-                  <h2 className="text-xl font-semibold text-neutral-900">Créer une ordonnance</h2>
+                  <h2 className="text-neutral-900 font-semibold text-xl">Créer une ordonnance</h2>
                   <p className="text-sm text-neutral-500 mt-1">
-                    Patient: <span className="font-medium text-neutral-700">{selectedPatient.firstName} {selectedPatient.lastName}</span>
+                    Patient: {selectedPatient.firstName} {selectedPatient.lastName} • Allergies: {selectedPatient.allergies || "Aucune connue"}
                   </p>
                 </div>
 
-                <MedicationSearch onAddMedication={handleAddMedication} />
-                <PrescriptionTable medications={selectedMedications} onRemove={handleRemoveMedication} />
+                <section className="rounded-xl border border-neutral-200 bg-neutral-50/50 p-4 space-y-3">
+                  <h3 className="text-sm font-semibold text-neutral-900">Paramètres e-ordonnance Suisse</h3>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={handleAutofillFromPatient}
+                      className="h-9 rounded-xl border border-neutral-200 bg-white px-3 text-xs text-neutral-700 hover:bg-neutral-50"
+                    >
+                      Préremplir depuis patient
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleGenerateSwissToken}
+                      className="h-9 rounded-xl border border-neutral-200 bg-white px-3 text-xs text-neutral-700 hover:bg-neutral-50"
+                    >
+                      Générer token eRx
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleApplySwissQuickDefaults}
+                      className="h-9 rounded-xl border border-neutral-200 bg-white px-3 text-xs text-neutral-700 hover:bg-neutral-50"
+                    >
+                      Appliquer valeurs recommandées CH
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <label className="text-xs text-neutral-600">Type
+                      <select
+                        value={ePrescriptionForm.issueType}
+                        onChange={(event) => setEPrescriptionForm((previous) => ({ ...previous, issueType: event.target.value }))}
+                        className="mt-1 h-10 w-full rounded-xl border border-neutral-200 bg-white px-3 text-sm"
+                      >
+                        <option value={SWISS_EPRESCRIPTION_ISSUE_TYPES.SINGLE}>Unique</option>
+                        <option value={SWISS_EPRESCRIPTION_ISSUE_TYPES.RENEWABLE}>Renouvelable</option>
+                        <option value={SWISS_EPRESCRIPTION_ISSUE_TYPES.CHRONIC}>Traitement chronique</option>
+                      </select>
+                    </label>
+                    <label className="text-xs text-neutral-600">Date d&apos;émission
+                      <input
+                        type="date"
+                        value={ePrescriptionForm.issuedAt}
+                        onChange={(event) => setEPrescriptionForm((previous) => ({ ...previous, issuedAt: event.target.value }))}
+                        className="mt-1 h-10 w-full rounded-xl border border-neutral-200 bg-white px-3 text-sm"
+                      />
+                    </label>
+                    <label className="text-xs text-neutral-600">Valable jusqu&apos;au
+                      <input
+                        type="date"
+                        value={ePrescriptionForm.validUntil}
+                        onChange={(event) => setEPrescriptionForm((previous) => ({ ...previous, validUntil: event.target.value }))}
+                        className="mt-1 h-10 w-full rounded-xl border border-neutral-200 bg-white px-3 text-sm"
+                      />
+                    </label>
+                    <label className="text-xs text-neutral-600">Lieu d&apos;émission
+                      <input
+                        type="text"
+                        value={ePrescriptionForm.placeOfIssue}
+                        onChange={(event) => setEPrescriptionForm((previous) => ({ ...previous, placeOfIssue: event.target.value }))}
+                        className="mt-1 h-10 w-full rounded-xl border border-neutral-200 bg-white px-3 text-sm"
+                        placeholder="Ville / Canton"
+                      />
+                    </label>
+                    <label className="text-xs text-neutral-600">GLN prescripteur
+                      <input
+                        type="text"
+                        value={ePrescriptionForm.prescriberGLN}
+                        onChange={(event) => setEPrescriptionForm((previous) => ({ ...previous, prescriberGLN: event.target.value }))}
+                        className="mt-1 h-10 w-full rounded-xl border border-neutral-200 bg-white px-3 text-sm"
+                      />
+                    </label>
+                    <label className="text-xs text-neutral-600">RCC / ID pro
+                      <input
+                        type="text"
+                        value={ePrescriptionForm.prescriberRCC}
+                        onChange={(event) => setEPrescriptionForm((previous) => ({ ...previous, prescriberRCC: event.target.value }))}
+                        className="mt-1 h-10 w-full rounded-xl border border-neutral-200 bg-white px-3 text-sm"
+                      />
+                    </label>
+                    <label className="text-xs text-neutral-600">Jeton dataset signé/enregistré
+                      <input
+                        type="text"
+                        value={ePrescriptionForm.signedRegisteredToken}
+                        onChange={(event) => setEPrescriptionForm((previous) => ({ ...previous, signedRegisteredToken: event.target.value }))}
+                        className="mt-1 h-10 w-full rounded-xl border border-neutral-200 bg-white px-3 text-sm"
+                        placeholder="Token E-Rezept service"
+                      />
+                    </label>
+                    <label className="text-xs text-neutral-600">N° AVS patient
+                      <input
+                        type="text"
+                        value={ePrescriptionForm.avsNumber}
+                        onChange={(event) => setEPrescriptionForm((previous) => ({ ...previous, avsNumber: event.target.value }))}
+                        className="mt-1 h-10 w-full rounded-xl border border-neutral-200 bg-white px-3 text-sm"
+                      />
+                    </label>
+                    <label className="text-xs text-neutral-600">Assureur
+                      <input
+                        type="text"
+                        value={ePrescriptionForm.insuranceName}
+                        onChange={(event) => setEPrescriptionForm((previous) => ({ ...previous, insuranceName: event.target.value }))}
+                        className="mt-1 h-10 w-full rounded-xl border border-neutral-200 bg-white px-3 text-sm"
+                      />
+                    </label>
+                    <label className="text-xs text-neutral-600">N° dossier médical
+                      <input
+                        type="text"
+                        value={ePrescriptionForm.medicalRecordNumber}
+                        onChange={(event) => setEPrescriptionForm((previous) => ({ ...previous, medicalRecordNumber: event.target.value }))}
+                        className="mt-1 h-10 w-full rounded-xl border border-neutral-200 bg-white px-3 text-sm"
+                      />
+                    </label>
+                    <label className="text-xs text-neutral-600">Répétitions autorisées
+                      <input
+                        type="number"
+                        min="0"
+                        max="12"
+                        value={ePrescriptionForm.repeatsAllowed}
+                        onChange={(event) => setEPrescriptionForm((previous) => ({ ...previous, repeatsAllowed: Number(event.target.value || 0) }))}
+                        className="mt-1 h-10 w-full rounded-xl border border-neutral-200 bg-white px-3 text-sm"
+                      />
+                    </label>
+                  </div>
 
-                {!idPrescription ? (
-                  <button
-                    onClick={handleSavePrescription}
-                    className="btn-primary w-full"
-                  >
-                    Créer la prescription
-                  </button>
-                ) : (
-                  <button
-                    onClick={handleUpdatePrescription}
-                    className="w-full rounded-xl bg-medical-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-medical-700 transition"
-                  >
-                    Mettre à jour la prescription
-                  </button>
-                )}
+                  <label className="text-xs text-neutral-600 block">Indication thérapeutique
+                    <textarea
+                      rows={2}
+                      value={ePrescriptionForm.therapeuticPurpose}
+                      onChange={(event) => setEPrescriptionForm((previous) => ({ ...previous, therapeuticPurpose: event.target.value }))}
+                      className="mt-1 w-full rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm"
+                    />
+                  </label>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <label className="text-xs text-neutral-600">Diagnostic
+                      <input
+                        type="text"
+                        value={clinicalInfoForm.diagnosis}
+                        onChange={(event) => setClinicalInfoForm((previous) => ({ ...previous, diagnosis: event.target.value }))}
+                        className="mt-1 h-10 w-full rounded-xl border border-neutral-200 bg-white px-3 text-sm"
+                      />
+                    </label>
+                    <label className="text-xs text-neutral-600">Antécédents
+                      <input
+                        type="text"
+                        value={clinicalInfoForm.history}
+                        onChange={(event) => setClinicalInfoForm((previous) => ({ ...previous, history: event.target.value }))}
+                        className="mt-1 h-10 w-full rounded-xl border border-neutral-200 bg-white px-3 text-sm"
+                      />
+                    </label>
+                  </div>
+
+                  <div className="flex flex-wrap gap-4 text-xs text-neutral-700">
+                    <label className="inline-flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={ePrescriptionForm.substitutionAllowed}
+                        onChange={(event) => setEPrescriptionForm((previous) => ({ ...previous, substitutionAllowed: event.target.checked }))}
+                      />
+                      Substitution générique autorisée
+                    </label>
+                    <label className="inline-flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={ePrescriptionForm.emergencyPrescription}
+                        onChange={(event) => setEPrescriptionForm((previous) => ({ ...previous, emergencyPrescription: event.target.checked }))}
+                      />
+                      Ordonnance d&apos;urgence
+                    </label>
+                    <label className="inline-flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={ePrescriptionForm.narcoticsExcludedDeclaration}
+                        onChange={(event) => setEPrescriptionForm((previous) => ({ ...previous, narcoticsExcludedDeclaration: event.target.checked }))}
+                      />
+                      Je confirme l&apos;absence de stupéfiants (BetmVV-EDI)
+                    </label>
+                  </div>
+
+                  {missingSwissFields.length > 0 ? (
+                    <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">
+                      <p className="font-semibold">Champs à compléter avant création / mise à jour :</p>
+                      <p className="mt-1">{missingSwissFields.join(" • ")}</p>
+                    </div>
+                  ) : (
+                    <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
+                      Configuration e-ordonnance prête pour émission.
+                    </div>
+                  )}
+                </section>
+
+                {idPrescription && IMMUTABLE_PRESCRIPTION_STATUSES.has(prescriptionStatus) ? (
+                  <section className="rounded-xl border border-amber-200 bg-amber-50/60 p-4 space-y-2">
+                    <h3 className="text-sm font-semibold text-amber-800">Révocation obligatoire avant nouvelle version</h3>
+                    <p className="text-xs text-amber-700">
+                      Cette ordonnance est déjà émise/signée. La correction passe par révocation puis recréation.
+                    </p>
+                    <label className="text-xs text-amber-800 block">Motif de révocation (obligatoire)
+                      <textarea
+                        rows={2}
+                        value={revocationReason}
+                        onChange={(event) => setRevocationReason(event.target.value)}
+                        className="mt-1 w-full rounded-xl border border-amber-200 bg-white px-3 py-2 text-sm text-neutral-900"
+                        placeholder="Exemple: correction posologie / dosage / fréquence"
+                      />
+                    </label>
+                  </section>
+                ) : null}
+
+                <MedicationSearch onAddMedication={handleAddMedication} />
+
+                <div className="space-y-3">
+                  {selectedMedications.length > 0 ? (
+                    selectedMedications.map((medication, index) => (
+                      <MedicationItem
+                        key={`${medication.name}-${index}`}
+                        medication={medication}
+                        onDelete={() => handleRemoveMedication(index)}
+                        actions
+                      />
+                    ))
+                  ) : (
+                    <EmptyStateMedical
+                      title="Aucun médicament sélectionné"
+                      description="Ajoutez des traitements depuis la recherche pour construire l'ordonnance."
+                    />
+                  )}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={idPrescription ? handleUpdatePrescription : handleSavePrescription}
+                  disabled={!canSubmitSwissPrescription}
+                  className="h-11 rounded-xl bg-medical-600 hover:bg-medical-700 disabled:bg-neutral-300 disabled:cursor-not-allowed text-white font-medium px-5"
+                >
+                  {idPrescription
+                    ? IMMUTABLE_PRESCRIPTION_STATUSES.has(prescriptionStatus)
+                      ? "Révoquer puis recréer la prescription"
+                      : "Mettre à jour la prescription"
+                    : "Créer la prescription"}
+                </button>
               </>
             ) : (
-              <div className="h-full flex items-center justify-center text-center py-20">
-                <div>
-                  <Users className="h-12 w-12 text-neutral-300 mx-auto mb-3" />
-                  <p className="text-neutral-600 font-medium">Sélectionnez un patient</p>
-                  <p className="text-sm text-neutral-500">pour démarrer la création de l’ordonnance.</p>
-                </div>
-              </div>
+              <EmptyStateMedical
+                title="Sélectionnez un patient"
+                description="Choisissez un patient dans la colonne de gauche pour démarrer la création d’ordonnance."
+              />
             )}
           </section>
 
-          <section className="md:col-span-2 xl:col-span-4 rounded-[22px] bg-white border border-neutral-100 shadow-sm p-5">
-            <div className="flex items-center gap-2 mb-4">
-              <FileText className="h-5 w-5 text-medical-600" />
-              <h2 className="text-lg font-semibold text-neutral-900">Aperçu ordonnance</h2>
-            </div>
+          <section className="xl:col-span-4 xl:sticky xl:top-24 self-start">
             {idPrescription && showPdf ? (
               <PrescriptionForm
                 prescriptionId={idPrescription}
+                refreshToken={previewRefreshToken}
                 onStatusChange={(status) => {
                   if (status) setPrescriptionStatus(status);
                 }}
               />
             ) : (
-              <div className="rounded-xl border border-dashed border-neutral-300 bg-neutral-50 p-10 text-center">
-                <FileText className="h-12 w-12 text-neutral-300 mx-auto mb-3" />
-                <p className="text-neutral-600 font-medium">Aucune ordonnance affichée</p>
-                <p className="text-sm text-neutral-500">Créez une prescription pour voir l’aperçu PDF ici.</p>
-              </div>
+              <PrescriptionPreviewPanel
+                title="Aperçu ordonnance"
+                subtitle="Prévisualisez le document, générez le PDF et envoyez la prescription au patient."
+                status={prescriptionStatus || "brouillon"}
+                sticky
+              >
+                <EmptyStateMedical
+                  title="Aucune ordonnance affichée"
+                  description="Créez une prescription dans la colonne centrale pour afficher ici une feuille médicale prête à être imprimée ou envoyée."
+                  action={
+                    <span className="inline-flex items-center gap-2 text-sm text-neutral-500">
+                      <FileText className="h-4 w-4" /> Prévisualisation PDF disponible après création
+                    </span>
+                  }
+                />
+              </PrescriptionPreviewPanel>
             )}
           </section>
         </div>
-      </div>
     </div>
   );
 };
- 

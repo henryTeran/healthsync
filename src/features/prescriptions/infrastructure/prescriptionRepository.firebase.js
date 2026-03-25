@@ -5,11 +5,15 @@ import {
   getDoc,
   getDocs,
   query,
+  runTransaction,
   updateDoc,
   where,
 } from "firebase/firestore";
 import { db } from "../../../providers/firebase";
-import { RECEIVED_OR_ACTIONABLE_STATUSES } from "../domain/prescriptionStatus";
+import {
+  PRESCRIPTION_STATUS,
+  RECEIVED_OR_ACTIONABLE_STATUSES,
+} from "../domain/prescriptionStatus";
 
 const prescriptionsCollection = collection(db, "prescriptions");
 
@@ -58,4 +62,43 @@ export const findById = async (idPrescription) => {
 
 export const updateById = async (idPrescription, payload) => {
   await updateDoc(doc(db, "prescriptions", idPrescription), payload);
+};
+
+export const activatePrescriptionOnce = async (idPrescription, startDate) => {
+  const prescriptionRef = doc(db, "prescriptions", idPrescription);
+
+  return runTransaction(db, async (transaction) => {
+    const snapshot = await transaction.get(prescriptionRef);
+    if (!snapshot.exists()) {
+      throw new Error("Prescription introuvable.");
+    }
+
+    const current = snapshot.data();
+    const alreadyValidated =
+      [
+        PRESCRIPTION_STATUS.VALIDATED_BY_PATIENT,
+        PRESCRIPTION_STATUS.ACTIVE,
+        PRESCRIPTION_STATUS.COMPLETED,
+      ].includes(current?.status) ||
+      Boolean(current?.validation?.validatedByPatient) ||
+      Boolean(current?.validation?.validatedAt) ||
+      Boolean(current?.validation?.patientStartDate);
+
+    if (alreadyValidated) {
+      return { alreadyValidated: true, current };
+    }
+
+    transaction.update(prescriptionRef, {
+      status: PRESCRIPTION_STATUS.ACTIVE,
+      validation: {
+        ...(current?.validation || {}),
+        validatedByPatient: true,
+        validatedAt: new Date().toISOString(),
+        patientStartDate: startDate,
+      },
+      statusUpdatedAt: new Date().toISOString(),
+    });
+
+    return { alreadyValidated: false };
+  });
 };
