@@ -28,3 +28,6 @@ coverage/
 # Documents
 *.pdf
 *.docx
+
+# Temporary extraction folders
+tmp_docx_extract_*
