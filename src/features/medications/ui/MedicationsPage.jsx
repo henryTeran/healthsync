@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useState } from "react";
+﻿import { useCallback, useEffect, useMemo, useState } from "react";
 import { FileText, Search, Users } from "lucide-react";
 import { MedicationSearch } from "./MedicationSearch";
 import { PrescriptionForm } from "../../prescriptions/ui/PrescriptionForm";
@@ -139,6 +139,10 @@ export const MedicationsPage = () => {
     diagnosis: "",
     notes: "",
   });
+
+  const handlePrescriptionStatusChange = useCallback((status) => {
+    if (status) setPrescriptionStatus(status);
+  }, []);
 
   useEffect(() => {
     const fetchPatients = async () => {
@@ -872,9 +876,7 @@ export const MedicationsPage = () => {
               <PrescriptionForm
                 prescriptionId={idPrescription}
                 refreshToken={previewRefreshToken}
-                onStatusChange={(status) => {
-                  if (status) setPrescriptionStatus(status);
-                }}
+                onStatusChange={handlePrescriptionStatusChange}
               />
             ) : (
               <PrescriptionPreviewPanel

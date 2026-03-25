@@ -1,16 +1,17 @@
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import * as logger from "firebase-functions/logger";
-import { initializeApp, applicationDefault } from "firebase-admin/app";
+import { initializeApp } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
 import { getMessaging } from "firebase-admin/messaging";
 import { createHash, randomUUID } from "crypto";
 
-// 🔥 Initialisation de Firebase Admin
-initializeApp({ credential: applicationDefault() });
+// 🔥 Initialisation de Firebase Admin (credentials auto en environnement GCP)
+initializeApp();
 
-const firestore = getFirestore();
-const messaging = getMessaging();
+// Lazy initialization — évite les connexions réseau au chargement du module
+const getDb = () => getFirestore();
+const getMsg = () => getMessaging();
 
 const computeDatasetChecksum = (payload = {}) => {
   const criticalDataset = {
@@ -104,7 +105,7 @@ export const scheduleNotifications = onSchedule("every 1 hours", async () => {
   logger.info("scheduleNotifications started", { triggerTime: now.toISOString() });
 
   try {
-    const remindersSnapshot = await firestore
+    const remindersSnapshot = await getDb()
       .collection("reminders")
       .where("dateTime", "<=", now)
       .where("status", "==", "pending")
@@ -116,7 +117,7 @@ export const scheduleNotifications = onSchedule("every 1 hours", async () => {
 
     for (const doc of remindersSnapshot.docs) {
       const reminder = doc.data();
-      const userRef = firestore.collection("users").doc(reminder.userId || reminder.idUser);
+      const userRef = getDb().collection("users").doc(reminder.userId || reminder.idUser);
       const userDoc = await userRef.get();
 
       if (userDoc.exists && userDoc.data().fcmToken) {
@@ -142,7 +143,7 @@ export const scheduleNotifications = onSchedule("every 1 hours", async () => {
 // 📌 Fonction d'envoi de notification
 const sendNotification = async (token, title, body) => {
   try {
-    await messaging.send({
+    await getMsg().send({
       token,
       notification: { title, body },
     });

@@ -1,4 +1,4 @@
-﻿import { useEffect, useRef, useState } from "react";
+﻿import { useCallback, useEffect, useRef, useState } from "react";
 import {
   getPrescriptionById,
   updatePrescription,
@@ -30,6 +30,12 @@ export const PrescriptionForm = ({ prescriptionId, onStatusChange, refreshToken 
   // Élément hors-écran dédié à la capture PDF (pas de décorations UI)
   const pdfRef = useRef(null);
 
+  // Stabiliser le callback pour éviter les re-renders infinis
+  const stableOnStatusChange = useCallback(
+    (status) => onStatusChange?.(status),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    []
+  );
 
   useEffect(() => {
     const fetchPrescription = async () => {
@@ -49,7 +55,7 @@ export const PrescriptionForm = ({ prescriptionId, onStatusChange, refreshToken 
 
         const fullData = { ...data, profilDoctor, profilPatient };
         setPrescription(fullData);
-        onStatusChange?.(fullData.status);
+        stableOnStatusChange(fullData.status);
       } catch (error) {
         logError("Erreur lors de la récupération de la prescription", error, {
           feature: "prescriptions",
@@ -59,7 +65,7 @@ export const PrescriptionForm = ({ prescriptionId, onStatusChange, refreshToken 
       }
     };
     fetchPrescription();
-  }, [prescriptionId, refreshToken, onStatusChange]);
+  }, [prescriptionId, refreshToken, stableOnStatusChange]);
 
 
 
