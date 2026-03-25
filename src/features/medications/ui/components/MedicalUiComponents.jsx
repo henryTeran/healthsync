@@ -6,9 +6,6 @@ import {
   Circle,
   Clock3,
   FileText,
-  Mail,
-  MapPin,
-  Phone,
   UserCircle2,
 } from "lucide-react";
 
@@ -41,39 +38,6 @@ const normalizeStatus = (status) =>
 const withDefaultAvatar = (event) => {
   if (event?.currentTarget?.src?.endsWith(DEFAULT_AVATAR)) return;
   event.currentTarget.src = DEFAULT_AVATAR;
-};
-
-const formatSwissDate = (value) => {
-  if (!value) return "Date inconnue";
-
-  if (typeof value === "string") {
-    const date = new Date(value);
-    if (!Number.isNaN(date.getTime())) {
-      return date.toLocaleDateString("fr-CH", {
-        day: "2-digit",
-        month: "long",
-        year: "numeric",
-      });
-    }
-  }
-
-  if (value?.seconds) {
-    return new Date(value.seconds * 1000).toLocaleDateString("fr-CH", {
-      day: "2-digit",
-      month: "long",
-      year: "numeric",
-    });
-  }
-
-  if (value?.toDate) {
-    return value.toDate().toLocaleDateString("fr-CH", {
-      day: "2-digit",
-      month: "long",
-      year: "numeric",
-    });
-  }
-
-  return "Date inconnue";
 };
 
 export const MedicalStatusBadge = ({ status, className = "" }) => {
@@ -480,9 +444,23 @@ PrescriptionPreviewPanel.propTypes = {
 export const MedicalDocumentA4 = ({ children, className = "" }) => (
   <div
     data-pdf-document="true"
-    className={`mx-auto w-full max-w-[794px] border border-neutral-300 bg-white shadow-[0_18px_45px_rgba(15,23,42,0.10)] ${className}`}
+    className={`mx-auto w-full max-w-[210mm] border border-black bg-white text-black shadow-none ${className}`}
+    style={{
+      width: REGULATORY_DOCUMENT.pageWidth,
+      minHeight: REGULATORY_DOCUMENT.pageMinHeight,
+      fontFamily: 'Calibri, Arial, Helvetica, sans-serif',
+    }}
   >
-    <div className="px-10 py-10">{children}</div>
+    <div
+      style={{
+        paddingLeft: REGULATORY_DOCUMENT.margin,
+        paddingRight: REGULATORY_DOCUMENT.margin,
+        paddingTop: REGULATORY_DOCUMENT.margin,
+        paddingBottom: REGULATORY_DOCUMENT.margin,
+      }}
+    >
+      {children}
+    </div>
   </div>
 );
 
@@ -592,6 +570,166 @@ const normalizeArrayField = (value, fallback = "Non renseigné") => {
   return displayValue(value, fallback);
 };
 
+const REGULATORY_DOCUMENT = {
+  pageWidth: "210mm",
+  pageMinHeight: "297mm",
+  margin: "12mm",
+  contentWidth: "186mm",
+  qrSize: "70mm",
+  qrGap: "12mm",
+  doctorBlockWidth: "97mm",
+  headerHeight: "15.1mm",
+  noticeHeight: "14.3mm",
+  patientBlockMinHeight: "18.2mm",
+  medicationBlockMinHeight: "119.3mm",
+  footerHeight: "20mm",
+};
+
+const compactDate = (value) => {
+  if (!value) return "";
+
+  if (typeof value === "string") {
+    const date = new Date(value);
+    if (!Number.isNaN(date.getTime())) {
+      return date.toLocaleDateString("fr-CH", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+      });
+    }
+  }
+
+  if (value?.seconds) {
+    return new Date(value.seconds * 1000).toLocaleDateString("fr-CH", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+    });
+  }
+
+  if (value?.toDate) {
+    return value.toDate().toLocaleDateString("fr-CH", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+    });
+  }
+
+  return "";
+};
+
+const compactMedicationLabel = (medication) => {
+  const quantity = medication?.quantity ? `, ${medication.quantity}` : "";
+  const form = medication?.pharmaceuticalForm || medication?.form || "";
+  const dosage = medication?.dosage ? ` ${medication.dosage}` : "";
+
+  return `${displayValue(medication?.name, "Médicament non renseigné")}${dosage}${form ? `, ${form}` : ""}${quantity}`;
+};
+
+const medicationSchedule = (medication) => {
+  return [
+    medication?.posology,
+    medication?.frequency,
+    medication?.duration ? `jusqu'au ${medication.duration}` : null,
+  ]
+    .filter(Boolean)
+    .join(", ");
+};
+
+const doctorShape = PropTypes.shape({
+  firstName: PropTypes.string,
+  lastName: PropTypes.string,
+  specialty: PropTypes.string,
+  department: PropTypes.string,
+  clinicName: PropTypes.string,
+  organization: PropTypes.string,
+  address: PropTypes.string,
+  postalCode: PropTypes.string,
+  state: PropTypes.string,
+  country: PropTypes.string,
+  mobileNumber: PropTypes.string,
+  phone: PropTypes.string,
+  gln: PropTypes.string,
+  rcc: PropTypes.string,
+  zsr: PropTypes.string,
+  professionalId: PropTypes.string,
+});
+
+const patientShape = PropTypes.shape({
+  firstName: PropTypes.string,
+  lastName: PropTypes.string,
+  birthDate: PropTypes.oneOfType([PropTypes.string, PropTypes.object]),
+  dateOfBirth: PropTypes.oneOfType([PropTypes.string, PropTypes.object]),
+  sex: PropTypes.string,
+  gender: PropTypes.string,
+  address: PropTypes.string,
+  avsNumber: PropTypes.string,
+  insuranceNumber: PropTypes.string,
+  insuranceName: PropTypes.string,
+  allergies: PropTypes.oneOfType([PropTypes.string, PropTypes.array]),
+});
+
+const medicationShape = PropTypes.shape({
+  id: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+  name: PropTypes.string,
+  dosage: PropTypes.string,
+  pharmaceuticalForm: PropTypes.string,
+  form: PropTypes.string,
+  quantity: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+  posology: PropTypes.string,
+  frequency: PropTypes.string,
+  duration: PropTypes.string,
+  instruction: PropTypes.string,
+  indication: PropTypes.string,
+  notes: PropTypes.string,
+  specialInstructions: PropTypes.string,
+  substituteNotAllowedReason: PropTypes.string,
+  substitutionNote: PropTypes.string,
+});
+
+const prescriptionShape = PropTypes.shape({
+  id: PropTypes.string,
+  creationDate: PropTypes.oneOfType([PropTypes.string, PropTypes.object]),
+  clinicalNotes: PropTypes.string,
+  clinicalInfo: PropTypes.shape({
+    allergies: PropTypes.oneOfType([PropTypes.string, PropTypes.array]),
+    history: PropTypes.string,
+    diagnosis: PropTypes.string,
+    notes: PropTypes.string,
+  }),
+  medications: PropTypes.arrayOf(medicationShape),
+  metadata: PropTypes.shape({
+    place: PropTypes.string,
+    medicalRecordNumber: PropTypes.string,
+  }),
+  ePrescription: PropTypes.shape({
+    reference: PropTypes.string,
+    qrPayload: PropTypes.string,
+    signedRegisteredToken: PropTypes.string,
+    issuedAt: PropTypes.oneOfType([PropTypes.string, PropTypes.object]),
+    validUntil: PropTypes.oneOfType([PropTypes.string, PropTypes.object]),
+    issueType: PropTypes.string,
+    repeatsAllowed: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+    substitutionAllowed: PropTypes.bool,
+    therapeuticPurpose: PropTypes.string,
+    datasetChecksum: PropTypes.string,
+    registration: PropTypes.shape({
+      registrationId: PropTypes.string,
+    }),
+    patientAdministrative: PropTypes.shape({
+      avsNumber: PropTypes.string,
+      insuranceName: PropTypes.string,
+      insuranceNumber: PropTypes.string,
+    }),
+    prescriber: PropTypes.shape({
+      gln: PropTypes.string,
+      rcc: PropTypes.string,
+      zsr: PropTypes.string,
+      professionalId: PropTypes.string,
+    }),
+  }),
+});
+
 export const PrescriptionClinicalInfo = ({ clinicalInfo }) => (
   <section className="border border-neutral-300 p-4">
     <h5 className="text-[11px] tracking-[0.18em] uppercase text-neutral-600 font-semibold">Informations cliniques</h5>
@@ -626,377 +764,158 @@ PrescriptionClinicalInfo.propTypes = {
 };
 
 export const PrescriptionDocumentPreview = ({ prescription, patient, doctor }) => {
-  const doctorName = `Dr ${doctor?.firstName || ""} ${doctor?.lastName || ""}`.trim() || "Dr \u2014";
-  const patientName = `${patient?.firstName || ""} ${patient?.lastName || ""}`.trim() || "\u2014";
-  const documentDate = formatSwissDate(prescription?.creationDate || new Date().toISOString());
-  const ePrescription = prescription?.ePrescription || {};
-  const medications = prescription?.medications || [];
+  const prescriptionData = prescription || {};
+  const patientData = patient || {};
+  const doctorData = doctor || {};
+  const doctorName = `Dr ${doctorData.firstName || ""} ${doctorData.lastName || ""}`.trim() || "Dr —";
+  const patientName = `${patientData.firstName || ""} ${patientData.lastName || ""}`.trim() || "—";
+  const ePrescription = prescriptionData.ePrescription || {};
+  const medications = prescriptionData.medications || [];
   const clinicalInfo = {
-    allergies: prescription?.clinicalInfo?.allergies || patient?.allergies,
-    diagnosis: prescription?.clinicalInfo?.diagnosis,
-    notes: prescription?.clinicalInfo?.notes || prescription?.clinicalNotes,
+    allergies: prescriptionData.clinicalInfo?.allergies || patientData.allergies,
+    history: prescriptionData.clinicalInfo?.history,
+    diagnosis: prescriptionData.clinicalInfo?.diagnosis,
+    notes: prescriptionData.clinicalInfo?.notes || prescriptionData.clinicalNotes,
   };
 
   const qrPayload =
-    ePrescription?.signedRegisteredToken ||
-    ePrescription?.qrPayload ||
-    ePrescription?.reference ||
-    prescription?.id ||
+    ePrescription.signedRegisteredToken ||
+    ePrescription.qrPayload ||
+    ePrescription.reference ||
+    prescriptionData.id ||
     "ERX-NO-TOKEN";
 
-  const issuedAt = formatSwissDate(ePrescription?.issuedAt || prescription?.creationDate);
-  const validUntil = formatSwissDate(ePrescription?.validUntil);
-  const isChronic =
-    ePrescription?.issueType === "CHRONIC" || Number(ePrescription?.repeatsAllowed) > 0;
-  const isSigned = Boolean(ePrescription?.signedRegisteredToken);
-
-  const prescriberGln = ePrescription?.prescriber?.gln || doctor?.gln;
+  const issuedAt = compactDate(ePrescription.issuedAt || prescriptionData.creationDate);
+  const patientBirthDate = compactDate(patientData.birthDate || patientData.dateOfBirth);
+  const isChronic = ePrescription.issueType === "CHRONIC" || Number(ePrescription.repeatsAllowed) > 0;
+  const prescriberGln = ePrescription.prescriber?.gln || doctorData.gln;
   const prescriberRcc =
-    ePrescription?.prescriber?.rcc ||
-    ePrescription?.prescriber?.professionalId ||
-    doctor?.rcc ||
-    doctor?.professionalId;
-  const prescriberZsr = ePrescription?.prescriber?.zsr || doctor?.zsr;
-
-  const avsNumber = ePrescription?.patientAdministrative?.avsNumber || patient?.avsNumber;
-  const insuranceName =
-    ePrescription?.patientAdministrative?.insuranceName || patient?.insuranceName;
+    ePrescription.prescriber?.rcc ||
+    ePrescription.prescriber?.professionalId ||
+    doctorData.rcc ||
+    doctorData.professionalId;
+  const prescriberZsr = ePrescription.prescriber?.zsr || doctorData.zsr;
+  const avsNumber = ePrescription.patientAdministrative?.avsNumber || patientData.avsNumber;
   const insuranceNumber =
-    ePrescription?.patientAdministrative?.insuranceNumber || patient?.insuranceNumber;
+    ePrescription.patientAdministrative?.insuranceNumber || patientData.insuranceNumber;
+  const patientAddress = displayValue(patientData.address, "Adresse non renseignée");
+  const pageReference = ePrescription.reference || prescriptionData.id || "—";
+  const legalComment =
+    ePrescription.therapeuticPurpose ||
+    clinicalInfo.diagnosis ||
+    clinicalInfo.notes ||
+    clinicalInfo.history ||
+    normalizeArrayField(clinicalInfo.allergies, "");
+  const footerLegalText =
+    "L'ordonnance électronique est un jeu de données représenté ci-dessus sous forme de code QR lisible par machine. Ce document est une impression directement lisible de l'ordonnance électronique. L'ordonnance électronique est signée numériquement, l'impression n'est pas signée. L'ordonnance électronique doit impérativement être honorée par voie électronique. Les patientes et les patients sont libres de choisir leur lieu de délivrance (Suisse et Liechtenstein). Plus d'informations sur e-ordonnance.ch.";
 
   return (
-    <MedicalDocumentA4>
-      {/* ── EN-TÊTE BRANDING E-REZEPT SUISSE ── */}
-      <div className="-mx-10 -mt-10 mb-6 flex items-center justify-between bg-slate-900 px-10 py-4">
-        <div className="flex items-center gap-3">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded bg-red-600 text-xl font-bold leading-none text-white">
-            +
+    <MedicalDocumentA4 className="overflow-hidden">
+      <div className="mx-auto text-black" style={{ width: REGULATORY_DOCUMENT.contentWidth }}>
+        <div className="grid border border-black" style={{ gridTemplateColumns: `70mm ${REGULATORY_DOCUMENT.qrGap} ${REGULATORY_DOCUMENT.doctorBlockWidth}` }}>
+          <div className="border-r border-black px-[3.5mm] pt-[3.5mm]" style={{ minHeight: REGULATORY_DOCUMENT.headerHeight }}>
+            <p className="text-[17pt] font-bold leading-none tracking-tight">+E-ORDONNANCE</p>
           </div>
-          <div>
-            <p className="text-base font-semibold leading-tight tracking-wide text-white">
-              E-Rezept Schweiz
-            </p>
-            <p className="text-[11px] leading-tight text-slate-400">
-              Ordonnance électronique · CHMED16A_R2
+          <div className="border-r border-black" />
+          <div className="px-[3mm] pt-[3mm]" style={{ minHeight: REGULATORY_DOCUMENT.noticeHeight }}>
+            <p className="text-[11pt] font-bold leading-[1.1]">Ordonnance électronique imprimée</p>
+            <p className="text-[9pt] font-semibold leading-[1.15]">
+              Doit impérativement être honorée par voie électronique
             </p>
           </div>
         </div>
-        <div className="text-right">
-          <p className="text-xl font-bold tracking-widest text-white">ORDONNANCE</p>
-          {isChronic ? (
-            <span className="mt-1 inline-block rounded-full bg-blue-500 px-3 py-0.5 text-[11px] font-semibold tracking-wide text-white">
-              Ordonnance répétée
-            </span>
-          ) : (
-            <span className="mt-1 inline-block rounded-full bg-emerald-500 px-3 py-0.5 text-[11px] font-semibold tracking-wide text-white">
-              Ordonnance unique
-            </span>
-          )}
-        </div>
-      </div>
 
-      {/* ── PRESCRIPTEUR + QR CODE ── */}
-      <div className="mb-5 grid grid-cols-12 gap-4 border-b border-neutral-200 pb-5">
-        <div className="col-span-7 space-y-1 text-sm">
-          <p className="text-lg font-semibold text-neutral-900">{doctorName}</p>
-          <p className="text-neutral-700">
-            {displayValue(doctor?.specialty || doctor?.department)}
-          </p>
-          <p className="text-neutral-700">
-            {displayValue(doctor?.clinicName || doctor?.organization)}
-          </p>
-          <p className="text-neutral-700">{displayValue(doctor?.address)}</p>
-          <p className="text-neutral-700">
-            {[doctor?.postalCode, doctor?.state, doctor?.country].filter(Boolean).join(" ")}
-          </p>
-          {(doctor?.mobileNumber || doctor?.phone) && (
-            <p className="text-neutral-600">Tél. {doctor?.mobileNumber || doctor?.phone}</p>
-          )}
-          <div className="mt-2 space-y-0.5 border-t border-neutral-200 pt-2 font-mono text-xs">
-            {prescriberGln && (
-              <p>
-                <span className="font-sans text-neutral-500">GLN </span>
-                {prescriberGln}
-              </p>
-            )}
-            {prescriberRcc && (
-              <p>
-                <span className="font-sans text-neutral-500">RCC </span>
-                {prescriberRcc}
-              </p>
-            )}
-            {prescriberZsr && (
-              <p>
-                <span className="font-sans text-neutral-500">ZSR </span>
-                {prescriberZsr}
-              </p>
-            )}
+        <div className="grid border-x border-b border-black" style={{ gridTemplateColumns: `70mm ${REGULATORY_DOCUMENT.qrGap} ${REGULATORY_DOCUMENT.doctorBlockWidth}` }}>
+          <div className="border-r border-black p-[2.5mm]">
+            <div className="border border-black p-[1.5mm]" style={{ width: REGULATORY_DOCUMENT.qrSize, height: REGULATORY_DOCUMENT.qrSize }}>
+              <QRCodeSVG value={qrPayload} level="Q" includeMargin={true} size={198} style={{ width: "100%", height: "100%" }} />
+            </div>
           </div>
-        </div>
-
-        <div className="col-span-5 flex flex-col items-center gap-2">
-          <div className="rounded-lg border-2 border-neutral-300 bg-white p-2 shadow-sm">
-            <QRCodeSVG value={qrPayload} size={128} level="M" includeMargin={false} />
-          </div>
-          <p className="max-w-[160px] break-all px-1 text-center font-mono text-[9px] leading-tight text-neutral-500">
-            {ePrescription?.reference || prescription?.id || "—"}
-          </p>
-          <p className="text-[10px] text-neutral-500">Scannez ce code en pharmacie</p>
-        </div>
-      </div>
-
-      {/* ── PATIENT ── */}
-      <div className="mb-4 rounded border border-neutral-300 bg-neutral-50 px-4 py-3">
-        <p className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-neutral-500">
-          Patient
-        </p>
-        <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
-          <p>
-            <span className="text-neutral-500">Nom / Prénom :</span>{" "}
-            <span className="font-semibold text-neutral-900">{patientName}</span>
-          </p>
-          <p>
-            <span className="text-neutral-500">Naissance :</span>{" "}
-            {formatSwissDate(patient?.birthDate || patient?.dateOfBirth)}
-          </p>
-          <p>
-            <span className="text-neutral-500">Sexe :</span>{" "}
-            {displayValue(patient?.sex || patient?.gender)}
-          </p>
-          <p>
-            <span className="text-neutral-500">N° AVS :</span>{" "}
-            <span className="font-mono">{displayValue(avsNumber)}</span>
-          </p>
-          {insuranceName && (
-            <p>
-              <span className="text-neutral-500">Assureur :</span> {insuranceName}
-            </p>
-          )}
-          {insuranceNumber && (
-            <p>
-              <span className="text-neutral-500">N° assurance :</span>{" "}
-              <span className="font-mono">{insuranceNumber}</span>
-            </p>
-          )}
-        </div>
-      </div>
-
-      {/* ── MÉTADONNÉES ORDONNANCE ── */}
-      <div className="mb-4 grid grid-cols-3 gap-3 text-sm">
-        <div className="rounded border border-neutral-200 px-3 py-2">
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-neutral-500">
-            {"Date d'émission"}
-          </p>
-          <p className="mt-1 font-medium text-neutral-900">{issuedAt}</p>
-        </div>
-        <div className="rounded border border-red-200 bg-red-50 px-3 py-2">
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-red-500">
-            {"Valable jusqu'au"}
-          </p>
-          <p className="mt-1 font-semibold text-red-700">{validUntil}</p>
-        </div>
-        <div className="rounded border border-neutral-200 px-3 py-2">
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-neutral-500">
-            Répétitions
-          </p>
-          <p className="mt-1 font-medium text-neutral-900">
-            {Number(ePrescription?.repeatsAllowed ?? 0) > 0
-              ? `${ePrescription?.repeatsAllowed}×`
-              : "—"}
-          </p>
-        </div>
-      </div>
-
-      {/* ── TRAITEMENTS PRESCRITS ── */}
-      <div className="mb-4 overflow-hidden rounded border border-neutral-300">
-        <div className="border-b border-neutral-300 bg-slate-900 px-4 py-2">
-          <p className="text-[11px] font-semibold uppercase tracking-widest text-white">
-            Traitements prescrits
-          </p>
-        </div>
-        {medications.length > 0 ? (
-          <div className="divide-y divide-neutral-100">
-            {medications.map((med, idx) => (
-              <div
-                key={`${med?.id || med?.name || idx}`}
-                className="flex gap-3 px-4 py-3 text-sm"
-              >
-                <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-slate-800 text-[10px] font-bold text-white">
-                  {idx + 1}
-                </span>
-                <div className="min-w-0 flex-1 space-y-0.5">
-                  <p className="font-semibold text-neutral-900">
-                    {displayValue(med?.name)}{" "}
-                    <span className="font-normal text-neutral-600">
-                      {displayValue(med?.dosage, "")}
-                    </span>
-                  </p>
-                  {(med?.pharmaceuticalForm || med?.form) && (
-                    <p className="text-neutral-700">
-                      <span className="text-neutral-500">Forme : </span>
-                      {med?.pharmaceuticalForm || med?.form}
-                    </p>
-                  )}
-                  {(med?.posology || med?.instruction || med?.frequency) && (
-                    <p className="text-neutral-700">
-                      <span className="text-neutral-500">Posologie : </span>
-                      {med?.posology || med?.instruction || med?.frequency}
-                    </p>
-                  )}
-                  {(med?.duration || med?.quantity) && (
-                    <p className="text-neutral-700">
-                      <span className="text-neutral-500">Durée / Qté : </span>
-                      {[med?.duration, med?.quantity].filter(Boolean).join(" / ")}
-                    </p>
-                  )}
-                  {(med?.specialInstructions || med?.notes || med?.indication) && (
-                    <p className="italic text-neutral-600">
-                      {med?.specialInstructions || med?.notes || med?.indication}
-                    </p>
-                  )}
-                </div>
-                <div className="shrink-0 text-right font-mono text-[10px] text-neutral-500">
-                  {med?.atcCode && <p>ATC: {med.atcCode}</p>}
-                  {med?.eanCode && <p>EAN: {med.eanCode}</p>}
-                  {med?.controlledSubstance && (
-                    <p className="font-sans font-semibold text-red-600">⚠ Stupéfiant</p>
-                  )}
-                </div>
+          <div className="border-r border-black" />
+          <div className="flex flex-col justify-between px-[3mm] py-[2.5mm] text-[11pt] leading-[1.2]">
+            <div>
+              <p className="text-[9pt] font-semibold">Médecin:</p>
+              <p className="font-bold leading-[1.1]">{doctorName}</p>
+              {prescriberGln ? <p className="font-bold">GLN: {prescriberGln}</p> : null}
+              <div className="mt-[3mm]">
+                <p>{displayValue(doctorData.clinicName || doctorData.organization)}</p>
+                {prescriberRcc ? <p>RCC: {prescriberRcc}</p> : null}
+                {prescriberZsr ? <p>ZSR: {prescriberZsr}</p> : null}
+                <p>{displayValue(doctorData.address)}</p>
+                <p>{[doctorData.postalCode, doctorData.state, doctorData.country].filter(Boolean).join(" ")}</p>
+                {(doctorData.mobileNumber || doctorData.phone) ? <p>{doctorData.mobileNumber || doctorData.phone}</p> : null}
               </div>
-            ))}
+            </div>
+            <div className="flex items-end justify-between text-[9pt] leading-[1.1]">
+              <div>
+                <p>Date d&apos;émission:</p>
+                <p className="font-semibold">{issuedAt}</p>
+              </div>
+              <p className="font-semibold">Page 1/1</p>
+            </div>
           </div>
-        ) : (
-          <p className="px-4 py-3 text-sm italic text-neutral-500">
-            Aucun traitement renseigné.
-          </p>
-        )}
-      </div>
-
-      {/* ── INDICATION / INFOS CLINIQUES ── */}
-      {(ePrescription?.therapeuticPurpose || clinicalInfo?.diagnosis || clinicalInfo?.allergies) && (
-        <div className="mb-4 rounded border border-amber-200 bg-amber-50 px-4 py-3 text-sm">
-          <p className="mb-1 text-[10px] font-semibold uppercase tracking-widest text-amber-700">
-            Informations cliniques
-          </p>
-          {ePrescription?.therapeuticPurpose && (
-            <p>
-              <span className="text-amber-700">Indication : </span>
-              {ePrescription.therapeuticPurpose}
-            </p>
-          )}
-          {clinicalInfo?.diagnosis && (
-            <p>
-              <span className="text-amber-700">Diagnostic : </span>
-              {clinicalInfo.diagnosis}
-            </p>
-          )}
-          {clinicalInfo?.allergies && (
-            <p>
-              <span className="text-amber-700">Allergies : </span>
-              {normalizeArrayField(clinicalInfo.allergies, "Aucune")}
-            </p>
-          )}
         </div>
-      )}
 
-      {/* ── SIGNATURE + SÉCURITÉ ── */}
-      <div className="mb-6 grid grid-cols-2 gap-4">
-        <div
-          className={`rounded border-2 px-4 py-3 ${
-            isSigned
-              ? "border-emerald-400 bg-emerald-50"
-              : "border-neutral-200 bg-neutral-50"
-          }`}
-        >
-          <div className="mb-2 flex items-center gap-2">
-            {isSigned ? (
-              <span className="flex items-center gap-1.5 text-sm font-semibold text-emerald-700">
-                <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
-                  <path
-                    fillRule="evenodd"
-                    d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
-                    clipRule="evenodd"
-                  />
-                </svg>
-                Signé électroniquement
-              </span>
-            ) : (
-              <span className="text-sm font-medium text-neutral-500">
-                En attente de signature
-              </span>
-            )}
+        <div className="border-x border-b border-black px-[3.5mm] py-[2.5mm]" style={{ minHeight: REGULATORY_DOCUMENT.patientBlockMinHeight }}>
+          <p className="text-[9pt] font-semibold">Patiente / Patient:</p>
+          <p className="text-[13pt] font-bold leading-[1.1]">{patientName}{patientBirthDate ? `, ${patientBirthDate}` : ""}</p>
+          <p className="text-[11pt] leading-[1.15]">{patientAddress}</p>
+          {insuranceNumber ? <p className="text-[11pt] leading-[1.15]">N° de carte d&apos;assuré: {insuranceNumber}</p> : null}
+          {!insuranceNumber && avsNumber ? <p className="text-[11pt] leading-[1.15]">N° AVS: {avsNumber}</p> : null}
+        </div>
+
+        {legalComment ? (
+          <div className="border-x border-b border-black px-[3.5mm] py-[1.6mm] text-[11pt] italic leading-[1.15]" style={{ minHeight: "6mm" }}>
+            <span className="font-semibold not-italic">Commentaire:</span> {legalComment}
           </div>
-          {ePrescription?.registration?.registrationId && (
-            <p className="text-xs text-neutral-600">
-              <span className="text-neutral-500">ID enregistrement : </span>
-              <span className="font-mono">{ePrescription.registration.registrationId}</span>
-            </p>
-          )}
-          {ePrescription?.datasetChecksum && (
-            <p className="break-all text-xs text-neutral-600">
-              <span className="text-neutral-500">Checksum : </span>
-              <span className="font-mono">{ePrescription.datasetChecksum}</span>
-            </p>
-          )}
-          {ePrescription?.substitutionAllowed !== undefined && (
-            <p
-              className={`mt-2 text-xs font-medium ${
-                ePrescription.substitutionAllowed ? "text-emerald-600" : "text-red-600"
-              }`}
-            >
-              {ePrescription.substitutionAllowed
-                ? "✓ Substitution autorisée"
-                : "✗ Substitution refusée"}
-            </p>
-          )}
-          {ePrescription?.emergencyPrescription && (
-            <p className="mt-1 text-xs font-semibold text-orange-600">
-              {"⚡ Ordonnance d'urgence"}
-            </p>
+        ) : null}
+
+        <div className="border-x border-b border-black" style={{ minHeight: REGULATORY_DOCUMENT.medicationBlockMinHeight }}>
+          {medications.length > 0 ? (
+            medications.map((medication, index) => {
+              const substitutionText = medication?.substituteNotAllowedReason || medication?.substitutionNote;
+              const medicationNote = [
+                medicationSchedule(medication),
+                isChronic ? `Répétable pendant ${ePrescription.repeatsAllowed || 1} mois` : null,
+                substitutionText,
+              ]
+                .filter(Boolean)
+                .join("\n");
+
+              return (
+                <div key={`${medication?.id || medication?.name || index}-${index}`} className="grid border-b border-black last:border-b-0" style={{ gridTemplateColumns: "138mm 48mm", minHeight: "18mm" }}>
+                  <div className="px-[3.5mm] py-[1.8mm] text-[11pt] leading-[1.15]">
+                    <p className="font-bold">{compactMedicationLabel(medication)}</p>
+                    {medicationNote ? <p className="mt-[0.8mm] whitespace-pre-line italic">{medicationNote}</p> : null}
+                  </div>
+                  <div className="border-l border-black px-[2.5mm] py-[1.8mm] text-[11pt] italic leading-[1.15]">
+                    {displayValue(
+                      medication?.instruction ||
+                        medication?.specialInstructions ||
+                        medication?.notes ||
+                        medication?.indication,
+                      ""
+                    )}
+                  </div>
+                </div>
+              );
+            })
+          ) : (
+            <div className="px-[3.5mm] py-[3mm] text-[11pt] italic">Aucun médicament renseigné.</div>
           )}
         </div>
 
-        <div className="rounded border border-neutral-200 px-4 py-3 text-sm">
-          <p className="text-[10px] font-semibold uppercase tracking-widest text-neutral-500">
-            Prescripteur
-          </p>
-          <p className="mt-1 font-medium text-neutral-900">{doctorName}</p>
-          <p className="text-neutral-600">{displayValue(doctor?.specialty)}</p>
-          <p className="text-neutral-600">
-            {[
-              displayValue(doctor?.address, ""),
-              [doctor?.postalCode, doctor?.state].filter(Boolean).join(" "),
-            ]
-              .filter(Boolean)
-              .join(", ")}
-          </p>
-          <div className="mt-6 border-t border-neutral-400 pt-1">
-            <p className="text-[10px] text-neutral-500">
-              {displayValue(
-                prescription?.metadata?.place || doctor?.state,
-                "Suisse"
-              )}
-              , le {documentDate}
-            </p>
-          </div>
+        <div className="border-x border-b border-black px-[3.5mm] py-[1.6mm] text-[9pt] leading-[1.15]" style={{ minHeight: REGULATORY_DOCUMENT.footerHeight }}>
+          <p className="mb-[1.2mm] text-right font-mono text-[8pt]">ID de l&apos;ordonnance: {pageReference}</p>
+          <p>{footerLegalText}</p>
         </div>
-      </div>
-
-      {/* ── PIED DE PAGE ── */}
-      <div className="-mx-10 -mb-10 flex items-center justify-between border-t-2 border-neutral-200 bg-slate-900 px-10 py-3">
-        <div className="flex items-center gap-2 text-xs text-slate-400">
-          <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded bg-red-600 text-xs font-bold leading-none text-white">
-            +
-          </div>
-          <span>
-            E-Rezept Schweiz · CHMED16A_R2 · Ce document doit être présenté
-            électroniquement en pharmacie.
-          </span>
-        </div>
-        <p className="font-mono text-[10px] text-slate-500">
-          {ePrescription?.reference || prescription?.id || "—"}
-        </p>
       </div>
     </MedicalDocumentA4>
   );
+};
+
+PrescriptionDocumentPreview.propTypes = {
+  prescription: prescriptionShape,
+  patient: patientShape,
+  doctor: doctorShape,
 };
