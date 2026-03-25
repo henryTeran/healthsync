@@ -1,4 +1,5 @@
 ﻿import PropTypes from "prop-types";
+import { QRCodeSVG } from "qrcode.react";
 import {
   CalendarDays,
   CheckCircle2,
@@ -625,170 +626,377 @@ PrescriptionClinicalInfo.propTypes = {
 };
 
 export const PrescriptionDocumentPreview = ({ prescription, patient, doctor }) => {
-  const doctorName = `Dr ${doctor?.firstName || ""} ${doctor?.lastName || ""}`.trim() || "Dr Non renseigné";
-  const patientName = `${patient?.firstName || ""} ${patient?.lastName || ""}`.trim() || "Patient non renseigné";
+  const doctorName = `Dr ${doctor?.firstName || ""} ${doctor?.lastName || ""}`.trim() || "Dr \u2014";
+  const patientName = `${patient?.firstName || ""} ${patient?.lastName || ""}`.trim() || "\u2014";
   const documentDate = formatSwissDate(prescription?.creationDate || new Date().toISOString());
-  const issuePlace = displayValue(prescription?.metadata?.place || doctor?.state || doctor?.country, "Lieu non renseigné");
-  const postalLine = [doctor?.postalCode, doctor?.state || doctor?.country].filter(Boolean).join(" ");
-  const footerAddress = [doctor?.address, postalLine, doctor?.country || "Suisse"].filter(Boolean).join(" • ");
+  const ePrescription = prescription?.ePrescription || {};
   const medications = prescription?.medications || [];
   const clinicalInfo = {
     allergies: prescription?.clinicalInfo?.allergies || patient?.allergies,
-    history: prescription?.clinicalInfo?.history,
     diagnosis: prescription?.clinicalInfo?.diagnosis,
     notes: prescription?.clinicalInfo?.notes || prescription?.clinicalNotes,
   };
-  const ePrescription = prescription?.ePrescription || {};
+
+  const qrPayload =
+    ePrescription?.signedRegisteredToken ||
+    ePrescription?.qrPayload ||
+    ePrescription?.reference ||
+    prescription?.id ||
+    "ERX-NO-TOKEN";
+
+  const issuedAt = formatSwissDate(ePrescription?.issuedAt || prescription?.creationDate);
+  const validUntil = formatSwissDate(ePrescription?.validUntil);
+  const isChronic =
+    ePrescription?.issueType === "CHRONIC" || Number(ePrescription?.repeatsAllowed) > 0;
+  const isSigned = Boolean(ePrescription?.signedRegisteredToken);
+
+  const prescriberGln = ePrescription?.prescriber?.gln || doctor?.gln;
+  const prescriberRcc =
+    ePrescription?.prescriber?.rcc ||
+    ePrescription?.prescriber?.professionalId ||
+    doctor?.rcc ||
+    doctor?.professionalId;
+  const prescriberZsr = ePrescription?.prescriber?.zsr || doctor?.zsr;
+
+  const avsNumber = ePrescription?.patientAdministrative?.avsNumber || patient?.avsNumber;
+  const insuranceName =
+    ePrescription?.patientAdministrative?.insuranceName || patient?.insuranceName;
+  const insuranceNumber =
+    ePrescription?.patientAdministrative?.insuranceNumber || patient?.insuranceNumber;
 
   return (
     <MedicalDocumentA4>
-      <div className="space-y-5 text-neutral-900">
-        <header className="border-b-2 border-neutral-900 pb-4">
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-12">
-            <div className="md:col-span-7 space-y-1">
-              <p className="text-xl font-semibold leading-tight">{doctorName}</p>
-              <p className="text-sm text-neutral-800">{displayValue(doctor?.specialty || doctor?.department, "Spécialité non renseignée")}</p>
-              <p className="text-sm text-neutral-800">{displayValue(doctor?.clinicName || doctor?.organization, "Cabinet / établissement non renseigné")}</p>
-              <p className="text-sm text-neutral-800">{displayValue(doctor?.address, "Adresse non renseignée")}</p>
-              <p className="text-sm text-neutral-800">{displayValue(postalLine, "Localisation non renseignée")}</p>
-              <p className="text-sm text-neutral-800">Tél: {displayValue(doctor?.mobileNumber || doctor?.phone)}</p>
-              <p className="text-sm text-neutral-800">Email: {displayValue(doctor?.email, "Non renseigné")}</p>
-            </div>
-            <div className="md:col-span-5 text-left md:text-right">
-              <p className="text-2xl font-semibold tracking-[0.16em]">ORDONNANCE</p>
-              <div className="mt-2 text-sm leading-6">
-                <p><span className="text-neutral-600">N° Prescription:</span> {displayValue(prescription?.id)}</p>
-                <p><span className="text-neutral-600">Date d’émission:</span> {documentDate}</p>
-                <p><span className="text-neutral-600">Lieu:</span> {issuePlace}</p>
-                <p><span className="text-neutral-600">N° dossier:</span> {displayValue(prescription?.metadata?.medicalRecordNumber || patient?.recordNumber, "Non attribué")}</p>
-              </div>
-            </div>
+      {/* ── EN-TÊTE BRANDING E-REZEPT SUISSE ── */}
+      <div className="-mx-10 -mt-10 mb-6 flex items-center justify-between bg-slate-900 px-10 py-4">
+        <div className="flex items-center gap-3">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded bg-red-600 text-xl font-bold leading-none text-white">
+            +
           </div>
-        </header>
-
-        <section className="border border-neutral-300 p-4">
-          <h5 className="text-[11px] tracking-[0.18em] uppercase text-neutral-600 font-semibold">Identité patient</h5>
-          <div className="mt-2 grid grid-cols-1 gap-y-1 sm:grid-cols-2 text-sm leading-6">
-            <p><span className="text-neutral-600">Nom complet:</span> {patientName}</p>
-            <p><span className="text-neutral-600">Date de naissance:</span> {formatSwissDate(patient?.birthDate || patient?.dateOfBirth)}</p>
-            <p><span className="text-neutral-600">Sexe:</span> {displayValue(patient?.sex || patient?.gender)}</p>
-            <p><span className="text-neutral-600">ID patient:</span> {displayValue(patient?.patientId || patient?.id || prescription?.patientId)}</p>
-            <p className="sm:col-span-2"><span className="text-neutral-600">Adresse:</span> {displayValue(patient?.address)}</p>
+          <div>
+            <p className="text-base font-semibold leading-tight tracking-wide text-white">
+              E-Rezept Schweiz
+            </p>
+            <p className="text-[11px] leading-tight text-slate-400">
+              Ordonnance électronique · CHMED16A_R2
+            </p>
           </div>
-        </section>
-
-        <section className="border border-neutral-300 p-4">
-          <h5 className="text-[11px] tracking-[0.18em] uppercase text-neutral-600 font-semibold">Métadonnées e-ordonnance Suisse</h5>
-          <div className="mt-2 grid grid-cols-1 gap-y-1 sm:grid-cols-2 text-sm leading-6">
-            <p><span className="text-neutral-600">Standard:</span> {displayValue(ePrescription?.standard, "CH-ERX")}</p>
-            <p><span className="text-neutral-600">Version:</span> {displayValue(ePrescription?.chmedVersion, "CHMED16A_R2")}</p>
-            <p><span className="text-neutral-600">Référence:</span> {displayValue(ePrescription?.reference)}</p>
-            <p><span className="text-neutral-600">Checksum dataset:</span> {displayValue(ePrescription?.datasetChecksum)}</p>
-            <p><span className="text-neutral-600">Date d&apos;émission:</span> {displayValue(ePrescription?.issuedAt, documentDate)}</p>
-            <p><span className="text-neutral-600">Validité:</span> {displayValue(ePrescription?.validUntil)}</p>
-            <p><span className="text-neutral-600">Type:</span> {displayValue(ePrescription?.issueType)}</p>
-            <p><span className="text-neutral-600">Répétitions:</span> {displayValue(String(ePrescription?.repeatsAllowed ?? 0), "0")}</p>
-            <p><span className="text-neutral-600">Substitution:</span> {ePrescription?.substitutionAllowed ? "Autorisée" : "Non autorisée"}</p>
-            <p><span className="text-neutral-600">Urgence:</span> {ePrescription?.emergencyPrescription ? "Oui" : "Non"}</p>
-            <p><span className="text-neutral-600">Stupéfiants exclus:</span> {ePrescription?.narcoticsExcludedDeclaration ? "Oui" : "Non"}</p>
-            <p className="break-all"><span className="text-neutral-600">Token signé:</span> {displayValue(ePrescription?.signedRegisteredToken)}</p>
-            <p className="sm:col-span-2"><span className="text-neutral-600">Indication thérapeutique:</span> {displayValue(ePrescription?.therapeuticPurpose)}</p>
-            <p><span className="text-neutral-600">N° AVS:</span> {displayValue(ePrescription?.patientAdministrative?.avsNumber)}</p>
-            <p><span className="text-neutral-600">Assureur:</span> {displayValue(ePrescription?.patientAdministrative?.insuranceName)}</p>
-            <p><span className="text-neutral-600">N° assurance:</span> {displayValue(ePrescription?.patientAdministrative?.insuranceNumber)}</p>
-            <p><span className="text-neutral-600">GLN:</span> {displayValue(ePrescription?.prescriber?.gln)}</p>
-            <p><span className="text-neutral-600">RCC / ID pro:</span> {displayValue(ePrescription?.prescriber?.rcc || ePrescription?.prescriber?.professionalId)}</p>
-            <p className="sm:col-span-2 break-all"><span className="text-neutral-600">Payload eRx:</span> {displayValue(ePrescription?.qrPayload)}</p>
-          </div>
-        </section>
-
-        <PrescriptionClinicalInfo clinicalInfo={clinicalInfo} />
-
-        <section className="border border-neutral-300 p-4">
-          <h5 className="text-[11px] tracking-[0.18em] uppercase text-neutral-600 font-semibold">Traitements prescrits</h5>
-          {medications.length > 0 ? (
-            <div className="mt-3 overflow-x-auto">
-              <table className="w-full border-collapse text-sm">
-                <thead>
-                  <tr className="border-y border-neutral-400 bg-neutral-50">
-                    <th className="px-2 py-2 text-left font-semibold">Médicament</th>
-                    <th className="px-2 py-2 text-left font-semibold">Dosage / Forme</th>
-                    <th className="px-2 py-2 text-left font-semibold">Posologie / Fréquence</th>
-                    <th className="px-2 py-2 text-left font-semibold">Durée / Qté</th>
-                    <th className="px-2 py-2 text-left font-semibold">Instructions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {medications.map((medication, index) => (
-                    <tr key={`${medication?.id || medication?.name || index}-${index}`} className="border-b border-neutral-200 align-top">
-                      <td className="px-2 py-2 font-medium">{displayValue(medication?.name, "Médicament non renseigné")}</td>
-                      <td className="px-2 py-2">{displayValue(medication?.dosage)} / {displayValue(medication?.pharmaceuticalForm || medication?.form)}</td>
-                      <td className="px-2 py-2">{displayValue(medication?.posology || medication?.instruction)} / {displayValue(medication?.frequency)}</td>
-                      <td className="px-2 py-2">{displayValue(medication?.duration)} / {displayValue(medication?.quantity)}</td>
-                      <td className="px-2 py-2">{displayValue(medication?.specialInstructions || medication?.notes || medication?.indication)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+        </div>
+        <div className="text-right">
+          <p className="text-xl font-bold tracking-widest text-white">ORDONNANCE</p>
+          {isChronic ? (
+            <span className="mt-1 inline-block rounded-full bg-blue-500 px-3 py-0.5 text-[11px] font-semibold tracking-wide text-white">
+              Ordonnance répétée
+            </span>
           ) : (
-            <p className="mt-3 text-sm italic text-neutral-600">Aucun traitement renseigné pour cette ordonnance.</p>
+            <span className="mt-1 inline-block rounded-full bg-emerald-500 px-3 py-0.5 text-[11px] font-semibold tracking-wide text-white">
+              Ordonnance unique
+            </span>
           )}
-        </section>
+        </div>
+      </div>
 
-        <section className="grid grid-cols-1 gap-5 md:grid-cols-2 pt-1">
-          <div className="text-sm leading-6">
-            <p><span className="text-neutral-600">Lieu et date:</span> {issuePlace}, le {documentDate}</p>
-            <p><span className="text-neutral-600">RCC / ID professionnel:</span> {displayValue(doctor?.rcc || doctor?.professionalId, "Non renseigné")}</p>
+      {/* ── PRESCRIPTEUR + QR CODE ── */}
+      <div className="mb-5 grid grid-cols-12 gap-4 border-b border-neutral-200 pb-5">
+        <div className="col-span-7 space-y-1 text-sm">
+          <p className="text-lg font-semibold text-neutral-900">{doctorName}</p>
+          <p className="text-neutral-700">
+            {displayValue(doctor?.specialty || doctor?.department)}
+          </p>
+          <p className="text-neutral-700">
+            {displayValue(doctor?.clinicName || doctor?.organization)}
+          </p>
+          <p className="text-neutral-700">{displayValue(doctor?.address)}</p>
+          <p className="text-neutral-700">
+            {[doctor?.postalCode, doctor?.state, doctor?.country].filter(Boolean).join(" ")}
+          </p>
+          {(doctor?.mobileNumber || doctor?.phone) && (
+            <p className="text-neutral-600">Tél. {doctor?.mobileNumber || doctor?.phone}</p>
+          )}
+          <div className="mt-2 space-y-0.5 border-t border-neutral-200 pt-2 font-mono text-xs">
+            {prescriberGln && (
+              <p>
+                <span className="font-sans text-neutral-500">GLN </span>
+                {prescriberGln}
+              </p>
+            )}
+            {prescriberRcc && (
+              <p>
+                <span className="font-sans text-neutral-500">RCC </span>
+                {prescriberRcc}
+              </p>
+            )}
+            {prescriberZsr && (
+              <p>
+                <span className="font-sans text-neutral-500">ZSR </span>
+                {prescriberZsr}
+              </p>
+            )}
           </div>
-          <div className="text-sm md:text-right">
-            <p className="text-neutral-600">Signature du médecin</p>
-            <div className="mt-10 border-t border-neutral-500 pt-2 inline-block min-w-[220px] text-left md:text-right">
-              <p className="font-medium">{doctorName}</p>
-            </div>
-          </div>
-        </section>
+        </div>
 
-        <footer className="border-t border-neutral-300 pt-3 text-xs leading-5 text-neutral-600">
-          <p>{displayValue(footerAddress, "Coordonnées cabinet non renseignées")}</p>
-          <p>{displayValue(doctor?.website || doctor?.email, "Contact non renseigné")}</p>
-          <p>Document médical professionnel. Toute modification thérapeutique requiert une réévaluation médicale.</p>
-        </footer>
+        <div className="col-span-5 flex flex-col items-center gap-2">
+          <div className="rounded-lg border-2 border-neutral-300 bg-white p-2 shadow-sm">
+            <QRCodeSVG value={qrPayload} size={128} level="M" includeMargin={false} />
+          </div>
+          <p className="max-w-[160px] break-all px-1 text-center font-mono text-[9px] leading-tight text-neutral-500">
+            {ePrescription?.reference || prescription?.id || "—"}
+          </p>
+          <p className="text-[10px] text-neutral-500">Scannez ce code en pharmacie</p>
+        </div>
+      </div>
+
+      {/* ── PATIENT ── */}
+      <div className="mb-4 rounded border border-neutral-300 bg-neutral-50 px-4 py-3">
+        <p className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-neutral-500">
+          Patient
+        </p>
+        <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
+          <p>
+            <span className="text-neutral-500">Nom / Prénom :</span>{" "}
+            <span className="font-semibold text-neutral-900">{patientName}</span>
+          </p>
+          <p>
+            <span className="text-neutral-500">Naissance :</span>{" "}
+            {formatSwissDate(patient?.birthDate || patient?.dateOfBirth)}
+          </p>
+          <p>
+            <span className="text-neutral-500">Sexe :</span>{" "}
+            {displayValue(patient?.sex || patient?.gender)}
+          </p>
+          <p>
+            <span className="text-neutral-500">N° AVS :</span>{" "}
+            <span className="font-mono">{displayValue(avsNumber)}</span>
+          </p>
+          {insuranceName && (
+            <p>
+              <span className="text-neutral-500">Assureur :</span> {insuranceName}
+            </p>
+          )}
+          {insuranceNumber && (
+            <p>
+              <span className="text-neutral-500">N° assurance :</span>{" "}
+              <span className="font-mono">{insuranceNumber}</span>
+            </p>
+          )}
+        </div>
+      </div>
+
+      {/* ── MÉTADONNÉES ORDONNANCE ── */}
+      <div className="mb-4 grid grid-cols-3 gap-3 text-sm">
+        <div className="rounded border border-neutral-200 px-3 py-2">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-neutral-500">
+            {"Date d'émission"}
+          </p>
+          <p className="mt-1 font-medium text-neutral-900">{issuedAt}</p>
+        </div>
+        <div className="rounded border border-red-200 bg-red-50 px-3 py-2">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-red-500">
+            {"Valable jusqu'au"}
+          </p>
+          <p className="mt-1 font-semibold text-red-700">{validUntil}</p>
+        </div>
+        <div className="rounded border border-neutral-200 px-3 py-2">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-neutral-500">
+            Répétitions
+          </p>
+          <p className="mt-1 font-medium text-neutral-900">
+            {Number(ePrescription?.repeatsAllowed ?? 0) > 0
+              ? `${ePrescription?.repeatsAllowed}×`
+              : "—"}
+          </p>
+        </div>
+      </div>
+
+      {/* ── TRAITEMENTS PRESCRITS ── */}
+      <div className="mb-4 overflow-hidden rounded border border-neutral-300">
+        <div className="border-b border-neutral-300 bg-slate-900 px-4 py-2">
+          <p className="text-[11px] font-semibold uppercase tracking-widest text-white">
+            Traitements prescrits
+          </p>
+        </div>
+        {medications.length > 0 ? (
+          <div className="divide-y divide-neutral-100">
+            {medications.map((med, idx) => (
+              <div
+                key={`${med?.id || med?.name || idx}`}
+                className="flex gap-3 px-4 py-3 text-sm"
+              >
+                <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-slate-800 text-[10px] font-bold text-white">
+                  {idx + 1}
+                </span>
+                <div className="min-w-0 flex-1 space-y-0.5">
+                  <p className="font-semibold text-neutral-900">
+                    {displayValue(med?.name)}{" "}
+                    <span className="font-normal text-neutral-600">
+                      {displayValue(med?.dosage, "")}
+                    </span>
+                  </p>
+                  {(med?.pharmaceuticalForm || med?.form) && (
+                    <p className="text-neutral-700">
+                      <span className="text-neutral-500">Forme : </span>
+                      {med?.pharmaceuticalForm || med?.form}
+                    </p>
+                  )}
+                  {(med?.posology || med?.instruction || med?.frequency) && (
+                    <p className="text-neutral-700">
+                      <span className="text-neutral-500">Posologie : </span>
+                      {med?.posology || med?.instruction || med?.frequency}
+                    </p>
+                  )}
+                  {(med?.duration || med?.quantity) && (
+                    <p className="text-neutral-700">
+                      <span className="text-neutral-500">Durée / Qté : </span>
+                      {[med?.duration, med?.quantity].filter(Boolean).join(" / ")}
+                    </p>
+                  )}
+                  {(med?.specialInstructions || med?.notes || med?.indication) && (
+                    <p className="italic text-neutral-600">
+                      {med?.specialInstructions || med?.notes || med?.indication}
+                    </p>
+                  )}
+                </div>
+                <div className="shrink-0 text-right font-mono text-[10px] text-neutral-500">
+                  {med?.atcCode && <p>ATC: {med.atcCode}</p>}
+                  {med?.eanCode && <p>EAN: {med.eanCode}</p>}
+                  {med?.controlledSubstance && (
+                    <p className="font-sans font-semibold text-red-600">⚠ Stupéfiant</p>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="px-4 py-3 text-sm italic text-neutral-500">
+            Aucun traitement renseigné.
+          </p>
+        )}
+      </div>
+
+      {/* ── INDICATION / INFOS CLINIQUES ── */}
+      {(ePrescription?.therapeuticPurpose || clinicalInfo?.diagnosis || clinicalInfo?.allergies) && (
+        <div className="mb-4 rounded border border-amber-200 bg-amber-50 px-4 py-3 text-sm">
+          <p className="mb-1 text-[10px] font-semibold uppercase tracking-widest text-amber-700">
+            Informations cliniques
+          </p>
+          {ePrescription?.therapeuticPurpose && (
+            <p>
+              <span className="text-amber-700">Indication : </span>
+              {ePrescription.therapeuticPurpose}
+            </p>
+          )}
+          {clinicalInfo?.diagnosis && (
+            <p>
+              <span className="text-amber-700">Diagnostic : </span>
+              {clinicalInfo.diagnosis}
+            </p>
+          )}
+          {clinicalInfo?.allergies && (
+            <p>
+              <span className="text-amber-700">Allergies : </span>
+              {normalizeArrayField(clinicalInfo.allergies, "Aucune")}
+            </p>
+          )}
+        </div>
+      )}
+
+      {/* ── SIGNATURE + SÉCURITÉ ── */}
+      <div className="mb-6 grid grid-cols-2 gap-4">
+        <div
+          className={`rounded border-2 px-4 py-3 ${
+            isSigned
+              ? "border-emerald-400 bg-emerald-50"
+              : "border-neutral-200 bg-neutral-50"
+          }`}
+        >
+          <div className="mb-2 flex items-center gap-2">
+            {isSigned ? (
+              <span className="flex items-center gap-1.5 text-sm font-semibold text-emerald-700">
+                <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
+                  <path
+                    fillRule="evenodd"
+                    d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                    clipRule="evenodd"
+                  />
+                </svg>
+                Signé électroniquement
+              </span>
+            ) : (
+              <span className="text-sm font-medium text-neutral-500">
+                En attente de signature
+              </span>
+            )}
+          </div>
+          {ePrescription?.registration?.registrationId && (
+            <p className="text-xs text-neutral-600">
+              <span className="text-neutral-500">ID enregistrement : </span>
+              <span className="font-mono">{ePrescription.registration.registrationId}</span>
+            </p>
+          )}
+          {ePrescription?.datasetChecksum && (
+            <p className="break-all text-xs text-neutral-600">
+              <span className="text-neutral-500">Checksum : </span>
+              <span className="font-mono">{ePrescription.datasetChecksum}</span>
+            </p>
+          )}
+          {ePrescription?.substitutionAllowed !== undefined && (
+            <p
+              className={`mt-2 text-xs font-medium ${
+                ePrescription.substitutionAllowed ? "text-emerald-600" : "text-red-600"
+              }`}
+            >
+              {ePrescription.substitutionAllowed
+                ? "✓ Substitution autorisée"
+                : "✗ Substitution refusée"}
+            </p>
+          )}
+          {ePrescription?.emergencyPrescription && (
+            <p className="mt-1 text-xs font-semibold text-orange-600">
+              {"⚡ Ordonnance d'urgence"}
+            </p>
+          )}
+        </div>
+
+        <div className="rounded border border-neutral-200 px-4 py-3 text-sm">
+          <p className="text-[10px] font-semibold uppercase tracking-widest text-neutral-500">
+            Prescripteur
+          </p>
+          <p className="mt-1 font-medium text-neutral-900">{doctorName}</p>
+          <p className="text-neutral-600">{displayValue(doctor?.specialty)}</p>
+          <p className="text-neutral-600">
+            {[
+              displayValue(doctor?.address, ""),
+              [doctor?.postalCode, doctor?.state].filter(Boolean).join(" "),
+            ]
+              .filter(Boolean)
+              .join(", ")}
+          </p>
+          <div className="mt-6 border-t border-neutral-400 pt-1">
+            <p className="text-[10px] text-neutral-500">
+              {displayValue(
+                prescription?.metadata?.place || doctor?.state,
+                "Suisse"
+              )}
+              , le {documentDate}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* ── PIED DE PAGE ── */}
+      <div className="-mx-10 -mb-10 flex items-center justify-between border-t-2 border-neutral-200 bg-slate-900 px-10 py-3">
+        <div className="flex items-center gap-2 text-xs text-slate-400">
+          <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded bg-red-600 text-xs font-bold leading-none text-white">
+            +
+          </div>
+          <span>
+            E-Rezept Schweiz · CHMED16A_R2 · Ce document doit être présenté
+            électroniquement en pharmacie.
+          </span>
+        </div>
+        <p className="font-mono text-[10px] text-slate-500">
+          {ePrescription?.reference || prescription?.id || "—"}
+        </p>
       </div>
     </MedicalDocumentA4>
   );
-};
-
-PrescriptionDocumentPreview.propTypes = {
-  prescription: PropTypes.object,
-  patient: PropTypes.object,
-  doctor: PropTypes.object,
-};
-
-export const ContactLine = ({ icon, text }) => (
-  <p className="inline-flex items-center gap-2 text-sm text-neutral-600">
-    {icon}
-    <span>{text}</span>
-  </p>
-);
-
-ContactLine.propTypes = {
-  icon: PropTypes.node.isRequired,
-  text: PropTypes.string.isRequired,
-};
-
-export const ProfileInfoBlock = ({ name, email, phone, location }) => (
-  <section className="rounded-[20px] border border-neutral-100 bg-white shadow-sm p-4 space-y-2">
-    <p className="text-sm font-semibold text-neutral-900">{name}</p>
-    {email ? <ContactLine icon={<Mail className="h-4 w-4 text-medical-500" />} text={email} /> : null}
-    {phone ? <ContactLine icon={<Phone className="h-4 w-4 text-medical-500" />} text={phone} /> : null}
-    {location ? <ContactLine icon={<MapPin className="h-4 w-4 text-medical-500" />} text={location} /> : null}
-  </section>
-);
-
-ProfileInfoBlock.propTypes = {
-  name: PropTypes.string.isRequired,
-  email: PropTypes.string,
-  phone: PropTypes.string,
-  location: PropTypes.string,
 };
