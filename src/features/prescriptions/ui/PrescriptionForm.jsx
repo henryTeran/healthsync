@@ -28,7 +28,6 @@ export const PrescriptionForm = ({ prescriptionId, onStatusChange, refreshToken 
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   const [isSendingApp, setIsSendingApp] = useState(false);
   const [isSendingEmail, setIsSendingEmail] = useState(false);
-  const printRef = useRef(null);
   // Élément hors-écran dédié à la capture PDF (pas de décorations UI)
   const pdfRef = useRef(null);
 
@@ -262,7 +261,7 @@ export const PrescriptionForm = ({ prescriptionId, onStatusChange, refreshToken 
         actions={actions}
       >
         {prescription ? (
-          <div ref={printRef}>
+          <div>
             <SwissEPrescriptionDocument
               prescription={prescription}
               patient={prescription?.profilPatient}
