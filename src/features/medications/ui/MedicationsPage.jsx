@@ -107,6 +107,7 @@ export const MedicationsPage = () => {
   const [isLoadingPatients, setIsLoadingPatients] = useState(true);
   const [statusBanner, setStatusBanner] = useState("");
   const [prescriptionStatus, setPrescriptionStatus] = useState(PRESCRIPTION_STATUS.DRAFT);
+  const [isSubmittingPrescription, setIsSubmittingPrescription] = useState(false);
   const [patientSearch, setPatientSearch] = useState("");
   const [previewRefreshToken, setPreviewRefreshToken] = useState(0);
   const [revocationReason, setRevocationReason] = useState("");
@@ -213,13 +214,57 @@ export const MedicationsPage = () => {
   );
 
   const handleContactSelect = (contact) => {
+    const hasPatientChanged = contact?.id && contact.id !== selectedPatient?.id;
+
     setIdPatient(contact.id);
     setSelectedPatient(contact);
     setStatusBanner("");
+
+    if (hasPatientChanged) {
+      setIdPrescription(null);
+      setShowPdf(false);
+      setSelectedMedications([]);
+      setPrescriptionStatus(PRESCRIPTION_STATUS.DRAFT);
+      setRevocationReason("");
+      setPreviewRefreshToken(0);
+      setEPrescriptionForm((previous) => ({
+        ...previous,
+        signedRegisteredToken: "",
+        reference: "",
+      }));
+    }
+
     setClinicalInfoForm((previous) => ({
       ...previous,
       allergies: contact?.allergies || previous.allergies,
     }));
+  };
+
+  const syncMedicationsForPrescription = async (targetPrescriptionId, replaceExisting = false) => {
+    if (!targetPrescriptionId) return;
+
+    if (replaceExisting) {
+      const medications = await getMedicationsByPrescription(targetPrescriptionId);
+      logDebug("Suppression médicaments avant mise à jour", {
+        feature: "medications",
+        action: "syncMedicationsForPrescription",
+        prescriptionId: targetPrescriptionId,
+        medicationsCount: medications.length,
+      });
+
+      await Promise.all(
+        medications.map((medication) => deleteMedication(medication.documentId || medication.id))
+      );
+    }
+
+    for (const medication of selectedMedications) {
+      await addMedication({
+        idPrescription: targetPrescriptionId,
+        medication,
+        patientId: idPatient,
+        doctorId: user.uid,
+      });
+    }
   };
 
   const buildSwissPayloadOrFail = async () => {
@@ -308,6 +353,12 @@ export const MedicationsPage = () => {
       return;
     }
 
+    if (isSubmittingPrescription) {
+      return;
+    }
+
+    setIsSubmittingPrescription(true);
+
     try {
       if (!idPrescription) {
         const swissPayload = await buildSwissPayloadOrFail();
@@ -316,25 +367,20 @@ export const MedicationsPage = () => {
         setIdPrescription(prescriptionId);
         setPrescriptionStatus(PRESCRIPTION_STATUS.CREATED);
 
-        for (const medication of selectedMedications) {
-          await addMedication({
-            idPrescription: prescriptionId,
-            medication,
-            patientId: idPatient,
-            doctorId: user.uid,
-          });
-        }
+        await syncMedicationsForPrescription(prescriptionId, false);
 
         setStatusBanner("Prescription créée avec succès.");
         setPreviewRefreshToken((previous) => previous + 1);
       }
     } catch (error) {
-      alert("Erreur lors de l'enregistrement de la prescription.");
+      alert(error?.message || "Erreur lors de l'enregistrement de la prescription.");
       logError("Erreur création ordonnance", error, {
         feature: "medications",
         action: "handleSavePrescription",
         patientId: idPatient,
       });
+    } finally {
+      setIsSubmittingPrescription(false);
     }
   };
 
@@ -350,6 +396,12 @@ export const MedicationsPage = () => {
       alert("Veuillez sélectionner un patient et ajouter des médicaments.");
       return;
     }
+
+    if (isSubmittingPrescription) {
+      return;
+    }
+
+    setIsSubmittingPrescription(true);
 
     try {
       if (idPrescription) {
@@ -379,14 +431,7 @@ export const MedicationsPage = () => {
             },
           });
 
-          for (const medication of selectedMedications) {
-            await addMedication({
-              idPrescription: newPrescriptionId,
-              medication,
-              patientId: idPatient,
-              doctorId: user.uid,
-            });
-          }
+          await syncMedicationsForPrescription(newPrescriptionId, false);
 
           await updatePrescription(idPrescription, {
             status: PRESCRIPTION_STATUS.CANCELLED,
@@ -409,28 +454,7 @@ export const MedicationsPage = () => {
           return;
         }
 
-        const medications = await getMedicationsByPrescription(idPrescription);
-        logDebug("Suppression médicaments avant mise à jour", {
-          feature: "medications",
-          action: "handleUpdatePrescription",
-          prescriptionId: idPrescription,
-          medicationsCount: medications.length,
-        });
-
-        await Promise.all(
-          medications.map((medication) =>
-            deleteMedication(medication.documentId || medication.id)
-          )
-        );
-
-        for (const medication of selectedMedications) {
-          await addMedication({
-            idPrescription,
-            medication,
-            patientId: idPatient,
-            doctorId: user.uid,
-          });
-        }
+        await syncMedicationsForPrescription(idPrescription, true);
 
         await updatePrescription(idPrescription, {
           ...swissPayload,
@@ -442,12 +466,14 @@ export const MedicationsPage = () => {
         setPreviewRefreshToken((previous) => previous + 1);
       }
     } catch (error) {
-      alert("Erreur lors de la modification de la prescription.");
+      alert(error?.message || "Erreur lors de la modification de la prescription.");
       logError("Erreur mise à jour ordonnance", error, {
         feature: "medications",
         action: "handleUpdatePrescription",
         prescriptionId: idPrescription,
       });
+    } finally {
+      setIsSubmittingPrescription(false);
     }
   };
 
@@ -853,10 +879,12 @@ export const MedicationsPage = () => {
                 <button
                   type="button"
                   onClick={idPrescription ? handleUpdatePrescription : handleSavePrescription}
-                  disabled={!canSubmitSwissPrescription}
+                  disabled={!canSubmitSwissPrescription || isSubmittingPrescription}
                   className="h-11 rounded-xl bg-medical-600 hover:bg-medical-700 disabled:bg-neutral-300 disabled:cursor-not-allowed text-white font-medium px-5"
                 >
-                  {idPrescription
+                  {isSubmittingPrescription
+                    ? "Traitement en cours..."
+                    : idPrescription
                     ? IMMUTABLE_PRESCRIPTION_STATUSES.has(prescriptionStatus)
                       ? "Révoquer puis recréer la prescription"
                       : "Mettre à jour la prescription"
