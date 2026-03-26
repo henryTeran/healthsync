@@ -8,17 +8,19 @@ import PropTypes from "prop-types";
 import { sendPrescriptionByEmail } from "../../../shared/services/emailService";
 import { sendPrescriptionNotification } from "../../../features/notifications";
 import { getUserProfile } from "../../../features/profile";
-import { jsPDF } from "jspdf"; 
-import html2canvas from "html2canvas";
 import { uploadPrescriptionPDF } from "../../../shared/services/storageService";
 import { logDebug, logError } from "../../../shared/lib/logger";
 import { PRESCRIPTION_STATUS } from "../domain/prescriptionStatus";
 import { FileDown, Mail, Send } from "lucide-react";
 import {
-  PrescriptionDocumentPreview,
   PrescriptionEmptyState,
   PrescriptionPreviewPanel,
 } from "../../medications/ui/components/MedicalUiComponents";
+import { SwissEPrescriptionDocument } from "./SwissEPrescriptionDocument";
+import {
+  downloadGeneratedPdf,
+  generatePrescriptionPdfBlob,
+} from "./PrescriptionPdfGenerator";
 
 
 export const PrescriptionForm = ({ prescriptionId, onStatusChange, refreshToken }) => {
@@ -155,44 +157,13 @@ export const PrescriptionForm = ({ prescriptionId, onStatusChange, refreshToken 
     setIsGeneratingPdf(true);
 
     try {
-      const canvas = await html2canvas(element, {
-        scale: 2,
-        useCORS: true,
-        backgroundColor: "#ffffff",
-        logging: false,
-        // onclone : supprime border et shadow du shell A4 dans la copie DOM
-        onclone: (clonedDoc) => {
-          const docEl = clonedDoc.querySelector('[data-pdf-document]');
-          if (docEl) {
-            docEl.style.border = 'none';
-            docEl.style.boxShadow = 'none';
-            docEl.style.maxWidth = '100%';
-            docEl.style.width = '100%';
-            docEl.style.margin = '0';
-          }
-        },
+      const { pdf, blob } = await generatePrescriptionPdfBlob({
+        element,
+        fileName: `ordonnance-${prescription.id.slice(-8)}.pdf`,
       });
 
-      const imgData = canvas.toDataURL("image/png");
-
-      // jsPDF en mm — A4 = 210 × 297 mm
-      const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
-      const pageWidthMm = pdf.internal.pageSize.getWidth();   // 210
-      const pageHeightMm = pdf.internal.pageSize.getHeight(); // 297
-      const imgHeightMm = (canvas.height / canvas.width) * pageWidthMm;
-
-      // Multi-page : découpe l'image en tranches de hauteur pageHeightMm
-      let yOffset = 0;
-      while (yOffset < imgHeightMm) {
-        if (yOffset > 0) pdf.addPage();
-        pdf.addImage(imgData, "PNG", 0, -yOffset, pageWidthMm, imgHeightMm);
-        yOffset += pageHeightMm;
-      }
-
-      const pdfBlob = pdf.output("blob");
-
       // Upload Firebase Storage
-      const pdfUrl = await uploadPrescriptionPDF(prescription.id, pdfBlob);
+      const pdfUrl = await uploadPrescriptionPDF(prescription.id, blob);
 
       // Mise à jour Firestore
       await updatePrescription(prescription.id, {
@@ -207,7 +178,10 @@ export const PrescriptionForm = ({ prescriptionId, onStatusChange, refreshToken 
       onStatusChange?.(PRESCRIPTION_STATUS.PDF_GENERATED);
 
       // Téléchargement local
-      pdf.save(`ordonnance-${prescription.id.slice(-8)}.pdf`);
+      downloadGeneratedPdf({
+        pdf,
+        fileName: `ordonnance-${prescription.id.slice(-8)}.pdf`,
+      });
       alert("Prescription générée et téléchargée avec succès !");
     } catch (error) {
       logError("Erreur lors de l'enregistrement du PDF", error, {
@@ -273,7 +247,7 @@ export const PrescriptionForm = ({ prescriptionId, onStatusChange, refreshToken 
         }}
       >
         {prescription && (
-          <PrescriptionDocumentPreview
+          <SwissEPrescriptionDocument
             prescription={prescription}
             patient={prescription.profilPatient}
             doctor={prescription.profilDoctor}
@@ -289,7 +263,7 @@ export const PrescriptionForm = ({ prescriptionId, onStatusChange, refreshToken 
       >
         {prescription ? (
           <div ref={printRef}>
-            <PrescriptionDocumentPreview
+            <SwissEPrescriptionDocument
               prescription={prescription}
               patient={prescription?.profilPatient}
               doctor={prescription?.profilDoctor}
